@@ -2,16 +2,118 @@
   "_comment": "Per-county precinct-boundary GIS sources for the statewide precinct map. Coverage grows county-by-county; each entry is an ArcGIS FeatureServer layer + the attribute holding the precinct id (normalized to match the TQV turnout feed). Run: python scripts/build_precincts.py [--verify]",
   "counties": [
     {
+      "code": "ALA",
+      "county": "Alachua",
+      "url": "https://services1.arcgis.com/MiBZ4u97DWldovjI/arcgis/rest/services/Voting_Precincts/FeatureServer/0",
+      "precinct_field": "PRECINCT"
+    },
+    {
       "code": "DAD",
       "county": "Miami-Dade",
       "url": "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/Precinct_gdb/FeatureServer/0",
       "precinct_field": "ID"
     },
     {
+      "code": "FLA",
+      "county": "Flagler",
+      "url": "https://services3.arcgis.com/hSKL9bYjhP4rHxSD/arcgis/rest/services/Voting_Precincts/FeatureServer/3",
+      "precinct_field": "PRECINCT"
+    },
+    {
+      "code": "HEN",
+      "county": "Hendry",
+      "url": "https://services7.arcgis.com/8l7Qq5t0CPLAJwJK/arcgis/rest/services/Hendry_County_Precincts_WFL1/FeatureServer/1",
+      "precinct_field": "Precinct"
+    },
+    {
+      "code": "HER",
+      "county": "Hernando",
+      "url": "https://services2.arcgis.com/x5zvhhxfUuRDntRe/arcgis/rest/services/Voters/FeatureServer/7",
+      "precinct_field": "PRECINCT"
+    },
+    {
+      "code": "HIL",
+      "county": "Hillsborough",
+      "url": "https://services.arcgis.com/apTfC6SUmnNfnxuF/arcgis/rest/services/ElectionGeography_1793fd0371ac4284a1c599bcaa3e91cc/FeatureServer/1",
+      "precinct_field": "name"
+    },
+    {
+      "code": "IND",
+      "county": "Indian River",
+      "url": "https://services1.arcgis.com/DwYBkWQPdaJNWrPG/arcgis/rest/services/BoundaryData/FeatureServer/8",
+      "precinct_field": "NUMBER"
+    },
+    {
+      "code": "LEO",
+      "county": "Leon",
+      "url": "https://intervector.leoncountyfl.gov/intervector/rest/services/MapServices/SOE_DistrictsCurrent_D_WM/MapServer/0",
+      "precinct_field": "PRECINCT"
+    },
+    {
+      "code": "NAS",
+      "county": "Nassau",
+      "url": "https://services5.arcgis.com/F73IhFZbCCYUexxB/arcgis/rest/services/SOE_Precinct_Boundary/FeatureServer/19",
+      "precinct_field": "PRECINCT"
+    },
+    {
       "code": "ORA",
       "county": "Orange",
       "url": "https://services8.arcgis.com/KROpZDerJ9MICPIU/arcgis/rest/services/2024_Precincts/FeatureServer/0",
       "precinct_field": "Precinct"
+    },
+    {
+      "code": "OSC",
+      "county": "Osceola",
+      "url": "https://services6.arcgis.com/9zKHLCgIwu2HFA5O/arcgis/rest/services/Osceola_County_Voter_Precincts/FeatureServer/4",
+      "precinct_field": "Precinct"
+    },
+    {
+      "code": "PAL",
+      "county": "Palm Beach",
+      "url": "https://services1.arcgis.com/ZWOoUZbtaYePLlPw/arcgis/rest/services/PRECINCTS/FeatureServer/0",
+      "precinct_field": "PRECINCT"
+    },
+    {
+      "code": "PAS",
+      "county": "Pasco",
+      "url": "https://services6.arcgis.com/Mo4MddfRHpFwT7UF/arcgis/rest/services/PascoMapper_Political/FeatureServer/112",
+      "precinct_field": "Precinct"
+    },
+    {
+      "code": "PIN",
+      "county": "Pinellas",
+      "url": "https://services.arcgis.com/f5HgUpxURgEzTccH/arcgis/rest/services/Pinellas_VotingPrecinct_view/FeatureServer/0",
+      "precinct_field": "PRECINCTID"
+    },
+    {
+      "code": "PUT",
+      "county": "Putnam",
+      "url": "https://services1.arcgis.com/YZc1OyqL6jbIOeOv/arcgis/rest/services/Voting_Precinct__new_hub/FeatureServer/0",
+      "precinct_field": "PRECINCTID"
+    },
+    {
+      "code": "SAN",
+      "county": "Santa Rosa",
+      "url": "https://services.arcgis.com/Eg4L1xEv2R3abuQd/arcgis/rest/services/SantaRosaCountyVotingPrecincts/FeatureServer/0",
+      "precinct_field": "ID"
+    },
+    {
+      "code": "SAR",
+      "county": "Sarasota",
+      "url": "https://ags3.scgov.net/server/rest/services/Hosted/VotingPrecinct/FeatureServer/0",
+      "precinct_field": "precinctnumber"
+    },
+    {
+      "code": "STL",
+      "county": "St. Lucie",
+      "url": "https://slcgis.stlucieco.gov/hosting/rest/services/Political/VotingPrecincts/MapServer/0",
+      "precinct_field": "PRECINCT"
+    },
+    {
+      "code": "SUM",
+      "county": "Sumter",
+      "url": "https://services8.arcgis.com/FTrtUCmxaVKdPC5e/arcgis/rest/services/Voting_Precincts/FeatureServer/0",
+      "precinct_field": "PRECINCTID"
     }
   ]
 }
