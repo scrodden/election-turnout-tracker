@@ -1,0 +1,11 @@
+# Normalize line endings: store text as LF in the repo so the GitHub Actions
+# Linux runner (and its bash `run:` scripts) never see CRLF.
+* text=auto eol=lf
+
+*.geojson text eol=lf
+*.json    text eol=lf
+*.py      text eol=lf
+*.yml     text eol=lf
+*.js      text eol=lf
+*.css     text eol=lf
+*.html    text eol=lf

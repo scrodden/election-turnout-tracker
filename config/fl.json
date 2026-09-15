@@ -1,0 +1,47 @@
+{
+  "state": "fl",
+  "state_name": "Florida",
+  "state_fips": "12",
+  "election": {
+    "number": "49894",
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "sources": {
+    "stats_page": "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats",
+    "file_base": "https://electionfiles.floridados.gov/countyballotreportfiles/",
+    "files": {
+      "mail_provided": "Stats_49894_VbmProvided.txt",
+      "mail_voted": "Stats_49894_VbmVoted.txt",
+      "early_voted": "Stats_49894_EarlyVoting.txt"
+    }
+  },
+  "stat_type_map": {
+    "Vote-by-Mail Provided (Not Yet Returned)": "mail_provided",
+    "Voted Vote-by-Mail": "mail_voted",
+    "Voted Early": "early_voted",
+    "Voted Election Day": "election_day"
+  },
+  "method_labels": {
+    "mail_provided": "Mail ballots outstanding",
+    "mail_voted": "Voted by mail",
+    "early_voted": "Voted early in person",
+    "election_day": "Voted on election day",
+    "cast": "All ballots cast",
+    "all": "All ballots cast"
+  },
+  "races": [
+    {
+      "id": "gov",
+      "office": "Governor",
+      "note": "Open seat in 2026 (DeSantis term-limited).",
+      "results": null
+    },
+    {
+      "id": "sen",
+      "office": "U.S. Senate",
+      "note": "Included per project scope; confirm whether a 2026 FL Senate race (regular or special) is on the ballot before finalizing.",
+      "results": null
+    }
+  ]
+}

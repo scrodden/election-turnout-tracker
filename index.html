@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Florida Turnout Tracker &mdash; 2026</title>
+<meta name="description" content="Live partisan composition of Florida election turnout by county and voting method, from official Florida Division of Elections data." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles">
+      <h1>Florida Turnout Tracker</h1>
+      <p id="election-name" class="sub">Loading&hellip;</p>
+    </div>
+    <div class="status">
+      <div id="updated" class="updated" title="When the state last compiled the data / when this page last fetched it"></div>
+      <div class="refresh-note">Auto-refreshes every 10&nbsp;min</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="controls" aria-label="View controls">
+    <div class="method-picker" id="method-picker" role="tablist" aria-label="Voting method"></div>
+    <p id="method-hint" class="method-hint"></p>
+  </section>
+
+  <section id="summary" class="summary" aria-label="Statewide summary"></section>
+
+  <section class="grid">
+    <div class="card map-card">
+      <div class="card-head">
+        <h2>Partisan lean by county</h2>
+        <div class="legend" id="legend" aria-hidden="true"></div>
+      </div>
+      <div id="map-holder" class="map-holder">
+        <svg id="map" role="img" aria-label="Choropleth map of Florida counties"></svg>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </div>
+      <p class="fineprint">Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet.</p>
+    </div>
+
+    <div class="card table-card">
+      <div class="card-head">
+        <h2>County detail</h2>
+        <input id="filter" class="filter" type="search" placeholder="Filter counties&hellip;" aria-label="Filter counties" />
+      </div>
+      <div class="table-scroll">
+        <table id="table">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="site-foot">
+    <p>Source: <a href="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats" target="_blank" rel="noopener">Florida Department of State, Division of Elections</a> &mdash; County Vote-by-Mail &amp; Early Voting Reports. Data is cumulative through the prior day and refreshed by the state a few times daily.</p>
+    <p class="dim">This is an independent, non-partisan data project. &ldquo;Partisan composition&rdquo; reflects the <em>party registration</em> of voters who have cast (or been sent) ballots &mdash; not how they voted.</p>
+    <p id="hash" class="dim"></p>
+  </footer>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

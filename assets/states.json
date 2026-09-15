@@ -1,0 +1,13 @@
+{
+  "note": "Registry of states tracked by this project. Florida is the first module; others plug in here as they are added.",
+  "states": [
+    {
+      "code": "fl",
+      "name": "Florida",
+      "status": "live",
+      "data": "data/fl/latest.json",
+      "history": "data/fl/history.jsonl",
+      "config": "config/fl.json"
+    }
+  ]
+}
