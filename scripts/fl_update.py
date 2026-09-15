@@ -195,6 +195,66 @@ def fetch_dos(cfg):
 
 
 # --------------------------------------------------------------------------
+# Broward ENR (registered voters + overall turnout; partisan stays DOS)
+# --------------------------------------------------------------------------
+ENR_ANCHOR_RE = re.compile(
+    r'<a[^>]+href="[^"]*?/ENR/browardflenr/(\d+)/[^"]*"[^>]*>(.*?)</a>',
+    re.IGNORECASE | re.DOTALL)
+
+
+def _xml_tag(text, tag):
+    m = re.search(r"<%s>(.*?)</%s>" % (tag, tag), text, re.IGNORECASE | re.DOTALL)
+    return m.group(1).strip() if m else None
+
+
+def fetch_broward_enr(cfg):
+    """Return {registered, cast_total, turnout, is_general, id} or None.
+
+    Picks a COUNTYWIDE election for the registered-voter denominator: prefers
+    the 2026 General, then the most recent general/primary (municipal/special
+    elections cover only part of the county and would undercount registration).
+    """
+    b = cfg.get("broward_enr")
+    if not b:
+        return None
+    try:
+        page = C.http_get(b["results_page"], no_cache=True, retries=2)
+    except Exception:  # noqa: BLE001
+        return None
+    ids = []
+    for m in ENR_ANCHOR_RE.finditer(page):
+        label = re.sub(r"<[^>]+>", " ", m.group(2))
+        ids.append((m.group(1), re.sub(r"\s+", " ", label).strip().lower()))
+    if not ids:
+        return None
+    prefer = (b.get("prefer_label") or "").lower()
+    chosen, is_general = None, False
+    for eid, label in ids:                       # 1) exact preferred (2026 general)
+        if prefer and prefer in label:
+            chosen, is_general = eid, True
+            break
+    if chosen is None:                            # 2) most recent countywide race
+        countywide = [eid for eid, label in ids
+                      if "general" in label or "primary" in label]
+        if countywide:
+            chosen = max(countywide, key=int)
+    if chosen is None:                            # 3) last resort: latest of anything
+        chosen = max((eid for eid, _ in ids), key=int)
+    try:
+        xml = C.http_get(b["enr_base"] + chosen + "/summary_" + chosen + ".xml",
+                         no_cache=True, retries=2)
+    except Exception:  # noqa: BLE001
+        return None
+    reg = C.parse_number(_xml_tag(xml, "RegisteredVoters"))
+    cast = C.parse_number(_xml_tag(xml, "TotalBallotsCast"))
+    turnout = _xml_tag(xml, "VoterTurnout")
+    if not reg:
+        return None
+    return {"id": chosen, "registered": reg, "cast_total": cast,
+            "turnout": turnout, "is_general": is_general}
+
+
+# --------------------------------------------------------------------------
 # Assembly
 # --------------------------------------------------------------------------
 def block_from_counts(counts, compiled="", compiled_iso=""):
@@ -353,6 +413,19 @@ def main():
                 "election": cfg["election"], "registered": tqv["registered"],
                 "last_updated": tqv["last_updated"], "precincts": tqv["precincts"],
             }
+
+    # Broward: fill registered voters / turnout from ENR while its TQV general
+    # feed isn't publishing (partisan cast still comes from DOS).
+    bw = counties_out.get("Broward")
+    if bw and bw.get("source") != "tqv" and not bw.get("registered"):
+        enr = fetch_broward_enr(cfg)
+        if enr:
+            bw["registered"] = enr["registered"]
+            bw["turnout_pct"] = C.pct(bw["cast"]["total"], enr["registered"])
+            bw["registered_source"] = "enr"
+            bw["enr"] = {"id": enr["id"], "is_general": enr["is_general"]}
+            print("  Broward ENR: registered=%d (election %s, general=%s)"
+                  % (enr["registered"], enr["id"], enr["is_general"]))
 
     # statewide = sum of counties
     statewide = {}

@@ -22,6 +22,13 @@
       "Provisional": "provisional"
     }
   },
+  "broward_enr": {
+    "_comment": "Broward's TQV general feed isn't publishing yet; use its VR Systems ENR summary XML for registered voters + overall turnout (partisan cast still comes from DOS). Resolves the election id from the results page; prefers the 2026 General, else the latest available (registered-voter count is stable across a cycle).",
+    "county": "Broward",
+    "results_page": "https://browardvotes.gov/results-information/election-results-information",
+    "enr_base": "https://results.browardvotes.gov/ENR/browardflenr/",
+    "prefer_label": "2026 general"
+  },
   "dos": {
     "_comment": "Secondary source: FL Dept of State statewide consolidated file. Provides 'mail ballots outstanding' (not in TQV) and serves as a fallback if a county's TQV feed is unavailable.",
     "stats_page": "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats",
