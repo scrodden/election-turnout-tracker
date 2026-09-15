@@ -1,0 +1,342 @@
+{
+ "note": "Florida county reference: name, VR Systems TQV county code (S3 folder / tqv.vrswebapps.com ?county=), and 5-digit FIPS.",
+ "tqv_base": "https://s3.amazonaws.com/turnoutquickview.electionsfl.org/data/FL/",
+ "tqv_view": "https://tqv.vrswebapps.com/?state=FL&county=",
+ "counties": [
+  {
+   "name": "Alachua",
+   "code": "ALA",
+   "fips": "12001"
+  },
+  {
+   "name": "Baker",
+   "code": "BAK",
+   "fips": "12003"
+  },
+  {
+   "name": "Bay",
+   "code": "BAY",
+   "fips": "12005"
+  },
+  {
+   "name": "Bradford",
+   "code": "BRA",
+   "fips": "12007"
+  },
+  {
+   "name": "Brevard",
+   "code": "BRE",
+   "fips": "12009"
+  },
+  {
+   "name": "Broward",
+   "code": "BRO",
+   "fips": "12011"
+  },
+  {
+   "name": "Calhoun",
+   "code": "CAL",
+   "fips": "12013"
+  },
+  {
+   "name": "Charlotte",
+   "code": "CHA",
+   "fips": "12015"
+  },
+  {
+   "name": "Citrus",
+   "code": "CIT",
+   "fips": "12017"
+  },
+  {
+   "name": "Clay",
+   "code": "CLA",
+   "fips": "12019"
+  },
+  {
+   "name": "Collier",
+   "code": "CLL",
+   "fips": "12021"
+  },
+  {
+   "name": "Columbia",
+   "code": "CLM",
+   "fips": "12023"
+  },
+  {
+   "name": "DeSoto",
+   "code": "DES",
+   "fips": "12027"
+  },
+  {
+   "name": "Dixie",
+   "code": "DIX",
+   "fips": "12029"
+  },
+  {
+   "name": "Duval",
+   "code": "DUV",
+   "fips": "12031"
+  },
+  {
+   "name": "Escambia",
+   "code": "ESC",
+   "fips": "12033"
+  },
+  {
+   "name": "Flagler",
+   "code": "FLA",
+   "fips": "12035"
+  },
+  {
+   "name": "Franklin",
+   "code": "FRA",
+   "fips": "12037"
+  },
+  {
+   "name": "Gadsden",
+   "code": "GAD",
+   "fips": "12039"
+  },
+  {
+   "name": "Gilchrist",
+   "code": "GIL",
+   "fips": "12041"
+  },
+  {
+   "name": "Glades",
+   "code": "GLA",
+   "fips": "12043"
+  },
+  {
+   "name": "Gulf",
+   "code": "GUL",
+   "fips": "12045"
+  },
+  {
+   "name": "Hamilton",
+   "code": "HAM",
+   "fips": "12047"
+  },
+  {
+   "name": "Hardee",
+   "code": "HAR",
+   "fips": "12049"
+  },
+  {
+   "name": "Hendry",
+   "code": "HEN",
+   "fips": "12051"
+  },
+  {
+   "name": "Hernando",
+   "code": "HER",
+   "fips": "12053"
+  },
+  {
+   "name": "Highlands",
+   "code": "HIG",
+   "fips": "12055"
+  },
+  {
+   "name": "Hillsborough",
+   "code": "HIL",
+   "fips": "12057"
+  },
+  {
+   "name": "Holmes",
+   "code": "HOL",
+   "fips": "12059"
+  },
+  {
+   "name": "Indian River",
+   "code": "IND",
+   "fips": "12061"
+  },
+  {
+   "name": "Jackson",
+   "code": "JAC",
+   "fips": "12063"
+  },
+  {
+   "name": "Jefferson",
+   "code": "JEF",
+   "fips": "12065"
+  },
+  {
+   "name": "Lafayette",
+   "code": "LAF",
+   "fips": "12067"
+  },
+  {
+   "name": "Lake",
+   "code": "LAK",
+   "fips": "12069"
+  },
+  {
+   "name": "Lee",
+   "code": "LEE",
+   "fips": "12071"
+  },
+  {
+   "name": "Leon",
+   "code": "LEO",
+   "fips": "12073"
+  },
+  {
+   "name": "Levy",
+   "code": "LEV",
+   "fips": "12075"
+  },
+  {
+   "name": "Liberty",
+   "code": "LIB",
+   "fips": "12077"
+  },
+  {
+   "name": "Madison",
+   "code": "MAD",
+   "fips": "12079"
+  },
+  {
+   "name": "Manatee",
+   "code": "MAN",
+   "fips": "12081"
+  },
+  {
+   "name": "Marion",
+   "code": "MRN",
+   "fips": "12083"
+  },
+  {
+   "name": "Martin",
+   "code": "MRT",
+   "fips": "12085"
+  },
+  {
+   "name": "Miami-Dade",
+   "code": "DAD",
+   "fips": "12086"
+  },
+  {
+   "name": "Monroe",
+   "code": "MON",
+   "fips": "12087"
+  },
+  {
+   "name": "Nassau",
+   "code": "NAS",
+   "fips": "12089"
+  },
+  {
+   "name": "Okaloosa",
+   "code": "OKA",
+   "fips": "12091"
+  },
+  {
+   "name": "Okeechobee",
+   "code": "OKE",
+   "fips": "12093"
+  },
+  {
+   "name": "Orange",
+   "code": "ORA",
+   "fips": "12095"
+  },
+  {
+   "name": "Osceola",
+   "code": "OSC",
+   "fips": "12097"
+  },
+  {
+   "name": "Palm Beach",
+   "code": "PAL",
+   "fips": "12099"
+  },
+  {
+   "name": "Pasco",
+   "code": "PAS",
+   "fips": "12101"
+  },
+  {
+   "name": "Pinellas",
+   "code": "PIN",
+   "fips": "12103"
+  },
+  {
+   "name": "Polk",
+   "code": "POL",
+   "fips": "12105"
+  },
+  {
+   "name": "Putnam",
+   "code": "PUT",
+   "fips": "12107"
+  },
+  {
+   "name": "Santa Rosa",
+   "code": "SAN",
+   "fips": "12113"
+  },
+  {
+   "name": "Sarasota",
+   "code": "SAR",
+   "fips": "12115"
+  },
+  {
+   "name": "Seminole",
+   "code": "SEM",
+   "fips": "12117"
+  },
+  {
+   "name": "St. Johns",
+   "code": "STJ",
+   "fips": "12109"
+  },
+  {
+   "name": "St. Lucie",
+   "code": "STL",
+   "fips": "12111"
+  },
+  {
+   "name": "Sumter",
+   "code": "SUM",
+   "fips": "12119"
+  },
+  {
+   "name": "Suwannee",
+   "code": "SUW",
+   "fips": "12121"
+  },
+  {
+   "name": "Taylor",
+   "code": "TAY",
+   "fips": "12123"
+  },
+  {
+   "name": "Union",
+   "code": "UNI",
+   "fips": "12125"
+  },
+  {
+   "name": "Volusia",
+   "code": "VOL",
+   "fips": "12127"
+  },
+  {
+   "name": "Wakulla",
+   "code": "WAK",
+   "fips": "12129"
+  },
+  {
+   "name": "Walton",
+   "code": "WAL",
+   "fips": "12131"
+  },
+  {
+   "name": "Washington",
+   "code": "WAS",
+   "fips": "12133"
+  }
+ ]
+}

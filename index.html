@@ -54,11 +54,23 @@
           <tbody></tbody>
         </table>
       </div>
+      <p class="fineprint">Click a county for precinct-level detail. Each county links to its live TQV feed&nbsp;&#8599;.</p>
     </div>
   </section>
 
+  <section id="precinct-panel" class="card precinct-card" hidden>
+    <div class="card-head">
+      <h2 id="precinct-title">Precinct detail</h2>
+      <div class="precinct-actions">
+        <a id="precinct-tqv" class="tqv-link" href="#" target="_blank" rel="noopener">Open county TQV feed &#8599;</a>
+        <button id="precinct-close" class="close-btn" aria-label="Close precinct detail">&times;</button>
+      </div>
+    </div>
+    <div id="precinct-body"></div>
+  </section>
+
   <footer class="site-foot">
-    <p>Source: <a href="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats" target="_blank" rel="noopener">Florida Department of State, Division of Elections</a> &mdash; County Vote-by-Mail &amp; Early Voting Reports. Data is cumulative through the prior day and refreshed by the state a few times daily.</p>
+    <p>Primary source: county <a href="https://tqv.vrswebapps.com/?state=FL" target="_blank" rel="noopener">Turnout Quick View</a> feeds (VR Systems), the live turnout data published by county Supervisors of Elections &mdash; county and precinct level, with registered-voter counts. Secondary: <a href="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats" target="_blank" rel="noopener">FL Division of Elections</a> statewide file (mail ballots outstanding, and fallback for any county whose live feed is not yet publishing).</p>
     <p class="dim">This is an independent, non-partisan data project. &ldquo;Partisan composition&rdquo; reflects the <em>party registration</em> of voters who have cast (or been sent) ballots &mdash; not how they voted.</p>
     <p id="hash" class="dim"></p>
   </footer>

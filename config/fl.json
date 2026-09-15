@@ -7,28 +7,44 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "sources": {
+  "tqv": {
+    "_comment": "Primary source: VR Systems 'Turnout Quick View' per-county static feeds on S3. index.json lists a county's election ids; the right one has Summary.FvrsElectionNumber == fvrs_election_number.",
+    "base": "https://s3.amazonaws.com/turnoutquickview.electionsfl.org/data/FL/",
+    "view": "https://tqv.vrswebapps.com/?state=FL&county=",
+    "index_file": "index.json",
+    "data_file": "data.json",
+    "fvrs_election_number": 49894,
+    "party_map": { "REP": "rep", "DEM": "dem", "NPA": "npa" },
+    "method_map": {
+      "Mail": "mail_voted",
+      "Early Voting": "early_voted",
+      "Election Day": "election_day",
+      "Provisional": "provisional"
+    }
+  },
+  "dos": {
+    "_comment": "Secondary source: FL Dept of State statewide consolidated file. Provides 'mail ballots outstanding' (not in TQV) and serves as a fallback if a county's TQV feed is unavailable.",
     "stats_page": "https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats",
     "file_base": "https://electionfiles.floridados.gov/countyballotreportfiles/",
     "files": {
       "mail_provided": "Stats_49894_VbmProvided.txt",
       "mail_voted": "Stats_49894_VbmVoted.txt",
       "early_voted": "Stats_49894_EarlyVoting.txt"
+    },
+    "stat_type_map": {
+      "Vote-by-Mail Provided (Not Yet Returned)": "mail_provided",
+      "Voted Vote-by-Mail": "mail_voted",
+      "Voted Early": "early_voted",
+      "Voted Election Day": "election_day"
     }
   },
-  "stat_type_map": {
-    "Vote-by-Mail Provided (Not Yet Returned)": "mail_provided",
-    "Voted Vote-by-Mail": "mail_voted",
-    "Voted Early": "early_voted",
-    "Voted Election Day": "election_day"
-  },
   "method_labels": {
-    "mail_provided": "Mail ballots outstanding",
+    "cast": "All ballots cast",
     "mail_voted": "Voted by mail",
     "early_voted": "Voted early in person",
     "election_day": "Voted on election day",
-    "cast": "All ballots cast",
-    "all": "All ballots cast"
+    "provisional": "Provisional ballots",
+    "mail_provided": "Mail ballots outstanding"
   },
   "races": [
     {
@@ -39,8 +55,8 @@
     },
     {
       "id": "sen",
-      "office": "U.S. Senate",
-      "note": "Included per project scope; confirm whether a 2026 FL Senate race (regular or special) is on the ballot before finalizing.",
+      "office": "U.S. Senate (special)",
+      "note": "2026 U.S. Senate special election for the seat vacated by Marco Rubio; on the Nov 3 general ballot (election #49894).",
       "results": null
     }
   ]

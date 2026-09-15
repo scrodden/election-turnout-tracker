@@ -1,26 +1,36 @@
 #!/usr/bin/env python3
-"""Fetch Florida vote-by-mail / early-voting turnout, by county and party, and
-write a snapshot + time-series history the static site reads.
+"""Fetch Florida turnout by county AND precinct, by party and voting method.
 
-Source: Florida Dept. of State, County Vote-by-Mail & Early Voting Reports.
-  Stats page : https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats
-  Data files : https://electionfiles.floridados.gov/countyballotreportfiles/Stats_<election>_*.txt
-Each file is tab-separated with columns:
-  ElectionNumber, ElectionDate, ElectionName, CountyName, StatType,
-  TotalRep, TotalDem, TotalOth, TotalNpa, GrandTotal, CompileDate
+Primary source: VR Systems "Turnout Quick View" (TQV) per-county static feeds
+on S3 (the same data the county Supervisors of Elections publish live). Each
+county exposes:
+  data/FL/<CODE>/index.json           -> [electionId, ...]
+  data/FL/<CODE>/<electionId>/data.json  -> Summary + Turnout (party/precinct)
+The right election is the one whose Summary.FvrsElectionNumber matches ours.
 
-Outputs (relative to repo root):
-  data/fl/latest.json      current snapshot with derived margins/shares
-  data/fl/history.jsonl    one compact line per change (deduped by content hash)
+TQV gives ballots *cast* by method (Mail / Early Voting / Election Day /
+Provisional), party registration, registered-voter counts (real turnout %),
+precinct-level detail, and a genuine per-county update timestamp.
+
+Secondary source: FL Dept of State statewide consolidated file, used for
+"mail ballots outstanding" (which TQV does not report) and as a per-county
+fallback if a TQV feed is unavailable.
+
+Outputs (repo-relative):
+  data/fl/latest.json            county + statewide snapshot (derived shares/margins/turnout)
+  data/fl/precincts/<CODE>.json  per-county precinct turnout by method (written when changed)
+  data/fl/history.jsonl          one compact line per change
+  data/fl/_tqv_ids.json          cached county -> electionId map (skips index lookups)
 
 Run:  python scripts/fl_update.py        (writes only when data changed)
-      python scripts/fl_update.py --force (always rewrite latest.json)
-Exit code 0 always on success; prints "CHANGED" or "NOCHANGE" for the workflow.
+      python scripts/fl_update.py --force
+Prints CHANGED / NOCHANGE for the workflow.
 """
 import os
 import re
 import sys
 import json
+from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -30,179 +40,215 @@ import common as C  # noqa: E402
 
 STATE = "fl"
 CONFIG_PATH = os.path.join(ROOT, "config", "fl.json")
-GEO_PATH = os.path.join(ROOT, "assets", "fl-counties.geojson")
+COUNTIES_PATH = os.path.join(ROOT, "config", "fl_counties.json")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
+PRECINCT_DIR = os.path.join(DATA_DIR, "precincts")
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
+IDCACHE_PATH = os.path.join(DATA_DIR, "_tqv_ids.json")
 
-VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]
-FILE_URL_RE = re.compile(
-    r"https://electionfiles\.floridados\.gov/countyballotreportfiles/[^\"'\s<>]+\.txt",
-    re.IGNORECASE,
-)
+VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]  # count toward "cast"
+ALL_METHODS = ["mail_voted", "early_voted", "election_day", "provisional", "mail_provided"]
+MAX_WORKERS = 10
 
 
-def load_config():
-    with open(CONFIG_PATH, encoding="utf-8") as f:
+def load_json(path):
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def load_fips():
-    """name -> FIPS, from the bundled county GeoJSON."""
-    with open(GEO_PATH, encoding="utf-8") as f:
-        geo = json.load(f)
-    return {ft["properties"]["name"]: ft["properties"]["fips"]
-            for ft in geo["features"]}
+# --------------------------------------------------------------------------
+# TQV (primary)
+# --------------------------------------------------------------------------
+def tqv_index_url(cfg, code):
+    return cfg["tqv"]["base"] + code + "/" + cfg["tqv"]["index_file"]
 
 
-def discover_file_urls(cfg):
-    """Return the set of stats-file URLs. Primary: scrape the live stats page's
-    'Download File' links (this auto-includes the early-voting file the day it
-    appears). Fallback/union: the URLs named in config."""
-    urls = set()
+def tqv_data_url(cfg, code, eid):
+    return cfg["tqv"]["base"] + code + "/" + str(eid) + "/" + cfg["tqv"]["data_file"]
+
+
+def fetch_tqv_county(cfg, county, id_cache):
+    """Return (parsed_dict_or_None, resolved_eid_or_None, note)."""
+    code = county["code"]
+    target = cfg["tqv"]["fvrs_election_number"]
+
+    def try_eid(eid):
+        try:
+            raw = C.http_get(tqv_data_url(cfg, code, eid), no_cache=True, retries=2)
+            data = json.loads(raw)
+        except Exception:  # noqa: BLE001
+            return None
+        summ = data.get("Summary", {})
+        if summ.get("FvrsElectionNumber") == target:
+            return data
+        return None
+
+    # 1) Try cached election id first (skips the index lookup).
+    cached = id_cache.get(code)
+    if cached is not None:
+        data = try_eid(cached)
+        if data is not None:
+            return parse_tqv(cfg, county, data), cached, "cache"
+
+    # 2) Resolve from the county's election index.
     try:
-        html = C.http_get(cfg["sources"]["stats_page"], no_cache=True)
+        ids = json.loads(C.http_get(tqv_index_url(cfg, code), no_cache=True, retries=2))
+    except Exception as e:  # noqa: BLE001
+        return None, None, "index-fail:%s" % str(e)[:40]
+    for eid in ids:
+        if eid == cached:
+            continue
+        data = try_eid(eid)
+        if data is not None:
+            return parse_tqv(cfg, county, data), eid, "resolved"
+    return None, None, "no-matching-election"
+
+
+def parse_tqv(cfg, county, data):
+    """Turn one county's TQV data.json into county-method party counts +
+    precinct rows."""
+    party_map = cfg["tqv"]["party_map"]
+    method_map = cfg["tqv"]["method_map"]
+    summ = data.get("Summary", {})
+    turnout = data.get("Turnout", {}) or {}
+
+    # county-level: party x method -> counts
+    methods = {}  # method_key -> {rep,dem,oth,npa}
+    for party_code, by_method in (turnout.get("PartyType") or {}).items():
+        tgt_party = party_map.get(str(party_code).upper(), "oth")
+        for m_label, n in (by_method or {}).items():
+            mkey = method_map.get(m_label)
+            if not mkey:
+                continue
+            slot = methods.setdefault(mkey, {"rep": 0, "dem": 0, "oth": 0, "npa": 0})
+            slot[tgt_party] += int(n or 0)
+
+    # precinct-level: method totals + eligible voters
+    precincts = []
+    for pkey, pdata in (turnout.get("PrecinctType") or {}).items():
+        row = {"precinct": str(pkey).strip(),
+               "eligible": int(pdata.get("EligibleVoters") or 0)}
+        cast = 0
+        for m_label, n in (pdata.get("BallotTypeTotals") or {}).items():
+            mkey = method_map.get(m_label)
+            if not mkey:
+                continue
+            row[mkey] = int(n or 0)
+            if mkey in VOTED_METHODS:
+                cast += int(n or 0)
+        row["cast"] = cast
+        row["turnout_pct"] = C.pct(cast, row["eligible"])
+        precincts.append(row)
+    precincts.sort(key=lambda r: r["precinct"])
+
+    raw_ts = summ.get("LastUpdatedTime", "")
+    iso_ts = re.sub(r"\.\d+", "", raw_ts).replace("+00:00", "Z") if raw_ts else ""
+    return {
+        "registered": int(summ.get("TotalRegisteredVoters") or 0),
+        "last_updated": iso_ts,
+        "methods": methods,
+        "precincts": precincts,
+    }
+
+
+# --------------------------------------------------------------------------
+# DOS (secondary: mail-outstanding + fallback)
+# --------------------------------------------------------------------------
+FILE_URL_RE = re.compile(
+    r"https://electionfiles\.floridados\.gov/countyballotreportfiles/[^\"'\s<>]+\.txt",
+    re.IGNORECASE)
+
+
+def fetch_dos(cfg):
+    """Return {county_name: {method_key: {rep,dem,oth,npa}}} from the DOS
+    statewide files. Best-effort; returns {} on failure."""
+    dos = cfg["dos"]
+    urls = set(dos["file_base"] + f for f in dos["files"].values())
+    try:
+        html = C.http_get(dos["stats_page"], no_cache=True, retries=2)
         for m in FILE_URL_RE.findall(html):
             if cfg["election"]["number"] in m:
                 urls.add(m)
-    except Exception as e:  # noqa: BLE001
-        print("WARN: could not scrape stats page: %s" % e, file=sys.stderr)
-    base = cfg["sources"]["file_base"]
-    for fname in cfg["sources"]["files"].values():
-        urls.add(base + fname)
-    return sorted(urls)
-
-
-def parse_stats_file(text, stat_type_map):
-    """Parse one tab-separated stats file into rows keyed by method.
-
-    Returns (counties, statewide) where:
-      counties[name][method] = raw dict {rep,dem,oth,npa,compiled,compiled_iso}
-      statewide[method]      = same, from the 'State Totals' row
-    """
-    counties, statewide = {}, {}
-    for line in text.splitlines():
-        if not line.strip():
+    except Exception:  # noqa: BLE001
+        pass
+    out = {}
+    smap = dos["stat_type_map"]
+    for url in sorted(urls):
+        try:
+            text = C.http_get(url, no_cache=True, retries=2)
+        except Exception:  # noqa: BLE001
             continue
-        parts = line.split("\t")
-        if len(parts) < 10 or not parts[0].strip().isdigit():
-            continue  # header or malformed
-        county = parts[3].strip()
-        stat_type = parts[4].strip()
-        method = stat_type_map.get(stat_type)
-        if not method:
-            continue  # unknown stat type -> ignore
-        raw_c, iso_c = C.parse_compile_date(parts[10] if len(parts) > 10 else "")
-        rec = {
-            "rep": C.parse_number(parts[5]),
-            "dem": C.parse_number(parts[6]),
-            "oth": C.parse_number(parts[7]),
-            "npa": C.parse_number(parts[8]),
-            "compiled": raw_c, "compiled_iso": iso_c,
-        }
-        if county.lower() == "state totals":
-            statewide[method] = rec
-        else:
-            counties.setdefault(county, {})[method] = rec
-    return counties, statewide
-
-
-def to_block(rec):
-    if not rec:
-        return None
-    return C.party_block(rec["rep"], rec["dem"], rec["oth"], rec["npa"],
-                         rec.get("compiled", ""), rec.get("compiled_iso", ""))
-
-
-def build_entity(methods):
-    """Given {method: raw_rec}, produce {method: block, ..., 'cast': block}."""
-    out = {}
-    for m, rec in methods.items():
-        out[m] = to_block(rec)
-    voted = [out[m] for m in VOTED_METHODS if out.get(m)]
-    out["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
+        for line in text.splitlines():
+            parts = line.split("\t")
+            if len(parts) < 10 or not parts[0].strip().isdigit():
+                continue
+            county = parts[3].strip()
+            mkey = smap.get(parts[4].strip())
+            if not mkey or county.lower() == "state totals":
+                continue
+            out.setdefault(county, {})[mkey] = {
+                "rep": C.parse_number(parts[5]), "dem": C.parse_number(parts[6]),
+                "oth": C.parse_number(parts[7]), "npa": C.parse_number(parts[8]),
+            }
     return out
 
 
-def newest(*iso_values):
-    vals = [v for v in iso_values if v]
-    return max(vals) if vals else ""
+# --------------------------------------------------------------------------
+# Assembly
+# --------------------------------------------------------------------------
+def block_from_counts(counts, compiled="", compiled_iso=""):
+    c = counts or {}
+    return C.party_block(c.get("rep", 0), c.get("dem", 0), c.get("oth", 0),
+                         c.get("npa", 0), compiled, compiled_iso)
 
 
-def build_snapshot(cfg, fips_map, all_counties, all_statewide):
-    counties_out = {}
-    max_iso, max_raw = "", ""
-    for name, fips in sorted(fips_map.items()):
-        methods = all_counties.get(name, {})
-        ent = build_entity(methods)
-        ent["fips"] = fips
-        counties_out[name] = ent
-        for m, rec in methods.items():
-            if rec.get("compiled_iso", "") > max_iso:
-                max_iso, max_raw = rec["compiled_iso"], rec["compiled"]
+def build_county_entity(county, tqv, dos_methods):
+    """Combine TQV (cast methods) + DOS (mail_provided) into one county entity."""
+    ent = {"code": county["code"], "fips": county["fips"],
+           "tqv_url": "https://tqv.vrswebapps.com/?state=FL&county=" + county["code"].lower()}
+    iso = (tqv or {}).get("last_updated", "")
+    registered = (tqv or {}).get("registered", 0)
 
-    statewide_out = build_entity(all_statewide)
-    for rec in all_statewide.values():
-        if rec.get("compiled_iso", "") > max_iso:
-            max_iso, max_raw = rec["compiled_iso"], rec["compiled"]
+    if tqv:
+        for mkey in ["mail_voted", "early_voted", "election_day", "provisional"]:
+            if mkey in tqv["methods"]:
+                ent[mkey] = block_from_counts(tqv["methods"][mkey], iso, iso)
+        ent["source"] = "tqv"
+    elif dos_methods:
+        # fallback: use DOS cast methods for this county
+        for mkey in ["mail_voted", "early_voted", "election_day"]:
+            if mkey in dos_methods:
+                ent[mkey] = block_from_counts(dos_methods[mkey])
+        ent["source"] = "dos-fallback"
+    else:
+        ent["source"] = "none"
 
-    methods_present = sorted(
-        {m for c in all_counties.values() for m in c} |
-        set(all_statewide.keys())
-    )
-    snap = {
-        "state": STATE,
-        "state_name": cfg["state_name"],
-        "election": cfg["election"],
-        "source_compiled": max_raw,
-        "source_compiled_iso": max_iso,
-        "methods_present": methods_present,
-        "method_labels": cfg.get("method_labels", {}),
-        "statewide": statewide_out,
-        "counties": counties_out,
-    }
-    return snap
+    # mail outstanding always comes from DOS (TQV does not report it)
+    if dos_methods and "mail_provided" in dos_methods:
+        ent["mail_provided"] = block_from_counts(dos_methods["mail_provided"])
+
+    voted = [ent[m] for m in VOTED_METHODS if ent.get(m)]
+    ent["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0, iso, iso)
+    ent["registered"] = registered
+    ent["last_updated"] = iso
+    ent["turnout_pct"] = C.pct(ent["cast"]["total"], registered)
+    return ent
 
 
-def compact_entity(ent):
-    """[rep,dem,oth,npa,total] arrays per method, for the small history file."""
-    out = {}
-    for m in ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"]:
-        b = ent.get(m)
-        if b and b.get("total"):
-            out[m] = [b["rep"], b["dem"], b["oth"], b["npa"], b["total"]]
-    return out
-
-
-def append_history(snap):
-    rec = {
-        "generated_at": snap["generated_at"],
-        "compiled": snap["source_compiled"],
-        "compiled_iso": snap["source_compiled_iso"],
-        "data_hash": snap["data_hash"],
-        "statewide": compact_entity(snap["statewide"]),
-        "counties": {n: compact_entity(e) for n, e in snap["counties"].items()
-                     if compact_entity(e)},
-    }
-    # Skip if the last history line already has this content hash.
-    if os.path.exists(HISTORY_PATH):
-        last = None
-        with open(HISTORY_PATH, "rb") as f:
-            try:
-                f.seek(-4096, os.SEEK_END)
-            except OSError:
-                f.seek(0)
-            tail = f.read().decode("utf-8", "replace").strip().splitlines()
-            if tail:
-                last = tail[-1]
-        if last:
-            try:
-                if json.loads(last).get("data_hash") == rec["data_hash"]:
+def write_if_changed(path, obj):
+    """Write compact JSON only when content differs. Returns True if written."""
+    blob = json.dumps(obj, separators=(",", ":"))
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                if f.read() == blob:
                     return False
-            except ValueError:
-                pass
-    with open(HISTORY_PATH, "a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, separators=(",", ":")) + "\n")
+        except OSError:
+            pass
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(blob)
     return True
 
 
@@ -210,64 +256,152 @@ def existing_hash():
     if not os.path.exists(LATEST_PATH):
         return None
     try:
-        with open(LATEST_PATH, encoding="utf-8") as f:
-            return json.load(f).get("data_hash")
+        return load_json(LATEST_PATH).get("data_hash")
     except (ValueError, OSError):
         return None
 
 
+def append_history(snap):
+    def compact(ent):
+        out = {}
+        for m in ALL_METHODS + ["cast"]:
+            b = ent.get(m)
+            if b and b.get("total"):
+                out[m] = [b["rep"], b["dem"], b["oth"], b["npa"], b["total"]]
+        return out
+    rec = {
+        "generated_at": snap["generated_at"], "compiled": snap["source_compiled"],
+        "data_hash": snap["data_hash"],
+        "statewide": compact(snap["statewide"]),
+        "registered": snap["statewide"].get("registered"),
+        "counties": {n: compact(e) for n, e in snap["counties"].items() if compact(e)},
+    }
+    if os.path.exists(HISTORY_PATH):
+        try:
+            with open(HISTORY_PATH, "rb") as f:
+                try:
+                    f.seek(-4096, os.SEEK_END)
+                except OSError:
+                    f.seek(0)
+                tail = f.read().decode("utf-8", "replace").strip().splitlines()
+            if tail and json.loads(tail[-1]).get("data_hash") == rec["data_hash"]:
+                return False
+        except (ValueError, OSError):
+            pass
+    with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(rec, separators=(",", ":")) + "\n")
+    return True
+
+
 def main():
     force = "--force" in sys.argv
-    cfg = load_config()
-    fips_map = load_fips()
-
-    urls = discover_file_urls(cfg)
-    print("Fetching %d file(s):" % len(urls))
-    all_counties, all_statewide = {}, {}
-    got = 0
-    for url in urls:
+    cfg = load_json(CONFIG_PATH)
+    counties = load_json(COUNTIES_PATH)["counties"]
+    id_cache = {}
+    if os.path.exists(IDCACHE_PATH):
         try:
-            text = C.http_get(url, no_cache=True)
-        except Exception as e:  # noqa: BLE001 - EV file 404s until EV starts
-            print("  - skip %s (%s)" % (url.rsplit("/", 1)[-1], e))
-            continue
-        counties, statewide = parse_stats_file(text, cfg["stat_type_map"])
-        if not counties and not statewide:
-            print("  - %s: no rows" % url.rsplit("/", 1)[-1])
-            continue
-        got += 1
-        print("  - %s: %d counties, methods=%s"
-              % (url.rsplit("/", 1)[-1], len(counties),
-                 sorted({m for c in counties.values() for m in c})))
-        for cn, md in counties.items():
-            all_counties.setdefault(cn, {}).update(md)
-        all_statewide.update(statewide)
+            id_cache = load_json(IDCACHE_PATH)
+        except (ValueError, OSError):
+            id_cache = {}
 
-    if got == 0:
-        print("ERROR: no data files could be fetched.", file=sys.stderr)
+    # 1) DOS (single, cheap) for mail-outstanding + fallback
+    print("Fetching DOS statewide files (mail outstanding + fallback)...")
+    dos = fetch_dos(cfg)
+    print("  DOS counties with data: %d" % len(dos))
+
+    # 2) TQV per county, threaded
+    print("Fetching TQV feeds for %d counties..." % len(counties))
+    results = {}
+
+    def work(county):
+        return county["name"], fetch_tqv_county(cfg, county, id_cache)
+
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
+        for name, res in ex.map(work, counties):
+            results[name] = res
+
+    new_id_cache = dict(id_cache)
+    ok = fail = 0
+    for county in counties:
+        tqv, eid, note = results[county["name"]]
+        if tqv is not None:
+            ok += 1
+            if eid is not None:
+                new_id_cache[county["code"]] = eid
+        else:
+            fail += 1
+            print("  ! %s (%s): %s" % (county["name"], county["code"], note))
+    print("  TQV ok=%d fail=%d" % (ok, fail))
+    if ok == 0:
+        print("ERROR: no TQV feeds returned; aborting.", file=sys.stderr)
         return 2
 
-    snap = build_snapshot(cfg, fips_map, all_counties, all_statewide)
-    # Hash the data only (exclude volatile generated_at / data_hash).
+    # 3) assemble snapshot + precinct files
+    counties_out = {}
+    precinct_payloads = {}
+    max_iso = ""
+    for county in counties:
+        name = county["name"]
+        tqv, _eid, _note = results[name]
+        ent = build_county_entity(county, tqv, dos.get(name))
+        counties_out[name] = ent
+        if ent.get("last_updated", "") > max_iso:
+            max_iso = ent["last_updated"]
+        if tqv and tqv["precincts"]:
+            precinct_payloads[county["code"]] = {
+                "county": name, "code": county["code"], "fips": county["fips"],
+                "election": cfg["election"], "registered": tqv["registered"],
+                "last_updated": tqv["last_updated"], "precincts": tqv["precincts"],
+            }
+
+    # statewide = sum of counties
+    statewide = {}
+    for mkey in ALL_METHODS:
+        blocks = [counties_out[c].get(mkey) for c in counties_out if counties_out[c].get(mkey)]
+        if blocks:
+            statewide[mkey] = C.add_blocks(*blocks)
+    voted = [statewide[m] for m in VOTED_METHODS if statewide.get(m)]
+    statewide["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
+    statewide["registered"] = sum(counties_out[c].get("registered", 0) for c in counties_out)
+    statewide["turnout_pct"] = C.pct(statewide["cast"]["total"], statewide["registered"])
+
+    methods_present = sorted({m for c in counties_out.values() for m in ALL_METHODS if c.get(m)})
+
+    snap = {
+        "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
+        "sources": {"primary": "VR Systems Turnout Quick View (county feeds)",
+                    "secondary": "FL Division of Elections (mail outstanding / fallback)"},
+        "source_compiled": (max_iso or "").replace("T", " ").replace("Z", " UTC"),
+        "source_compiled_iso": max_iso,
+        "methods_present": methods_present,
+        "method_labels": cfg.get("method_labels", {}),
+        "statewide": statewide, "counties": counties_out,
+    }
     snap["data_hash"] = C.data_hash(snap)
     snap["generated_at"] = C.utc_now_iso()
 
     prev = existing_hash()
     changed = force or (snap["data_hash"] != prev)
 
-    os.makedirs(DATA_DIR, exist_ok=True)
+    # precinct files + id cache write regardless (only when their content changed)
+    os.makedirs(PRECINCT_DIR, exist_ok=True)
+    pchanged = 0
+    for code, payload in precinct_payloads.items():
+        if write_if_changed(os.path.join(PRECINCT_DIR, code + ".json"), payload):
+            pchanged += 1
+    write_if_changed(IDCACHE_PATH, new_id_cache)
+
     if changed:
         with open(LATEST_PATH, "w", encoding="utf-8") as f:
             json.dump(snap, f, separators=(",", ":"))
         added = append_history(snap)
-        sw = snap["statewide"]
-        cast = sw.get("cast", {})
-        print("CHANGED  compiled=%s  cast R/D=%s/%s margin=%s  history+=%s"
-              % (snap["source_compiled"], cast.get("rep"), cast.get("dem"),
-                 cast.get("margin"), added))
+        cast = statewide["cast"]
+        print("CHANGED  updated=%s  cast=%s (R%s D%s NPA%s) margin=%s turnout=%s%%  precincts changed=%d  history+=%s"
+              % (snap["source_compiled"], cast["total"], cast["rep"], cast["dem"],
+                 cast["npa"], cast["margin"], statewide["turnout_pct"], pchanged, added))
     else:
-        print("NOCHANGE  compiled=%s (hash %s)"
-              % (snap["source_compiled"], (prev or "")[:12]))
+        print("NOCHANGE  updated=%s (hash %s)  precincts changed=%d"
+              % (snap["source_compiled"], (prev or "")[:12], pchanged))
     return 0
 
 

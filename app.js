@@ -13,14 +13,16 @@
     { key: "mail_voted", label: "Voted by mail" },
     { key: "early_voted", label: "Voted early" },
     { key: "election_day", label: "Election day" },
+    { key: "provisional", label: "Provisional" },
     { key: "mail_provided", label: "Mail outstanding" }
   ];
   var HINTS = {
-    cast: "Party registration of everyone who has already returned a ballot (mail + early in person + election day).",
+    cast: "Party registration of everyone who has already cast a ballot (mail + early in person + election day).",
     mail_voted: "Party registration of voters whose mail ballots have been returned.",
     early_voted: "Party registration of voters who cast a ballot in person during early voting.",
     election_day: "Party registration of voters who cast a ballot on election day.",
-    mail_provided: "Party registration of voters SENT a mail ballot who have not yet returned it (outstanding)."
+    provisional: "Party registration of voters who cast a provisional ballot.",
+    mail_provided: "Party registration of voters SENT a mail ballot who have not yet returned it (outstanding). From the state file; TQV does not report this."
   };
 
   var geo = null, data = null;
@@ -115,9 +117,12 @@
     var dateStr = e.date ? new Date(e.date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
     $("#election-name").textContent = (e.name || "Election") + (dateStr ? " · Election Day " + dateStr : "");
     var fetched = new Date(data.generated_at).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
-    $("#updated").innerHTML = "State compiled: <b>" + (data.source_compiled || "—") + " ET</b>";
-    $("#updated").title = "Fetched " + fetched;
-    $("#hash").textContent = "snapshot " + (data.data_hash || "").slice(0, 10) + " · fetched " + fetched;
+    var upd = data.source_compiled_iso
+      ? new Date(data.source_compiled_iso).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" })
+      : (data.source_compiled || "—");
+    $("#updated").innerHTML = "County data updated: <b>" + upd + "</b>";
+    $("#updated").title = "Newest county TQV timestamp; page fetched " + fetched;
+    $("#hash").textContent = "snapshot " + (data.data_hash || "").slice(0, 10) + " · primary: VR Systems TQV · fetched " + fetched;
   }
 
   function renderMethodPicker() {
@@ -170,6 +175,13 @@
     var mc = statCard("", "Partisan lean", marginText(b.margin), total ? "of ballots in this category" : "no ballots yet");
     mc.querySelector(".v").style.color = b.margin == null ? "var(--muted)" : (b.margin > 0 ? "var(--rep)" : b.margin < 0 ? "var(--dem)" : "var(--ink)");
     host.appendChild(mc);
+
+    var reg = data.statewide.registered || 0;
+    var castTotal = (data.statewide.cast || {}).total || 0;
+    var tp = data.statewide.turnout_pct;
+    host.appendChild(statCard("", "Turnout (all cast)",
+      (tp == null ? "0.00" : tp.toFixed(2)) + "%",
+      fmt(castTotal) + " of " + fmt(reg) + " registered"));
   }
 
   // ---- render: map ---------------------------------------------------------
@@ -211,7 +223,8 @@
     { key: "county", label: "County", cls: "county" },
     { key: "rep", label: "Rep" }, { key: "dem", label: "Dem" },
     { key: "oth", label: "Other" }, { key: "npa", label: "NPA" },
-    { key: "total", label: "Total" }, { key: "margin", label: "Lean" }
+    { key: "total", label: "Total" }, { key: "turnout", label: "Turnout" },
+    { key: "margin", label: "Lean" }
   ];
   function renderTableHead() {
     var tr = el("tr");
@@ -234,8 +247,10 @@
   function renderTableBody() {
     var rows = geo.features.map(function (ft) {
       var name = ft.properties.name;
-      var b = block(data.counties[name], method);
-      return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total, margin: b.margin };
+      var cty = data.counties[name] || {};
+      var b = block(cty, method);
+      return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
+               margin: b.margin, turnout: cty.turnout_pct, tqv: cty.tqv_url, source: cty.source };
     });
     if (filter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(filter) >= 0; });
     rows.sort(function (a, b) {
@@ -251,10 +266,15 @@
       if (r.name === selected) tr.className = "sel";
       var pill = "<span class='pill' style='background:" + colorForMargin(r.margin) + ";color:" +
         (r.margin == null ? "#333" : "#fff") + "'>" + marginText(r.margin) + "</span>";
-      tr.innerHTML = "<td class='county'>" + r.name + "</td>" +
+      var link = r.tqv ? " <a class='tqv-mini' href='" + r.tqv + "' target='_blank' rel='noopener' title='Live TQV feed for " + r.name + "'>&#8599;</a>" : "";
+      tr.innerHTML = "<td class='county'>" + r.name + link + "</td>" +
         "<td>" + fmt(r.rep) + "</td><td>" + fmt(r.dem) + "</td><td>" + fmt(r.oth) + "</td>" +
-        "<td>" + fmt(r.npa) + "</td><td>" + fmt(r.total) + "</td><td>" + pill + "</td>";
-      tr.addEventListener("click", function () { selectCounty(r.name, false); });
+        "<td>" + fmt(r.npa) + "</td><td>" + fmt(r.total) + "</td>" +
+        "<td>" + pctText(r.turnout) + "</td><td>" + pill + "</td>";
+      tr.addEventListener("click", function (ev) {
+        if (ev.target.closest("a")) return; // let the TQV link work without selecting
+        selectCounty(r.name, false);
+      });
       tb.appendChild(tr);
     });
   }
@@ -273,8 +293,63 @@
       var row = $("#table tbody tr[data-name='" + cssEscape(selected) + "']");
       if (row) row.scrollIntoView({ block: "nearest" });
     }
+    if (selected) openPrecincts(selected); else closePrecincts();
   }
   function cssEscape(s) { return s.replace(/'/g, "\\'"); }
+
+  // ---- precinct drill-down -------------------------------------------------
+  var precinctCache = {};
+  var PMETHODS = [
+    { key: "mail_voted", label: "Mail" }, { key: "early_voted", label: "Early" },
+    { key: "election_day", label: "Elec. Day" }, { key: "provisional", label: "Prov." }
+  ];
+  function closePrecincts() { $("#precinct-panel").hidden = true; }
+  function openPrecincts(name) {
+    var cty = data.counties[name] || {};
+    var panel = $("#precinct-panel");
+    panel.hidden = false;
+    $("#precinct-title").textContent = name + " — precinct detail";
+    var link = $("#precinct-tqv");
+    if (cty.tqv_url) { link.href = cty.tqv_url; link.style.display = ""; } else { link.style.display = "none"; }
+    var body = $("#precinct-body");
+    var summary = "<div class='p-summary'>" +
+      "Registered: <b>" + fmt(cty.registered || 0) + "</b> · Cast: <b>" + fmt((cty.cast || {}).total || 0) +
+      "</b> · Turnout: <b>" + pctText(cty.turnout_pct) + "</b>" +
+      (cty.source === "dos-fallback" ? " <span class='src-note'>(state file — live precinct feed not yet publishing)</span>" : "") +
+      "</div>";
+    body.innerHTML = summary + "<div class='loading'>Loading precincts…</div>";
+    if (!cty.code || cty.source === "dos-fallback") {
+      body.innerHTML = summary + "<p class='fineprint'>Precinct-level data isn't available for this county yet.</p>";
+      return;
+    }
+    var render = function (payload) {
+      if (name !== selected) return; // user moved on
+      body.innerHTML = summary + precinctTable(payload);
+    };
+    if (precinctCache[cty.code]) { render(precinctCache[cty.code]); return; }
+    getJSON("data/fl/precincts/" + cty.code + ".json").then(function (p) {
+      precinctCache[cty.code] = p; render(p);
+    }).catch(function () {
+      if (name === selected) body.innerHTML = summary +
+        "<p class='fineprint'>No precinct-level ballots recorded yet for this county.</p>";
+    });
+  }
+  function precinctTable(p) {
+    var rows = (p.precincts || []).slice().sort(function (a, b) { return (b.cast || 0) - (a.cast || 0); });
+    if (!rows.length) return "<p class='fineprint'>No precinct-level ballots recorded yet.</p>";
+    var head = "<tr><th class='county'>Precinct</th><th>Eligible</th>";
+    PMETHODS.forEach(function (m) { head += "<th>" + m.label + "</th>"; });
+    head += "<th>Cast</th><th>Turnout</th></tr>";
+    var out = "";
+    rows.forEach(function (r) {
+      out += "<tr><td class='county'>" + r.precinct + "</td><td>" + fmt(r.eligible) + "</td>";
+      PMETHODS.forEach(function (m) { out += "<td>" + fmt(r[m.key] || 0) + "</td>"; });
+      out += "<td><b>" + fmt(r.cast || 0) + "</b></td><td>" + pctText(r.turnout_pct) + "</td></tr>";
+    });
+    return "<div class='table-scroll p-scroll'><table class='p-table'><thead>" + head +
+      "</thead><tbody>" + out + "</tbody></table></div>" +
+      "<p class='fineprint'>Ballots cast by method per precinct, with eligible voters. TQV does not publish party by precinct.</p>";
+  }
 
   // ---- refresh / flash -----------------------------------------------------
   function flashUpdated() {
@@ -286,7 +361,9 @@
   function refresh() {
     getJSON(DATA_URL).then(function (nd) {
       if (!data || nd.data_hash !== data.data_hash) {
-        data = nd; ensureMethodValid(); renderAll(); flashUpdated();
+        data = nd; ensureMethodValid(); precinctCache = {}; renderAll();
+        if (selected) openPrecincts(selected);
+        flashUpdated();
       } else { data.generated_at = nd.generated_at; renderMeta(); }
     }).catch(function () { /* transient; try again next tick */ });
   }
@@ -311,6 +388,7 @@
       method = pickDefaultMethod();
       renderAll();
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
+      $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
       setInterval(refresh, REFRESH_MS);
     }).catch(function (err) {
       document.querySelector("main").insertAdjacentHTML("afterbegin",
