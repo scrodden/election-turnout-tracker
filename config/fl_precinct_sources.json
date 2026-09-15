@@ -114,6 +114,12 @@
       "county": "Sumter",
       "url": "https://services8.arcgis.com/FTrtUCmxaVKdPC5e/arcgis/rest/services/Voting_Precincts/FeatureServer/0",
       "precinct_field": "PRECINCTID"
+    },
+    {
+      "code": "VOL",
+      "county": "Volusia",
+      "url": "https://maps5.vcgov.org/arcgis/rest/services/Election_Voter/MapServer/1",
+      "precinct_field": "Precinct_Number"
     }
   ]
 }

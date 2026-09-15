@@ -43,10 +43,14 @@ PAGE = 1000
 
 
 def norm_id(raw, src):
+    """Normalize a GIS precinct id to match the TQV turnout keys: strip an
+    optional prefix, aggregate a split id ('14.42') to precinct level ('14')
+    unless keep_split is set, then drop leading zeros on pure-numeric ids."""
     s = str(raw).strip()
     if src.get("id_prefix_strip"):
-        s = re.sub(src["id_prefix_strip"], "", s)
-    s = s.strip()
+        s = re.sub(src["id_prefix_strip"], "", s).strip()
+    if "." in s and not src.get("keep_split"):
+        s = s.split(".")[0]
     if src.get("strip_leading_zeros", True) and re.match(r"^\d+$", s):
         s = str(int(s))
     return s
