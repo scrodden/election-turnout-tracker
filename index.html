@@ -33,14 +33,20 @@
   <section class="grid">
     <div class="card map-card">
       <div class="card-head">
-        <h2>Partisan lean by county</h2>
+        <div class="map-head-left">
+          <h2 id="map-title">Partisan lean by county</h2>
+          <div class="map-mode" id="map-mode" role="tablist" aria-label="Map level">
+            <button data-mode="county" role="tab" aria-selected="true">County</button>
+            <button data-mode="precinct" role="tab" aria-selected="false">Precinct</button>
+          </div>
+        </div>
         <div class="legend" id="legend" aria-hidden="true"></div>
       </div>
       <div id="map-holder" class="map-holder">
-        <svg id="map" role="img" aria-label="Choropleth map of Florida counties"></svg>
+        <svg id="map" role="img" aria-label="Choropleth map of Florida"></svg>
         <div id="tooltip" class="tooltip" hidden></div>
       </div>
-      <p class="fineprint">Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet.</p>
+      <p class="fineprint" id="map-note">Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet.</p>
     </div>
 
     <div class="card table-card">

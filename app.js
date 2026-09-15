@@ -6,7 +6,11 @@
 
   var DATA_URL = "data/fl/latest.json";
   var GEO_URL = "assets/fl-counties.geojson";
+  var PRECINCT_GEO_URL = "assets/fl-precincts.geojson";
+  var PRECINCT_DATA_URL = "data/fl/precincts_all.json";
   var REFRESH_MS = 10 * 60 * 1000;
+  // index of each method within a precincts_all.json value array
+  var PFIELD = { cast: 1, mail_voted: 2, early_voted: 3, election_day: 4, provisional: 5 };
 
   var METHODS = [
     { key: "cast", label: "All cast" },
@@ -31,6 +35,8 @@
   var filter = "";
   var selected = null;
   var proj = null;
+  var mapMode = "county";
+  var precinctGeo = null, precinctData = null, precinctLoading = false;
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -75,6 +81,26 @@
       }
     }
     return "#c9ced6";
+  }
+
+  // sequential turnout scale (greens); domain 0..~50% of eligible
+  var TSTOPS = [
+    [0, [237, 242, 244]], [3, [199, 233, 192]], [10, [116, 196, 118]],
+    [25, [49, 163, 84]], [50, [0, 90, 40]]
+  ];
+  function colorForTurnout(pct) {
+    if (pct == null) return "#e9edf0";
+    if (pct <= 0) return TSTOPS[0] && "#eef2f4";
+    if (pct > TSTOPS[TSTOPS.length - 1][0]) pct = TSTOPS[TSTOPS.length - 1][0];
+    for (var i = 0; i < TSTOPS.length - 1; i++) {
+      var a = TSTOPS[i], b = TSTOPS[i + 1];
+      if (pct >= a[0] && pct <= b[0]) {
+        var t = (pct - a[0]) / (b[0] - a[0]);
+        var c = [0, 1, 2].map(function (j) { return Math.round(a[1][j] + t * (b[1][j] - a[1][j])); });
+        return "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
+      }
+    }
+    return "#eef2f4";
   }
 
   // ---- map projection ------------------------------------------------------
@@ -185,23 +211,111 @@
   }
 
   // ---- render: map ---------------------------------------------------------
+  function svgPath(d, fill, cls) {
+    var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d);
+    p.setAttribute("fill", fill);
+    if (cls) p.setAttribute("class", cls);
+    return p;
+  }
+
   function renderMap() {
+    if (mapMode === "precinct") return renderPrecinctMap();
+    return renderCountyMap();
+  }
+
+  function renderCountyMap() {
     var svg = $("#map");
     svg.setAttribute("viewBox", "0 0 " + proj.W + " " + proj.H);
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     geo.features.forEach(function (ft) {
       var name = ft.properties.name;
       var b = block(data.counties[name], method);
-      var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      p.setAttribute("d", pathFor(ft.geometry));
-      p.setAttribute("fill", colorForMargin(b.margin));
+      var p = svgPath(pathFor(ft.geometry), colorForMargin(b.margin), name === selected ? "sel" : null);
       p.setAttribute("data-name", name);
-      if (name === selected) p.setAttribute("class", "sel");
       p.addEventListener("mousemove", function (ev) { showTip(ev, name); });
       p.addEventListener("mouseleave", hideTip);
       p.addEventListener("click", function () { selectCounty(name, true); });
       svg.appendChild(p);
     });
+    renderLegend();
+  }
+
+  function precinctMethodIdx() { return PFIELD[method] || PFIELD.cast; }
+
+  function renderPrecinctMap() {
+    var svg = $("#map");
+    svg.setAttribute("viewBox", "0 0 " + proj.W + " " + proj.H);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    // base: county outlines for statewide context
+    geo.features.forEach(function (ft) {
+      svg.appendChild(svgPath(pathFor(ft.geometry), "#eef1f4", "base"));
+    });
+    if (!precinctGeo) { renderLegend(); return; }
+    var idx = precinctMethodIdx();
+    var counts = (precinctData && precinctData.counties) || {};
+    precinctGeo.features.forEach(function (ft) {
+      var code = ft.properties.code, pid = ft.properties.precinct;
+      var arr = counts[code] && counts[code][pid];
+      var turnout = null;
+      if (arr && arr[0]) turnout = 100 * (arr[idx] || 0) / arr[0];
+      else if (arr) turnout = 0;
+      var p = svgPath(pathFor(ft.geometry), colorForTurnout(turnout), "prec");
+      p.setAttribute("data-code", code); p.setAttribute("data-prec", pid);
+      p.addEventListener("mousemove", function (ev) { showPrecinctTip(ev, ft.properties, arr); });
+      p.addEventListener("mouseleave", hideTip);
+      svg.appendChild(p);
+    });
+    renderLegend();
+  }
+
+  function showPrecinctTip(ev, props, arr) {
+    var tip = $("#tooltip");
+    tip.hidden = false;
+    var idx = precinctMethodIdx();
+    var lines = "<b>" + props.county + " — Precinct " + props.precinct + "</b>";
+    if (arr) {
+      var val = arr[idx] || 0, elig = arr[0] || 0, cast = arr[1] || 0;
+      var to = elig ? (100 * val / elig).toFixed(2) + "%" : "—";
+      lines += "<br>" + METHODS.filter(function (m) { return m.key === method; })[0].label +
+        ": " + fmt(val) + "<br>Cast: " + fmt(cast) + " of " + fmt(elig) + " eligible" +
+        "<br>Turnout: <span class='tt-margin'>" + to + "</span>";
+    } else {
+      lines += "<br>No ballots cast yet";
+    }
+    tip.innerHTML = lines;
+    var holder = $("#map-holder").getBoundingClientRect();
+    tip.style.left = (ev.clientX - holder.left) + "px";
+    tip.style.top = (ev.clientY - holder.top) + "px";
+  }
+
+  function renderLegend() {
+    var lg = $("#legend");
+    if (mapMode === "precinct") {
+      lg.innerHTML = "<span>0%</span><span class='grad grad-turnout'></span><span>50%+ turnout</span>";
+    } else {
+      lg.innerHTML = "<span>D+40</span><span class='grad'></span><span>R+40</span>";
+    }
+  }
+
+  function setMode(mode) {
+    if (mode === mapMode) return;
+    mapMode = mode;
+    var btns = $("#map-mode").querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute("aria-selected", String(btns[i].getAttribute("data-mode") === mode));
+    }
+    $("#map-title").textContent = mode === "precinct" ? "Turnout by precinct" : "Partisan lean by county";
+    $("#map-note").textContent = mode === "precinct"
+      ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
+      : "Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet.";
+    if (mode === "precinct" && !precinctGeo && !precinctLoading) {
+      precinctLoading = true;
+      Promise.all([getJSON(PRECINCT_GEO_URL), getJSON(PRECINCT_DATA_URL).catch(function () { return { counties: {} }; })])
+        .then(function (r) { precinctGeo = r[0]; precinctData = r[1]; precinctLoading = false; renderMap(); })
+        .catch(function () { precinctLoading = false; renderMap(); });
+    }
+    renderMap();
   }
 
   function showTip(ev, name) {
@@ -363,6 +477,9 @@
       if (!data || nd.data_hash !== data.data_hash) {
         data = nd; ensureMethodValid(); precinctCache = {}; renderAll();
         if (selected) openPrecincts(selected);
+        if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
+          precinctData = pd; if (mapMode === "precinct") renderMap();
+        }).catch(function () {});
         flashUpdated();
       } else { data.generated_at = nd.generated_at; renderMeta(); }
     }).catch(function () { /* transient; try again next tick */ });
@@ -389,6 +506,10 @@
       renderAll();
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
       $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
+      var modeBtns = $("#map-mode").querySelectorAll("button");
+      for (var i = 0; i < modeBtns.length; i++) {
+        modeBtns[i].addEventListener("click", function () { setMode(this.getAttribute("data-mode")); });
+      }
       setInterval(refresh, REFRESH_MS);
     }).catch(function (err) {
       document.querySelector("main").insertAdjacentHTML("afterbegin",

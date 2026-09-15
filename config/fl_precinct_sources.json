@@ -1,0 +1,17 @@
+{
+  "_comment": "Per-county precinct-boundary GIS sources for the statewide precinct map. Coverage grows county-by-county; each entry is an ArcGIS FeatureServer layer + the attribute holding the precinct id (normalized to match the TQV turnout feed). Run: python scripts/build_precincts.py [--verify]",
+  "counties": [
+    {
+      "code": "DAD",
+      "county": "Miami-Dade",
+      "url": "https://services.arcgis.com/8Pc9XBTAsYuxx9Ny/arcgis/rest/services/Precinct_gdb/FeatureServer/0",
+      "precinct_field": "ID"
+    },
+    {
+      "code": "ORA",
+      "county": "Orange",
+      "url": "https://services8.arcgis.com/KROpZDerJ9MICPIU/arcgis/rest/services/2024_Precincts/FeatureServer/0",
+      "precinct_field": "Precinct"
+    }
+  ]
+}

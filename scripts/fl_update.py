@@ -46,6 +46,7 @@ PRECINCT_DIR = os.path.join(DATA_DIR, "precincts")
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 IDCACHE_PATH = os.path.join(DATA_DIR, "_tqv_ids.json")
+PRECINCTS_ALL_PATH = os.path.join(DATA_DIR, "precincts_all.json")
 
 VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]  # count toward "cast"
 ALL_METHODS = ["mail_voted", "early_voted", "election_day", "provisional", "mail_provided"]
@@ -257,6 +258,30 @@ def fetch_broward_enr(cfg):
 # --------------------------------------------------------------------------
 # Assembly
 # --------------------------------------------------------------------------
+def precinct_key(split_id):
+    """Aggregate a TQV precinct-split id (e.g. '14.42') to the precinct level
+    ('14') used to join with precinct boundary polygons. Whole precinct ids
+    (no dot) pass through unchanged."""
+    s = str(split_id).strip()
+    return s.split(".")[0] if "." in s else s
+
+
+def aggregate_precincts(rows):
+    """Roll split-level TQV rows up to precinct level for the map.
+    Returns {precinct_id: [eligible, cast, mail, early, election_day, provisional]}."""
+    agg = {}
+    for r in rows:
+        pid = precinct_key(r["precinct"])
+        a = agg.setdefault(pid, [0, 0, 0, 0, 0, 0])
+        a[0] += r.get("eligible", 0)
+        a[1] += r.get("cast", 0)
+        a[2] += r.get("mail_voted", 0)
+        a[3] += r.get("early_voted", 0)
+        a[4] += r.get("election_day", 0)
+        a[5] += r.get("provisional", 0)
+    return agg
+
+
 def block_from_counts(counts, compiled="", compiled_iso=""):
     c = counts or {}
     return C.party_block(c.get("rep", 0), c.get("dem", 0), c.get("oth", 0),
@@ -399,6 +424,7 @@ def main():
     # 3) assemble snapshot + precinct files
     counties_out = {}
     precinct_payloads = {}
+    precincts_all = {}   # code -> {precinct: [eligible,cast,mail,early,ed,prov]} for the map
     max_iso = ""
     for county in counties:
         name = county["name"]
@@ -413,6 +439,9 @@ def main():
                 "election": cfg["election"], "registered": tqv["registered"],
                 "last_updated": tqv["last_updated"], "precincts": tqv["precincts"],
             }
+            agg = aggregate_precincts(tqv["precincts"])
+            if agg:
+                precincts_all[county["code"]] = agg
 
     # Broward: fill registered voters / turnout from ENR while its TQV general
     # feed isn't publishing (partisan cast still comes from DOS).
@@ -463,6 +492,12 @@ def main():
         if write_if_changed(os.path.join(PRECINCT_DIR, code + ".json"), payload):
             pchanged += 1
     write_if_changed(IDCACHE_PATH, new_id_cache)
+    write_if_changed(PRECINCTS_ALL_PATH, {
+        "generated_at": snap.get("generated_at", C.utc_now_iso()),
+        "election": cfg["election"],
+        "fields": ["eligible", "cast", "mail_voted", "early_voted", "election_day", "provisional"],
+        "counties": precincts_all,
+    })
 
     if changed:
         with open(LATEST_PATH, "w", encoding="utf-8") as f:
