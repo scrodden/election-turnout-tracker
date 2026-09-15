@@ -14,3 +14,6 @@ Thumbs.db
 # Local scratch
 scratch/
 *.tmp
+
+# local debug scratch
+live.json

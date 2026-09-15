@@ -22,17 +22,29 @@ USER_AGENT = (
 _SSL_CTX = ssl.create_default_context()
 
 
-def http_get(url, retries=3, timeout=45, binary=False):
+def http_get(url, retries=3, timeout=45, binary=False, no_cache=False):
     """GET a URL with a browser User-Agent, small retry/backoff. Returns text
-    (utf-8, replacement on bad bytes) or bytes when binary=True."""
+    (utf-8, replacement on bad bytes) or bytes when binary=True.
+
+    The Florida data files sit behind a caching layer (observed `x-cache: HIT`)
+    that can serve a stale copy to an automated fetcher. no_cache=True adds a
+    unique query param (changes the cache key) plus no-cache headers so each
+    run pulls the freshest object, not yesterday's cached one."""
     last_err = None
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, headers={
+            fetch_url = url
+            headers = {
                 "User-Agent": USER_AGENT,
                 "Accept": "*/*",
                 "Accept-Language": "en-US,en;q=0.9",
-            })
+            }
+            if no_cache:
+                sep = "&" if ("?" in url) else "?"
+                fetch_url = url + sep + "_=" + str(int(time.time() * 1000)) + str(attempt)
+                headers["Cache-Control"] = "no-cache, no-store, max-age=0"
+                headers["Pragma"] = "no-cache"
+            req = urllib.request.Request(fetch_url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as r:
                 raw = r.read()
                 return raw if binary else raw.decode("utf-8", "replace")

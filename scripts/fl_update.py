@@ -61,7 +61,7 @@ def discover_file_urls(cfg):
     appears). Fallback/union: the URLs named in config."""
     urls = set()
     try:
-        html = C.http_get(cfg["sources"]["stats_page"])
+        html = C.http_get(cfg["sources"]["stats_page"], no_cache=True)
         for m in FILE_URL_RE.findall(html):
             if cfg["election"]["number"] in m:
                 urls.add(m)
@@ -227,7 +227,7 @@ def main():
     got = 0
     for url in urls:
         try:
-            text = C.http_get(url)
+            text = C.http_get(url, no_cache=True)
         except Exception as e:  # noqa: BLE001 - EV file 404s until EV starts
             print("  - skip %s (%s)" % (url.rsplit("/", 1)[-1], e))
             continue
