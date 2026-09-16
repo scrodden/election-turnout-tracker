@@ -4,10 +4,9 @@
 (function () {
   "use strict";
 
-  var DATA_URL = "data/fl/latest.json";
-  var GEO_URL = "assets/fl-counties.geojson";
-  var PRECINCT_GEO_URL = "assets/fl-precincts.geojson";
-  var PRECINCT_DATA_URL = "data/fl/precincts_all.json";
+  var STATES_URL = "assets/states.json";
+  var STATES = [], st = null;                 // registry + current state config
+  var DATA_URL, GEO_URL, PRECINCT_GEO_URL, PRECINCT_DATA_URL, HISTORY_URL;  // per-state, set in loadState
   var REFRESH_MS = 10 * 60 * 1000;
   // index of each method within a precincts_all.json value array
   var PFIELD = { cast: 1, mail_voted: 2, early_voted: 3, election_day: 4, provisional: 5 };
@@ -37,8 +36,7 @@
   var proj = null;
   var mapMode = "county";
   var precinctGeo = null, precinctData = null, precinctLoading = false;
-  var compare = false, baseline = null;
-  var BASELINE_URL = "data/fl/baseline_2022.json";
+  var compare = false, baseline = null, BASELINE_URL = null;
   var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
 
   // ---- utils ---------------------------------------------------------------
@@ -155,13 +153,16 @@
   // ---- render: meta / method picker / summary ------------------------------
   function renderMeta() {
     var e = data.election || {};
+    $("#site-title").textContent = (data.state_name || "") + " Turnout Tracker";
+    document.title = (data.state_name || "") + " Turnout Tracker — 2026";
+    if (st && st.source_note) $("#source-note").innerHTML = st.source_note;
     var dateStr = e.date ? new Date(e.date + "T12:00:00").toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "";
     $("#election-name").textContent = (e.name || "Election") + (dateStr ? " · Election Day " + dateStr : "");
     var fetched = new Date(data.generated_at).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
     var upd = data.source_compiled_iso
       ? new Date(data.source_compiled_iso).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" })
       : (data.source_compiled || "—");
-    $("#updated").innerHTML = "County data updated: <b>" + upd + "</b>";
+    $("#updated").innerHTML = "Data updated: <b>" + upd + "</b>";
     $("#updated").title = "Newest county TQV timestamp; page fetched " + fetched;
     $("#hash").textContent = "snapshot " + (data.data_hash || "").slice(0, 10) + " · primary: VR Systems TQV · fetched " + fetched;
   }
@@ -220,9 +221,11 @@
     var reg = data.statewide.registered || 0;
     var castTotal = (data.statewide.cast || {}).total || 0;
     var tp = data.statewide.turnout_pct;
-    host.appendChild(statCard("", "Turnout (all cast)",
-      (tp == null ? "0.00" : tp.toFixed(2)) + "%",
-      fmt(castTotal) + " of " + fmt(reg) + " registered"));
+    if (reg) {
+      host.appendChild(statCard("", "Turnout (all cast)",
+        (tp == null ? "0.00" : tp.toFixed(2)) + "%",
+        fmt(castTotal) + " of " + fmt(reg) + " registered"));
+    }
 
     if (compareActive()) {
       var s22 = sw22();
@@ -660,7 +663,8 @@
   // ---- trend charts (inline SVG, dependency-free) --------------------------
   var trendData = null;
   function loadTrends() {
-    fetch("data/fl/history.jsonl?t=" + Date.now(), { cache: "no-store" })
+    if (!HISTORY_URL) { trendData = null; $("#trends").hidden = true; return; }
+    fetch(HISTORY_URL + "?t=" + Date.now(), { cache: "no-store" })
       .then(function (r) { return r.ok ? r.text() : ""; })
       .then(function (txt) {
         trendData = txt.trim().split("\n").filter(Boolean).map(function (l) {
@@ -752,11 +756,20 @@
 
   // ---- shareable deep links (URL hash) ------------------------------------
   function updateHash() {
-    var parts = ["m=" + method];
+    var parts = [];
+    if (st) parts.push("s=" + st.code);
+    parts.push("m=" + method);
     if (mapMode !== "county") parts.push("v=" + mapMode);
     if (compare) parts.push("cmp=1");
     if (selected) parts.push("c=" + encodeURIComponent(selected));
     try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
+  }
+  function parseHash() {
+    var h = {};
+    location.hash.slice(1).split("&").forEach(function (kv) {
+      var i = kv.indexOf("="); if (i > 0) h[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+    });
+    return h;
   }
   function updateCmpNote() {
     var e = $("#cmp-note");
@@ -765,43 +778,71 @@
     if (CMP_METHODS.indexOf(method) < 0) { e.textContent = "— no 2022 by-party data for this category"; return; }
     e.textContent = "— map & table show the partisan-lean shift vs 2022 (all methods incl. election day; Broward/Monroe/Volusia mail+early only)";
   }
-  function restoreFromHash() {
-    var h = {};
-    location.hash.slice(1).split("&").forEach(function (kv) {
-      var i = kv.indexOf("="); if (i > 0) h[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
-    });
-    if (h.m && methodAvailable(h.m)) method = h.m;
-    if (h.cmp === "1") { compare = true; var cb = $("#cmp-2022"); if (cb) cb.checked = true; }
-    renderAll();
-    if (h.v === "precinct") setMode("precinct");
-    if (h.c && data.counties[h.c]) selectCounty(h.c, true);
+  function showError(msg) {
+    var m = document.querySelector("main");
+    var ex = document.querySelector(".error"); if (ex) ex.remove();
+    m.insertAdjacentHTML("afterbegin", "<div class='error'>Could not load data: " + msg + "</div>");
+  }
+
+  // load a state's config + data, wire feature visibility, render
+  function loadState(code, applyHash) {
+    st = null;
+    for (var i = 0; i < STATES.length; i++) if (STATES[i].code === code) st = STATES[i];
+    if (!st) st = STATES[0];
+    var sel = $("#state-select"); if (sel) sel.value = st.code;
+    // reset per-state state
+    data = geo = precinctGeo = precinctData = baseline = trendData = null;
+    precinctLoading = false; selected = null; filter = ""; cur = null;
+    compare = false; mapMode = "county"; method = "cast";
+    $("#filter").value = ""; var cb = $("#cmp-2022"); if (cb) cb.checked = false;
+    DATA_URL = st.data; GEO_URL = st.geojson;
+    PRECINCT_GEO_URL = st.precincts || null; PRECINCT_DATA_URL = st.precinct_data || null;
+    BASELINE_URL = st.baseline || null; HISTORY_URL = st.history || null;
+    // feature visibility
+    $("#map-mode").style.display = st.precincts ? "" : "none";
+    var row = $("#cmp-2022").closest(".controls-row"); if (row) row.style.display = st.baseline ? "" : "none";
+    $("#trends").hidden = true; $("#mail-panel").hidden = true; $("#precinct-panel").hidden = true;
+
+    Promise.all([getJSON(GEO_URL), getJSON(DATA_URL)]).then(function (res) {
+      geo = res[0]; data = res[1]; proj = buildProjection(geo); method = pickDefaultMethod();
+      if (applyHash) {
+        var h = parseHash();
+        if (h.m && methodAvailable(h.m)) method = h.m;
+        if (h.cmp === "1" && BASELINE_URL) { compare = true; if (cb) cb.checked = true; }
+      }
+      renderAll();
+      if (applyHash) {
+        var h2 = parseHash();
+        if (h2.v === "precinct" && PRECINCT_GEO_URL) setMode("precinct");
+        if (h2.c && data.counties[h2.c]) selectCounty(h2.c, true);
+      }
+      loadTrends();
+      if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
+      updateHash();
+    }).catch(function (err) { showError(err.message); });
   }
 
   function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {
-    Promise.all([getJSON(GEO_URL), getJSON(DATA_URL)]).then(function (res) {
-      geo = res[0]; data = res[1];
-      proj = buildProjection(geo);
-      method = pickDefaultMethod();
-      restoreFromHash();
+    getJSON(STATES_URL).then(function (reg) {
+      STATES = reg.states || [];
+      var sel = $("#state-select");
+      STATES.forEach(function (s) { var o = el("option"); o.value = s.code; o.textContent = s.name; sel.appendChild(o); });
+      sel.addEventListener("change", function () { loadState(this.value, false); });
       setupPanZoom();
-      loadTrends();
-      getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
-      $("#cmp-2022").addEventListener("change", function (e) { compare = e.target.checked; updateHash(); renderAll(); });
       $("#dl-csv").addEventListener("click", exportCSV);
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
       $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
+      $("#cmp-2022").addEventListener("change", function (e) { compare = e.target.checked; updateHash(); renderAll(); });
       var modeBtns = $("#map-mode").querySelectorAll("button");
-      for (var i = 0; i < modeBtns.length; i++) {
-        modeBtns[i].addEventListener("click", function () { setMode(this.getAttribute("data-mode")); });
-      }
+      for (var i = 0; i < modeBtns.length; i++) modeBtns[i].addEventListener("click", function () { setMode(this.getAttribute("data-mode")); });
       setInterval(refresh, REFRESH_MS);
-    }).catch(function (err) {
-      document.querySelector("main").insertAdjacentHTML("afterbegin",
-        "<div class='error'>Could not load data: " + err.message + "</div>");
-    });
+      var h = parseHash();
+      var code = (h.s && STATES.some(function (s) { return s.code === h.s; })) ? h.s : (reg.default || (STATES[0] && STATES[0].code));
+      loadState(code, true);
+    }).catch(function (err) { showError(err.message); });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Florida Turnout Tracker &mdash; 2026</title>
-<meta name="description" content="Live partisan composition of Florida election turnout by county and voting method, from official Florida Division of Elections data." />
+<title>Turnout Tracker &mdash; 2026</title>
+<meta name="description" content="Live partisan composition of election turnout by county and voting method, from official state election data. Florida, North Carolina, and more." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
 <link rel="stylesheet" href="style.css" />
 </head>
@@ -12,7 +12,10 @@
 <header class="site-head">
   <div class="wrap head-inner">
     <div class="titles">
-      <h1>Florida Turnout Tracker</h1>
+      <div class="title-row">
+        <h1 id="site-title">Turnout Tracker</h1>
+        <select id="state-select" class="state-select" aria-label="Choose state"></select>
+      </div>
       <p id="election-name" class="sub">Loading&hellip;</p>
     </div>
     <div class="status">
@@ -115,7 +118,7 @@
   </section>
 
   <footer class="site-foot">
-    <p>Primary source: county <a href="https://tqv.vrswebapps.com/?state=FL" target="_blank" rel="noopener">Turnout Quick View</a> feeds (VR Systems), the live turnout data published by county Supervisors of Elections &mdash; county and precinct level, with registered-voter counts. Secondary: <a href="https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats" target="_blank" rel="noopener">FL Division of Elections</a> statewide file (mail ballots outstanding, and fallback for any county whose live feed is not yet publishing).</p>
+    <p id="source-note">Loading source&hellip;</p>
     <p class="dim">This is an independent, non-partisan data project. &ldquo;Partisan composition&rdquo; reflects the <em>party registration</em> of voters who have cast (or been sent) ballots &mdash; not how they voted.</p>
     <p id="hash" class="dim"></p>
   </footer>

@@ -1,8 +1,8 @@
-name: Update Florida turnout
+name: Update turnout (all states)
 
-# Pulls the latest Florida county turnout data and commits it when it changes.
-# The state refreshes its files only a few times a day, so most 10-minute runs
-# detect "no change" and commit nothing, keeping git history clean.
+# Pulls the latest county turnout data for each tracked state and commits it
+# when it changes. Sources refresh only a few times a day, so most 10-minute
+# runs detect "no change" and commit nothing, keeping git history clean.
 
 on:
   schedule:
@@ -31,11 +31,14 @@ jobs:
       - name: Fetch and process Florida turnout
         run: python scripts/fl_update.py
 
+      - name: Fetch and process North Carolina turnout
+        run: python scripts/nc_update.py || echo "NC update failed (non-fatal)"
+
       - name: Commit if data changed
         run: |
           git config user.name  "turnout-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/fl
+          git add data
           if git diff --cached --quiet; then
             echo "No data change; nothing to commit."
           else

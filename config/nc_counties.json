@@ -1,0 +1,505 @@
+{
+ "note": "NC counties: name, uppercase county_desc code, FIPS",
+ "counties": [
+  {
+   "name": "Alamance",
+   "code": "ALAMANCE",
+   "fips": "37001"
+  },
+  {
+   "name": "Alexander",
+   "code": "ALEXANDER",
+   "fips": "37003"
+  },
+  {
+   "name": "Alleghany",
+   "code": "ALLEGHANY",
+   "fips": "37005"
+  },
+  {
+   "name": "Anson",
+   "code": "ANSON",
+   "fips": "37007"
+  },
+  {
+   "name": "Ashe",
+   "code": "ASHE",
+   "fips": "37009"
+  },
+  {
+   "name": "Avery",
+   "code": "AVERY",
+   "fips": "37011"
+  },
+  {
+   "name": "Beaufort",
+   "code": "BEAUFORT",
+   "fips": "37013"
+  },
+  {
+   "name": "Bertie",
+   "code": "BERTIE",
+   "fips": "37015"
+  },
+  {
+   "name": "Bladen",
+   "code": "BLADEN",
+   "fips": "37017"
+  },
+  {
+   "name": "Brunswick",
+   "code": "BRUNSWICK",
+   "fips": "37019"
+  },
+  {
+   "name": "Buncombe",
+   "code": "BUNCOMBE",
+   "fips": "37021"
+  },
+  {
+   "name": "Burke",
+   "code": "BURKE",
+   "fips": "37023"
+  },
+  {
+   "name": "Cabarrus",
+   "code": "CABARRUS",
+   "fips": "37025"
+  },
+  {
+   "name": "Caldwell",
+   "code": "CALDWELL",
+   "fips": "37027"
+  },
+  {
+   "name": "Camden",
+   "code": "CAMDEN",
+   "fips": "37029"
+  },
+  {
+   "name": "Carteret",
+   "code": "CARTERET",
+   "fips": "37031"
+  },
+  {
+   "name": "Caswell",
+   "code": "CASWELL",
+   "fips": "37033"
+  },
+  {
+   "name": "Catawba",
+   "code": "CATAWBA",
+   "fips": "37035"
+  },
+  {
+   "name": "Chatham",
+   "code": "CHATHAM",
+   "fips": "37037"
+  },
+  {
+   "name": "Cherokee",
+   "code": "CHEROKEE",
+   "fips": "37039"
+  },
+  {
+   "name": "Chowan",
+   "code": "CHOWAN",
+   "fips": "37041"
+  },
+  {
+   "name": "Clay",
+   "code": "CLAY",
+   "fips": "37043"
+  },
+  {
+   "name": "Cleveland",
+   "code": "CLEVELAND",
+   "fips": "37045"
+  },
+  {
+   "name": "Columbus",
+   "code": "COLUMBUS",
+   "fips": "37047"
+  },
+  {
+   "name": "Craven",
+   "code": "CRAVEN",
+   "fips": "37049"
+  },
+  {
+   "name": "Cumberland",
+   "code": "CUMBERLAND",
+   "fips": "37051"
+  },
+  {
+   "name": "Currituck",
+   "code": "CURRITUCK",
+   "fips": "37053"
+  },
+  {
+   "name": "Dare",
+   "code": "DARE",
+   "fips": "37055"
+  },
+  {
+   "name": "Davidson",
+   "code": "DAVIDSON",
+   "fips": "37057"
+  },
+  {
+   "name": "Davie",
+   "code": "DAVIE",
+   "fips": "37059"
+  },
+  {
+   "name": "Duplin",
+   "code": "DUPLIN",
+   "fips": "37061"
+  },
+  {
+   "name": "Durham",
+   "code": "DURHAM",
+   "fips": "37063"
+  },
+  {
+   "name": "Edgecombe",
+   "code": "EDGECOMBE",
+   "fips": "37065"
+  },
+  {
+   "name": "Forsyth",
+   "code": "FORSYTH",
+   "fips": "37067"
+  },
+  {
+   "name": "Franklin",
+   "code": "FRANKLIN",
+   "fips": "37069"
+  },
+  {
+   "name": "Gaston",
+   "code": "GASTON",
+   "fips": "37071"
+  },
+  {
+   "name": "Gates",
+   "code": "GATES",
+   "fips": "37073"
+  },
+  {
+   "name": "Graham",
+   "code": "GRAHAM",
+   "fips": "37075"
+  },
+  {
+   "name": "Granville",
+   "code": "GRANVILLE",
+   "fips": "37077"
+  },
+  {
+   "name": "Greene",
+   "code": "GREENE",
+   "fips": "37079"
+  },
+  {
+   "name": "Guilford",
+   "code": "GUILFORD",
+   "fips": "37081"
+  },
+  {
+   "name": "Halifax",
+   "code": "HALIFAX",
+   "fips": "37083"
+  },
+  {
+   "name": "Harnett",
+   "code": "HARNETT",
+   "fips": "37085"
+  },
+  {
+   "name": "Haywood",
+   "code": "HAYWOOD",
+   "fips": "37087"
+  },
+  {
+   "name": "Henderson",
+   "code": "HENDERSON",
+   "fips": "37089"
+  },
+  {
+   "name": "Hertford",
+   "code": "HERTFORD",
+   "fips": "37091"
+  },
+  {
+   "name": "Hoke",
+   "code": "HOKE",
+   "fips": "37093"
+  },
+  {
+   "name": "Hyde",
+   "code": "HYDE",
+   "fips": "37095"
+  },
+  {
+   "name": "Iredell",
+   "code": "IREDELL",
+   "fips": "37097"
+  },
+  {
+   "name": "Jackson",
+   "code": "JACKSON",
+   "fips": "37099"
+  },
+  {
+   "name": "Johnston",
+   "code": "JOHNSTON",
+   "fips": "37101"
+  },
+  {
+   "name": "Jones",
+   "code": "JONES",
+   "fips": "37103"
+  },
+  {
+   "name": "Lee",
+   "code": "LEE",
+   "fips": "37105"
+  },
+  {
+   "name": "Lenoir",
+   "code": "LENOIR",
+   "fips": "37107"
+  },
+  {
+   "name": "Lincoln",
+   "code": "LINCOLN",
+   "fips": "37109"
+  },
+  {
+   "name": "Macon",
+   "code": "MACON",
+   "fips": "37113"
+  },
+  {
+   "name": "Madison",
+   "code": "MADISON",
+   "fips": "37115"
+  },
+  {
+   "name": "Martin",
+   "code": "MARTIN",
+   "fips": "37117"
+  },
+  {
+   "name": "McDowell",
+   "code": "MCDOWELL",
+   "fips": "37111"
+  },
+  {
+   "name": "Mecklenburg",
+   "code": "MECKLENBURG",
+   "fips": "37119"
+  },
+  {
+   "name": "Mitchell",
+   "code": "MITCHELL",
+   "fips": "37121"
+  },
+  {
+   "name": "Montgomery",
+   "code": "MONTGOMERY",
+   "fips": "37123"
+  },
+  {
+   "name": "Moore",
+   "code": "MOORE",
+   "fips": "37125"
+  },
+  {
+   "name": "Nash",
+   "code": "NASH",
+   "fips": "37127"
+  },
+  {
+   "name": "New Hanover",
+   "code": "NEW HANOVER",
+   "fips": "37129"
+  },
+  {
+   "name": "Northampton",
+   "code": "NORTHAMPTON",
+   "fips": "37131"
+  },
+  {
+   "name": "Onslow",
+   "code": "ONSLOW",
+   "fips": "37133"
+  },
+  {
+   "name": "Orange",
+   "code": "ORANGE",
+   "fips": "37135"
+  },
+  {
+   "name": "Pamlico",
+   "code": "PAMLICO",
+   "fips": "37137"
+  },
+  {
+   "name": "Pasquotank",
+   "code": "PASQUOTANK",
+   "fips": "37139"
+  },
+  {
+   "name": "Pender",
+   "code": "PENDER",
+   "fips": "37141"
+  },
+  {
+   "name": "Perquimans",
+   "code": "PERQUIMANS",
+   "fips": "37143"
+  },
+  {
+   "name": "Person",
+   "code": "PERSON",
+   "fips": "37145"
+  },
+  {
+   "name": "Pitt",
+   "code": "PITT",
+   "fips": "37147"
+  },
+  {
+   "name": "Polk",
+   "code": "POLK",
+   "fips": "37149"
+  },
+  {
+   "name": "Randolph",
+   "code": "RANDOLPH",
+   "fips": "37151"
+  },
+  {
+   "name": "Richmond",
+   "code": "RICHMOND",
+   "fips": "37153"
+  },
+  {
+   "name": "Robeson",
+   "code": "ROBESON",
+   "fips": "37155"
+  },
+  {
+   "name": "Rockingham",
+   "code": "ROCKINGHAM",
+   "fips": "37157"
+  },
+  {
+   "name": "Rowan",
+   "code": "ROWAN",
+   "fips": "37159"
+  },
+  {
+   "name": "Rutherford",
+   "code": "RUTHERFORD",
+   "fips": "37161"
+  },
+  {
+   "name": "Sampson",
+   "code": "SAMPSON",
+   "fips": "37163"
+  },
+  {
+   "name": "Scotland",
+   "code": "SCOTLAND",
+   "fips": "37165"
+  },
+  {
+   "name": "Stanly",
+   "code": "STANLY",
+   "fips": "37167"
+  },
+  {
+   "name": "Stokes",
+   "code": "STOKES",
+   "fips": "37169"
+  },
+  {
+   "name": "Surry",
+   "code": "SURRY",
+   "fips": "37171"
+  },
+  {
+   "name": "Swain",
+   "code": "SWAIN",
+   "fips": "37173"
+  },
+  {
+   "name": "Transylvania",
+   "code": "TRANSYLVANIA",
+   "fips": "37175"
+  },
+  {
+   "name": "Tyrrell",
+   "code": "TYRRELL",
+   "fips": "37177"
+  },
+  {
+   "name": "Union",
+   "code": "UNION",
+   "fips": "37179"
+  },
+  {
+   "name": "Vance",
+   "code": "VANCE",
+   "fips": "37181"
+  },
+  {
+   "name": "Wake",
+   "code": "WAKE",
+   "fips": "37183"
+  },
+  {
+   "name": "Warren",
+   "code": "WARREN",
+   "fips": "37185"
+  },
+  {
+   "name": "Washington",
+   "code": "WASHINGTON",
+   "fips": "37187"
+  },
+  {
+   "name": "Watauga",
+   "code": "WATAUGA",
+   "fips": "37189"
+  },
+  {
+   "name": "Wayne",
+   "code": "WAYNE",
+   "fips": "37191"
+  },
+  {
+   "name": "Wilkes",
+   "code": "WILKES",
+   "fips": "37193"
+  },
+  {
+   "name": "Wilson",
+   "code": "WILSON",
+   "fips": "37195"
+  },
+  {
+   "name": "Yadkin",
+   "code": "YADKIN",
+   "fips": "37197"
+  },
+  {
+   "name": "Yancey",
+   "code": "YANCEY",
+   "fips": "37199"
+  }
+ ]
+}

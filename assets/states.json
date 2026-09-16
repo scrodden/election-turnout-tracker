@@ -1,13 +1,25 @@
 {
-  "note": "Registry of states tracked by this project. Florida is the first module; others plug in here as they are added.",
+  "note": "Registry of tracked states. The front end reads each entry's data/geojson paths and shows only the features whose data exists (precinct map, 2022 comparison, mail-outstanding, turnout%).",
+  "default": "fl",
   "states": [
     {
       "code": "fl",
       "name": "Florida",
-      "status": "live",
       "data": "data/fl/latest.json",
+      "geojson": "assets/fl-counties.geojson",
+      "precincts": "assets/fl-precincts.geojson",
+      "precinct_data": "data/fl/precincts_all.json",
+      "baseline": "data/fl/baseline_2022.json",
       "history": "data/fl/history.jsonl",
-      "config": "config/fl.json"
+      "source_note": "Primary source: county <a href='https://tqv.vrswebapps.com/?state=FL' target='_blank' rel='noopener'>Turnout Quick View</a> feeds (VR Systems) — county &amp; precinct level with registered-voter counts. Secondary: <a href='https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats' target='_blank' rel='noopener'>FL Division of Elections</a> (mail ballots outstanding + fallback)."
+    },
+    {
+      "code": "nc",
+      "name": "North Carolina",
+      "data": "data/nc/latest.json",
+      "geojson": "assets/nc-counties.geojson",
+      "history": "data/nc/history.jsonl",
+      "source_note": "Source: <a href='https://www.ncsbe.gov/results-data/absentee-and-provisional-data' target='_blank' rel='noopener'>NC State Board of Elections</a> voter-level absentee file (mail + one-stop early voting; returned ballots, by registered party). NC does not publish mail requests until a ballot is returned, so there is no “mail outstanding” figure."
     }
   ]
 }

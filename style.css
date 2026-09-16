@@ -30,7 +30,9 @@ a { color: var(--accent); }
 /* Header */
 .site-head { background: linear-gradient(180deg, var(--card), var(--card)); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
 .head-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; flex-wrap: wrap; }
+.title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .titles h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+.state-select { font-size: 14px; font-weight: 600; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); cursor: pointer; }
 .sub { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
 .status { text-align: right; font-size: 12px; color: var(--muted); }
 .updated { font-weight: 600; color: var(--ink); }
