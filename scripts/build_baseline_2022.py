@@ -48,6 +48,21 @@ def block(r, d, o, npa):
     return {"rep": r, "dem": d, "oth": o, "npa": npa, "total": r + d + o + npa}
 
 
+def add_eday(ent):
+    """Exact election-day volume via Total - mail_voted - early_voted (party-less;
+    includes provisional). Party split is NOT derivable free (needs voter file)."""
+    tot = ent.get("turnout_total")
+    if not tot:
+        return
+    mv = (ent.get("mail_voted") or {}).get("total", 0)
+    ev = (ent.get("early_voted") or {}).get("total", 0)
+    ed = max(0, tot - mv - ev)
+    ent["election_day_total"] = ed
+    ent["method_mix"] = {"mail": round(100.0 * mv / tot, 1),
+                         "early": round(100.0 * ev / tot, 1),
+                         "eday": round(100.0 * ed / tot, 1)}
+
+
 def parse_pdf():
     try:
         from pypdf import PdfReader
@@ -119,6 +134,7 @@ def main():
                             (mv or {}).get("dem", 0) + (ev or {}).get("dem", 0),
                             (mv or {}).get("oth", 0) + (ev or {}).get("oth", 0),
                             (mv or {}).get("npa", 0) + (ev or {}).get("npa", 0))
+        add_eday(ent)
         result_counties[c["name"]] = ent
 
     # statewide cast + turnout (sum registration/turnout across counties)
@@ -132,6 +148,7 @@ def main():
         statewide["turnout_total"] = sum(e.get("turnout_total", 0) for e in result_counties.values())
         statewide["turnout_pct"] = round(100.0 * statewide["turnout_total"] / statewide["registered"], 2) \
             if statewide["registered"] else None
+        add_eday(statewide)
 
     out = {
         "election": {"name": "2022 General", "number": "26906", "date": "2022-11-08"},

@@ -445,6 +445,10 @@
       var sh = (b.margin != null && m22 && m22.margin != null) ? (b.margin - m22.margin) : null;
       tip.innerHTML += "<br>2022: " + marginText(m22 ? m22.margin : null) + " · shift <b>" + shiftText(sh) + "</b>";
     }
+    if (compare && baseline && baseline.counties[name] && baseline.counties[name].method_mix) {
+      var mm = baseline.counties[name].method_mix;
+      tip.innerHTML += "<br><span style='opacity:.75'>2022 mix: mail " + mm.mail + "% · early " + mm.early + "% · e-day " + mm.eday + "%</span>";
+    }
     var holder = $("#map-holder").getBoundingClientRect();
     tip.style.left = (ev.clientX - holder.left) + "px";
     tip.style.top = (ev.clientY - holder.top) + "px";
