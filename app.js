@@ -37,6 +37,9 @@
   var proj = null;
   var mapMode = "county";
   var precinctGeo = null, precinctData = null, precinctLoading = false;
+  var compare = false, baseline = null;
+  var BASELINE_URL = "data/fl/baseline_2022.json";
+  var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "cast"];
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -62,6 +65,18 @@
     var b = entity && entity[key];
     return b || { rep: 0, dem: 0, oth: 0, npa: 0, total: 0, rep_pct: null, dem_pct: null, npa_pct: null, oth_pct: null, margin: null };
   }
+  function compareActive() { return compare && baseline && CMP_METHODS.indexOf(method) >= 0; }
+  function marginOf(b) { return (!b || !b.total) ? null : Math.round((100 * b.rep / b.total - 100 * b.dem / b.total) * 10) / 10; }
+  function b22(name) {
+    if (!baseline) return null;
+    var c = baseline.counties[name]; if (!c || !c[method]) return null;
+    var b = c[method]; return { rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total, margin: marginOf(b) };
+  }
+  function sw22() {
+    if (!baseline || !baseline.statewide[method]) return null;
+    var b = baseline.statewide[method]; return { total: b.total, margin: marginOf(b) };
+  }
+  function shiftText(s) { return s == null ? "—" : s > 0 ? "R+" + s.toFixed(1) : s < 0 ? "D+" + (-s).toFixed(1) : "0"; }
 
   // ---- diverging color scale ----------------------------------------------
   var STOPS = [
@@ -208,6 +223,15 @@
     host.appendChild(statCard("", "Turnout (all cast)",
       (tp == null ? "0.00" : tp.toFixed(2)) + "%",
       fmt(castTotal) + " of " + fmt(reg) + " registered"));
+
+    if (compareActive()) {
+      var s22 = sw22();
+      var sh = (b.margin != null && s22 && s22.margin != null) ? Math.round((b.margin - s22.margin) * 10) / 10 : null;
+      var cc = statCard("", "Shift vs 2022", shiftText(sh),
+        s22 ? ("2026 " + marginText(b.margin) + " vs 2022 " + marginText(s22.margin)) : "no 2022 data");
+      cc.querySelector(".v").style.color = sh == null ? "var(--muted)" : sh > 0 ? "var(--rep)" : sh < 0 ? "var(--dem)" : "var(--ink)";
+      host.appendChild(cc);
+    }
   }
 
   // ---- render: map ---------------------------------------------------------
@@ -308,10 +332,17 @@
     var svg = $("#map");
     pzInit(); pzApply();
     while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var cmp = compareActive();
     geo.features.forEach(function (ft) {
       var name = ft.properties.name;
       var b = block(data.counties[name], method);
-      var p = svgPath(pathFor(ft.geometry), colorForMargin(b.margin), name === selected ? "sel" : null);
+      var fill;
+      if (cmp) {
+        var m22 = b22(name);
+        var sh = (b.margin != null && m22 && m22.margin != null) ? (b.margin - m22.margin) : null;
+        fill = sh == null ? "#c9ced6" : colorForMargin(sh);
+      } else { fill = colorForMargin(b.margin); }
+      var p = svgPath(pathFor(ft.geometry), fill, name === selected ? "sel" : null);
       p.setAttribute("data-name", name);
       p.addEventListener("mousemove", function (ev) { showTip(ev, name); });
       p.addEventListener("mouseleave", hideTip);
@@ -373,6 +404,8 @@
     var lg = $("#legend");
     if (mapMode === "precinct") {
       lg.innerHTML = "<span>0%</span><span class='grad grad-turnout'></span><span>50%+ turnout</span>";
+    } else if (compareActive()) {
+      lg.innerHTML = "<span>more Dem</span><span class='grad'></span><span>more Rep</span><span style='margin-left:5px'>vs&nbsp;2022</span>";
     } else {
       lg.innerHTML = "<span>D+40</span><span class='grad'></span><span>R+40</span>";
     }
@@ -407,6 +440,11 @@
       "R " + fmt(b.rep) + " · D " + fmt(b.dem) + " · NPA " + fmt(b.npa) + "<br>" +
       "Total " + fmt(b.total) + " — <span class='tt-margin' style='color:" +
       (b.margin == null ? "#bbb" : b.margin > 0 ? "#ff8a8a" : "#9ec5ff") + "'>" + marginText(b.margin) + "</span>";
+    if (compareActive()) {
+      var m22 = b22(name);
+      var sh = (b.margin != null && m22 && m22.margin != null) ? (b.margin - m22.margin) : null;
+      tip.innerHTML += "<br>2022: " + marginText(m22 ? m22.margin : null) + " · shift <b>" + shiftText(sh) + "</b>";
+    }
     var holder = $("#map-holder").getBoundingClientRect();
     tip.style.left = (ev.clientX - holder.left) + "px";
     tip.style.top = (ev.clientY - holder.top) + "px";
@@ -421,9 +459,14 @@
     { key: "total", label: "Total" }, { key: "turnout", label: "Turnout" },
     { key: "margin", label: "Lean" }
   ];
+  function activeCols() {
+    var cols = COLS.slice();
+    if (compareActive()) { cols.push({ key: "m22", label: "2022" }); cols.push({ key: "shift", label: "Δ vs '22" }); }
+    return cols;
+  }
   function renderTableHead() {
     var tr = el("tr");
-    COLS.forEach(function (c) {
+    activeCols().forEach(function (c) {
       var th = el("th", c.cls === "county" ? "county" : "");
       th.textContent = c.label;
       if (sort.key === c.key) {
@@ -444,8 +487,12 @@
       var name = ft.properties.name;
       var cty = data.counties[name] || {};
       var b = block(cty, method);
+      var m22b = compareActive() ? b22(name) : null;
+      var m22 = m22b ? m22b.margin : null;
+      var shift = (compareActive() && b.margin != null && m22 != null) ? Math.round((b.margin - m22) * 10) / 10 : null;
       return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
-               margin: b.margin, turnout: cty.turnout_pct, tqv: cty.tqv_url, source: cty.source };
+               margin: b.margin, turnout: cty.turnout_pct, tqv: cty.tqv_url, source: cty.source,
+               m22: m22, shift: shift };
     });
     if (filter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(filter) >= 0; });
     rows.sort(function (a, b) {
@@ -466,6 +513,12 @@
         "<td>" + fmt(r.rep) + "</td><td>" + fmt(r.dem) + "</td><td>" + fmt(r.oth) + "</td>" +
         "<td>" + fmt(r.npa) + "</td><td>" + fmt(r.total) + "</td>" +
         "<td>" + pctText(r.turnout) + "</td><td>" + pill + "</td>";
+      if (compareActive()) {
+        var pill22 = "<span class='pill' style='background:" + colorForMargin(r.m22) + ";color:" +
+          (r.m22 == null ? "#333" : "#fff") + "'>" + marginText(r.m22) + "</span>";
+        tr.innerHTML += "<td>" + pill22 + "</td><td class='" +
+          (r.shift > 0 ? "sh-r" : r.shift < 0 ? "sh-d" : "") + "'>" + shiftText(r.shift) + "</td>";
+      }
       tr.addEventListener("click", function (ev) {
         if (ev.target.closest("a")) return; // let the TQV link work without selecting
         selectCounty(r.name, false);
@@ -671,14 +724,21 @@
   function csvCell(s) { s = String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
   function exportCSV() {
     var methodLabel = METHODS.filter(function (m) { return m.key === method; })[0].label;
+    var cmp = baseline && CMP_METHODS.indexOf(method) >= 0;
     var head = ["County", "FIPS", "Category", "Rep", "Dem", "Other", "NPA", "Total",
                 "Turnout_pct", "Lean", "Registered", "Mail_return_pct"];
+    if (cmp) head.push("Lean_2022", "Shift_vs_2022");
     var lines = [head.join(",")];
     Object.keys(data.counties).sort().forEach(function (name) {
       var c = data.counties[name], b = block(c, method);
-      lines.push([csvCell(name), c.fips || "", csvCell(methodLabel), b.rep, b.dem, b.oth, b.npa, b.total,
+      var row = [csvCell(name), c.fips || "", csvCell(methodLabel), b.rep, b.dem, b.oth, b.npa, b.total,
         c.turnout_pct == null ? "" : c.turnout_pct, b.margin == null ? "" : b.margin,
-        c.registered || "", (c.mail && c.mail.return_rate != null) ? c.mail.return_rate : ""].join(","));
+        c.registered || "", (c.mail && c.mail.return_rate != null) ? c.mail.return_rate : ""];
+      if (cmp) {
+        var m22 = b22(name); var m = m22 ? m22.margin : null;
+        row.push(m == null ? "" : m, (b.margin != null && m != null) ? Math.round((b.margin - m) * 10) / 10 : "");
+      }
+      lines.push(row.join(","));
     });
     var blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
     var url = URL.createObjectURL(blob), a = document.createElement("a");
@@ -690,8 +750,17 @@
   function updateHash() {
     var parts = ["m=" + method];
     if (mapMode !== "county") parts.push("v=" + mapMode);
+    if (compare) parts.push("cmp=1");
     if (selected) parts.push("c=" + encodeURIComponent(selected));
     try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
+  }
+  function updateCmpNote() {
+    var e = $("#cmp-note");
+    if (!compare) { e.textContent = ""; return; }
+    if (!baseline) { e.textContent = "loading 2022…"; return; }
+    e.textContent = CMP_METHODS.indexOf(method) < 0
+      ? "— no 2022 by-party data for this category"
+      : "— map & table show the shift since 2022 (mail + early)";
   }
   function restoreFromHash() {
     var h = {};
@@ -699,12 +768,13 @@
       var i = kv.indexOf("="); if (i > 0) h[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
     });
     if (h.m && methodAvailable(h.m)) method = h.m;
+    if (h.cmp === "1") { compare = true; var cb = $("#cmp-2022"); if (cb) cb.checked = true; }
     renderAll();
     if (h.v === "precinct") setMode("precinct");
     if (h.c && data.counties[h.c]) selectCounty(h.c, true);
   }
 
-  function renderAll() { renderMeta(); renderMethodPicker(); renderSummary(); renderMail(); renderMap(); renderTable(); }
+  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {
@@ -715,6 +785,8 @@
       restoreFromHash();
       setupPanZoom();
       loadTrends();
+      getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
+      $("#cmp-2022").addEventListener("change", function (e) { compare = e.target.checked; updateHash(); renderAll(); });
       $("#dl-csv").addEventListener("click", exportCSV);
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
       $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });

@@ -47,6 +47,11 @@ a { color: var(--accent); }
 .method-picker button:hover { color: var(--ink); background: rgba(127,127,127,.08); }
 .method-picker button[aria-selected="true"] { background: var(--accent); color: #fff; }
 .method-hint { color: var(--muted); font-size: 12.5px; margin: 8px 2px 0; min-height: 1em; }
+.controls-row { display: flex; align-items: center; gap: 12px; margin: 10px 2px 0; flex-wrap: wrap; }
+.cmp-toggle { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; cursor: pointer; user-select: none; }
+.cmp-toggle input { width: 15px; height: 15px; cursor: pointer; }
+.sh-r { color: var(--rep); font-weight: 700; }
+.sh-d { color: var(--dem); font-weight: 700; }
 
 /* Summary cards */
 .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 14px 0; }
