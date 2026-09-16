@@ -1,0 +1,13 @@
+{
+  "_comment": "Controls when the tracker STOPS auto-updating and ARCHIVES each state's 2026 general data. Certification is not machine-readable, so a state freezes once BOTH conditions hold: (a) the calendar has passed its `certified_after` date, AND (b) its live data has been unchanged for `stale_days` (the source stopped moving = counting/canvass done). This staleness gate makes the exact dates non-critical: set them a little early and the freeze still waits until the numbers are actually final. At `hard_stop` any state still live is frozen regardless, so the whole system halts even if a feed misbehaves. Dates are best-effort statewide certification dates for the 2026 general election (Election Day 2026-11-03) and can be edited freely.",
+  "stale_days": 4,
+  "hard_stop": "2026-12-15",
+  "default_certified_after": "2026-11-25",
+  "certified_after": {
+    "fl": "2026-11-17",
+    "nc": "2026-11-24",
+    "nv": "2026-11-24",
+    "pa": "2026-11-25",
+    "va": "2026-11-16"
+  }
+}

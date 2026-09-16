@@ -171,6 +171,23 @@
     $("#updated").innerHTML = "Data updated: <b>" + upd + "</b>";
     $("#updated").title = "Newest county TQV timestamp; page fetched " + fetched;
     $("#hash").textContent = "snapshot " + (data.data_hash || "").slice(0, 10) + " · primary: VR Systems TQV · fetched " + fetched;
+
+    // Post-certification: the state is archived and live updates have stopped.
+    var fb = $("#frozen-banner");
+    var rn = document.querySelector(".refresh-note");
+    if (data.frozen) {
+      var fdate = data.frozen_at
+        ? new Date(data.frozen_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+        : "";
+      fb.innerHTML = "✓ <b>Final results — archived.</b> " + (data.state_name || "This state") +
+        "’s 2026 general results are certified, so live updates have stopped" +
+        (fdate ? " (archived " + fdate + ")" : "") + ". Showing the preserved final snapshot.";
+      fb.hidden = false;
+      if (rn) rn.textContent = "Final — updates stopped";
+    } else if (fb) {
+      fb.hidden = true;
+      if (rn) rn.textContent = "Auto-refreshes every 10 min";
+    }
   }
 
   function renderMethodPicker() {
