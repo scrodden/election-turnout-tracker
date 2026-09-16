@@ -36,6 +36,15 @@
       "geojson": "assets/pa-counties.geojson",
       "history": "data/pa/history.jsonl",
       "source_note": "Source: <a href='https://data.pa.gov/Government-Efficiency-Citizen-Engagement/2026-General-Election-Mail-Ballot-Requests-Departm/nbwd-pfn4' target='_blank' rel='noopener'>PA Department of State open data</a> — 2026 general mail-ballot applications by county &amp; registered party. PA has no in-person early voting; “mail outstanding” = approved applications not yet returned."
+    },
+    {
+      "code": "va",
+      "name": "Virginia",
+      "partisan": false,
+      "data": "data/va/latest.json",
+      "geojson": "assets/va-counties.geojson",
+      "history": "data/va/history.jsonl",
+      "source_note": "Source: <a href='https://www.vpap.org/visuals/visual/early-voting-by-locality/' target='_blank' rel='noopener'>VPAP</a> early-vote-by-locality. Virginia has no party registration, so this is turnout-only — total early/absentee ballots &amp; turnout% by locality, no partisan breakdown. General-election early voting begins Sept 18, so figures read zero until then."
     }
   ]
 }

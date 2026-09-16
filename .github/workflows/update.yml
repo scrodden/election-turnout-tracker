@@ -40,6 +40,9 @@ jobs:
       - name: Fetch and process Pennsylvania turnout
         run: python scripts/pa_update.py || echo "PA update failed (non-fatal)"
 
+      - name: Fetch and process Virginia turnout
+        run: python scripts/va_update.py || echo "VA update failed (non-fatal)"
+
       - name: Commit if data changed
         run: |
           git config user.name  "turnout-bot"

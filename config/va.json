@@ -1,0 +1,21 @@
+{
+  "state": "va",
+  "state_name": "Virginia",
+  "state_fips": "51",
+  "partisan": false,
+  "election": { "number": "2026_11_03", "date": "2026-11-03", "name": "2026 General" },
+  "source": {
+    "_comment": "Virginia has no party registration -> turnout-only. VPAP hosts per-election early-vote-by-locality TopoJSON on S3 (properties: locality, early_votes, perc_early_voters). The 2026 general file appears when early voting opens ~Sept 18; we auto-discover it from the candidates. validation_file is used only by --validate to prove the locality matcher (all 133).",
+    "referer": "https://www.vpap.org/",
+    "base": "https://vpap-production.s3.amazonaws.com/media/visuals/custom/datasets/",
+    "general_candidates": [
+      "locality_earlyvotes_2026nov.json",
+      "locality_earlyvotes_2026oct.json",
+      "locality_earlyvotes_2026general.json",
+      "locality_earlyvotes_2026gen.json",
+      "locality_earlyvotes_2026sep.json"
+    ],
+    "validation_file": "locality_earlyvotes_2026apr.json"
+  },
+  "method_labels": { "cast": "Ballots cast early", "early_voted": "Early / absentee ballots" }
+}
