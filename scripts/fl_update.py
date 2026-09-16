@@ -288,6 +288,25 @@ def block_from_counts(counts, compiled="", compiled_iso=""):
                          c.get("npa", 0), compiled, compiled_iso)
 
 
+def compute_mail(ent):
+    """Mail-ballot return metrics from provided (outstanding) + voted (returned).
+    requested = outstanding + returned. Rates overall and by party."""
+    prov, voted = ent.get("mail_provided"), ent.get("mail_voted")
+    if not prov and not voted:
+        return None
+
+    def g(b, k):
+        return (b or {}).get(k, 0)
+    parties = {}
+    for p in ("rep", "dem", "oth", "npa"):
+        req = g(prov, p) + g(voted, p)
+        parties[p] = {"req": req, "ret": g(voted, p), "rate": C.pct(g(voted, p), req)}
+    req = g(prov, "total") + g(voted, "total")
+    ret = g(voted, "total")
+    return {"requested": req, "returned": ret, "outstanding": g(prov, "total"),
+            "return_rate": C.pct(ret, req), "parties": parties}
+
+
 def build_county_entity(county, tqv, dos_methods):
     """Combine TQV (cast methods) + DOS (mail_provided) into one county entity."""
     ent = {"code": county["code"], "fips": county["fips"],
@@ -318,6 +337,7 @@ def build_county_entity(county, tqv, dos_methods):
     ent["registered"] = registered
     ent["last_updated"] = iso
     ent["turnout_pct"] = C.pct(ent["cast"]["total"], registered)
+    ent["mail"] = compute_mail(ent)
     return ent
 
 
@@ -466,6 +486,7 @@ def main():
     statewide["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
     statewide["registered"] = sum(counties_out[c].get("registered", 0) for c in counties_out)
     statewide["turnout_pct"] = C.pct(statewide["cast"]["total"], statewide["registered"])
+    statewide["mail"] = compute_mail(statewide)
 
     methods_present = sorted({m for c in counties_out.values() for m in ALL_METHODS if c.get(m)})
 

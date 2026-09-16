@@ -161,7 +161,7 @@
       var avail = methodAvailable(m.key);
       b.setAttribute("aria-selected", String(m.key === method));
       if (!avail) { b.disabled = true; b.title = "No data yet"; b.style.opacity = ".45"; b.style.cursor = "not-allowed"; }
-      b.addEventListener("click", function () { if (!avail) return; method = m.key; renderAll(); });
+      b.addEventListener("click", function () { if (!avail) return; method = m.key; updateHash(); renderAll(); });
       host.appendChild(b);
     });
     $("#method-hint").textContent = HINTS[method] || "";
@@ -396,6 +396,7 @@
         .catch(function () { precinctLoading = false; renderMap(); });
     }
     renderMap();
+    updateHash();
   }
 
   function showTip(ev, name) {
@@ -488,6 +489,7 @@
       if (row) row.scrollIntoView({ block: "nearest" });
     }
     if (selected) openPrecincts(selected); else closePrecincts();
+    updateHash();
   }
   function cssEscape(s) { return s.replace(/'/g, "\\'"); }
 
@@ -560,6 +562,7 @@
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
           precinctData = pd; if (mapMode === "precinct") renderMap();
         }).catch(function () {});
+        loadTrends();
         flashUpdated();
       } else { data.generated_at = nd.generated_at; renderMeta(); }
     }).catch(function () { /* transient; try again next tick */ });
@@ -575,7 +578,133 @@
     return "mail_provided";
   }
 
-  function renderAll() { renderMeta(); renderMethodPicker(); renderSummary(); renderMap(); renderTable(); }
+  // ---- mail return-rate panel ---------------------------------------------
+  function renderMail() {
+    var m = data.statewide.mail, panel = $("#mail-panel");
+    if (!m || !m.requested) { panel.hidden = true; return; }
+    panel.hidden = false;
+    function stat(k, v) { return "<div class='m'><div class='k'>" + k + "</div><div class='v'>" + v + "</div></div>"; }
+    $("#mail-stats").innerHTML =
+      stat("Ballots sent", fmt(m.requested)) +
+      stat("Returned", fmt(m.returned) + " <span style='font-size:14px;color:var(--muted)'>(" + pctText(m.return_rate) + ")</span>") +
+      stat("Still outstanding", fmt(m.outstanding));
+    var order = [["rep", "Republican", "var(--rep)"], ["dem", "Democratic", "var(--dem)"],
+                 ["npa", "No party", "var(--npa)"], ["oth", "Other", "var(--npa)"]];
+    $("#mail-parties").innerHTML = order.map(function (o) {
+      var p = m.parties[o[0]] || { rate: null, ret: 0, req: 0 };
+      var w = p.rate == null ? 0 : Math.min(100, p.rate);
+      return "<div class='mail-row' title='" + fmt(p.ret) + " of " + fmt(p.req) + " returned'>" +
+        "<span class='lbl'>" + o[1] + "</span>" +
+        "<span class='track'><i class='fill' style='width:" + w + "%;background:" + o[2] + "'></i></span>" +
+        "<span class='pct'>" + pctText(p.rate) + "</span></div>";
+    }).join("");
+  }
+
+  // ---- trend charts (inline SVG, dependency-free) --------------------------
+  var trendData = null;
+  function loadTrends() {
+    fetch("data/fl/history.jsonl?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.text() : ""; })
+      .then(function (txt) {
+        trendData = txt.trim().split("\n").filter(Boolean).map(function (l) {
+          try { return JSON.parse(l); } catch (e) { return null; }
+        }).filter(Boolean);
+        renderTrends();
+      }).catch(function () {});
+  }
+  function seriesFrom(getY) {
+    return (trendData || []).map(function (r) {
+      return { t: new Date(r.generated_at), y: getY(r.statewide || {}) };
+    }).filter(function (p) { return !isNaN(p.t.getTime()); });
+  }
+  function renderTrends() {
+    var sec = $("#trends");
+    if (!trendData || trendData.length < 2) { sec.hidden = true; return; }
+    sec.hidden = false;
+    var cast = seriesFrom(function (s) { return (s.cast && s.cast[4]) || 0; });
+    var lean = seriesFrom(function (s) {
+      var c = s.cast; return (c && c[4]) ? Math.round((c[0] - c[1]) / c[4] * 1000) / 10 : null;
+    });
+    drawLineChart($("#chart-cast"), cast, { ymin: 0, fmt: fmt, color: "#31a354" });
+    drawLineChart($("#chart-lean"), lean, { symmetric: true, zero: true, fmt: marginText, color: "var(--accent)" });
+  }
+  function drawLineChart(svg, series, opts) {
+    opts = opts || {};
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var W = 320, H = 180, ml = 46, mr = 12, mt = 12, mb = 22;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    var NS = "http://www.w3.org/2000/svg";
+    function add(tag, attrs, text) {
+      var e = document.createElementNS(NS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (text != null) e.textContent = text;
+      svg.appendChild(e); return e;
+    }
+    var pts = series.filter(function (p) { return p.y != null; });
+    if (pts.length < 2) { add("text", { x: ml, y: H / 2, class: "lbl" }, "Not enough data yet"); return; }
+    var xs = pts.map(function (p) { return p.t.getTime(); });
+    var ys = pts.map(function (p) { return p.y; });
+    var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+    var ymin = opts.ymin != null ? opts.ymin : Math.min.apply(null, ys);
+    var ymax = opts.ymax != null ? opts.ymax : Math.max.apply(null, ys);
+    if (opts.symmetric) { var a = Math.max(Math.abs(ymin), Math.abs(ymax), 1); ymin = -a; ymax = a; }
+    if (ymin === ymax) ymax = ymin + 1;
+    var px = function (t) { return ml + (t - xmin) / (xmax - xmin || 1) * (W - ml - mr); };
+    var py = function (v) { return mt + (1 - (v - ymin) / (ymax - ymin || 1)) * (H - mt - mb); };
+    add("line", { class: "axis", x1: ml, y1: mt, x2: ml, y2: H - mb });
+    add("line", { class: "axis", x1: ml, y1: H - mb, x2: W - mr, y2: H - mb });
+    [ymax, (ymax + ymin) / 2, ymin].forEach(function (v) {
+      add("line", { class: "gridline", x1: ml, y1: py(v), x2: W - mr, y2: py(v) });
+      add("text", { class: "lbl", x: ml - 5, y: py(v) + 3, "text-anchor": "end" }, opts.fmt ? opts.fmt(Math.round(v)) : v);
+    });
+    if (opts.zero && ymin < 0 && ymax > 0) add("line", { class: "zero", x1: ml, y1: py(0), x2: W - mr, y2: py(0) });
+    var d = pts.map(function (p, i) { return (i ? "L" : "M") + px(p.t.getTime()).toFixed(1) + " " + py(p.y).toFixed(1); }).join("");
+    add("path", { d: d, fill: "none", stroke: opts.color || "var(--accent)", "stroke-width": 2 });
+    var last = pts[pts.length - 1];
+    add("circle", { cx: px(last.t.getTime()), cy: py(last.y), r: 3, fill: opts.color || "var(--accent)" });
+    function dl(t) { return t.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
+    add("text", { class: "lbl", x: ml, y: H - 7 }, dl(new Date(xmin)));
+    add("text", { class: "lbl", x: W - mr, y: H - 7, "text-anchor": "end" }, dl(new Date(xmax)));
+  }
+
+  // ---- CSV export ----------------------------------------------------------
+  function csvCell(s) { s = String(s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function exportCSV() {
+    var methodLabel = METHODS.filter(function (m) { return m.key === method; })[0].label;
+    var head = ["County", "FIPS", "Category", "Rep", "Dem", "Other", "NPA", "Total",
+                "Turnout_pct", "Lean", "Registered", "Mail_return_pct"];
+    var lines = [head.join(",")];
+    Object.keys(data.counties).sort().forEach(function (name) {
+      var c = data.counties[name], b = block(c, method);
+      lines.push([csvCell(name), c.fips || "", csvCell(methodLabel), b.rep, b.dem, b.oth, b.npa, b.total,
+        c.turnout_pct == null ? "" : c.turnout_pct, b.margin == null ? "" : b.margin,
+        c.registered || "", (c.mail && c.mail.return_rate != null) ? c.mail.return_rate : ""].join(","));
+    });
+    var blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    var url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = "fl-turnout-" + method + ".csv"; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  // ---- shareable deep links (URL hash) ------------------------------------
+  function updateHash() {
+    var parts = ["m=" + method];
+    if (mapMode !== "county") parts.push("v=" + mapMode);
+    if (selected) parts.push("c=" + encodeURIComponent(selected));
+    try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
+  }
+  function restoreFromHash() {
+    var h = {};
+    location.hash.slice(1).split("&").forEach(function (kv) {
+      var i = kv.indexOf("="); if (i > 0) h[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+    });
+    if (h.m && methodAvailable(h.m)) method = h.m;
+    renderAll();
+    if (h.v === "precinct") setMode("precinct");
+    if (h.c && data.counties[h.c]) selectCounty(h.c, true);
+  }
+
+  function renderAll() { renderMeta(); renderMethodPicker(); renderSummary(); renderMail(); renderMap(); renderTable(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {
@@ -583,8 +712,10 @@
       geo = res[0]; data = res[1];
       proj = buildProjection(geo);
       method = pickDefaultMethod();
-      renderAll();
+      restoreFromHash();
       setupPanZoom();
+      loadTrends();
+      $("#dl-csv").addEventListener("click", exportCSV);
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
       $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
       var modeBtns = $("#map-mode").querySelectorAll("button");

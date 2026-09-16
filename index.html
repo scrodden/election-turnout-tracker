@@ -30,6 +30,15 @@
 
   <section id="summary" class="summary" aria-label="Statewide summary"></section>
 
+  <section id="mail-panel" class="card mail-card" hidden aria-label="Mail ballot return rate">
+    <div class="card-head">
+      <h2>Mail ballots &mdash; the ballot chase</h2>
+      <span class="dim" id="mail-note">returned vs. sent, by party</span>
+    </div>
+    <div id="mail-stats" class="mail-stats"></div>
+    <div id="mail-parties" class="mail-parties"></div>
+  </section>
+
   <section class="grid">
     <div class="card map-card">
       <div class="card-head">
@@ -57,7 +66,11 @@
     <div class="card table-card">
       <div class="card-head">
         <h2>County detail</h2>
-        <input id="filter" class="filter" type="search" placeholder="Filter counties&hellip;" aria-label="Filter counties" />
+        <div class="table-actions">
+          <input id="filter" class="filter" type="search" placeholder="Filter counties&hellip;" aria-label="Filter counties" />
+          <button id="dl-csv" class="mini-btn" title="Download the county table as CSV">CSV</button>
+          <a id="dl-json" class="mini-btn" href="data/fl/latest.json" download="fl-turnout.json" title="Download the full dataset as JSON">JSON</a>
+        </div>
       </div>
       <div class="table-scroll">
         <table id="table">
@@ -78,6 +91,23 @@
       </div>
     </div>
     <div id="precinct-body"></div>
+  </section>
+
+  <section id="trends" class="card trends-card" hidden aria-label="Trends over time">
+    <div class="card-head">
+      <h2>Trends over time</h2>
+      <span class="dim">builds up as the state reports through the cycle</span>
+    </div>
+    <div class="trend-grid">
+      <div class="trend-cell">
+        <h3 class="trend-title">Ballots cast</h3>
+        <svg id="chart-cast" class="chart" role="img" aria-label="Ballots cast over time"></svg>
+      </div>
+      <div class="trend-cell">
+        <h3 class="trend-title">Partisan lean of ballots cast</h3>
+        <svg id="chart-lean" class="chart" role="img" aria-label="Partisan lean over time"></svg>
+      </div>
+    </div>
   </section>
 
   <footer class="site-foot">
