@@ -762,9 +762,11 @@
     var e = $("#cmp-note");
     if (!compare) { e.textContent = ""; return; }
     if (!baseline) { e.textContent = "loading 2022…"; return; }
-    e.textContent = CMP_METHODS.indexOf(method) < 0
-      ? "— no 2022 by-party data for this category"
-      : "— map & table show the shift since 2022 (mail + early)";
+    if (CMP_METHODS.indexOf(method) < 0) { e.textContent = "— no 2022 by-party data for this category"; return; }
+    var mm = baseline.statewide && baseline.statewide.method_mix;
+    var pre = mm ? Math.round(mm.mail + mm.early) : 66, ed = mm ? Math.round(mm.eday) : 34;
+    e.textContent = "— shift vs 2022 mail + early (~" + pre + "% of 2022 turnout); election day (~" +
+      ed + "%, historically the most Republican method) isn't in the by-party data";
   }
   function restoreFromHash() {
     var h = {};
