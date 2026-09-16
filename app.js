@@ -39,7 +39,7 @@
   var precinctGeo = null, precinctData = null, precinctLoading = false;
   var compare = false, baseline = null;
   var BASELINE_URL = "data/fl/baseline_2022.json";
-  var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "cast"];
+  var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -763,10 +763,7 @@
     if (!compare) { e.textContent = ""; return; }
     if (!baseline) { e.textContent = "loading 2022…"; return; }
     if (CMP_METHODS.indexOf(method) < 0) { e.textContent = "— no 2022 by-party data for this category"; return; }
-    var mm = baseline.statewide && baseline.statewide.method_mix;
-    var pre = mm ? Math.round(mm.mail + mm.early) : 66, ed = mm ? Math.round(mm.eday) : 34;
-    e.textContent = "— shift vs 2022 mail + early (~" + pre + "% of 2022 turnout); election day (~" +
-      ed + "%, historically the most Republican method) isn't in the by-party data";
+    e.textContent = "— map & table show the partisan-lean shift vs 2022 (all methods incl. election day; Broward/Monroe/Volusia mail+early only)";
   }
   function restoreFromHash() {
     var h = {};

@@ -17,7 +17,9 @@
     "party_map": { "REP": "rep", "DEM": "dem", "NPA": "npa" },
     "method_map": {
       "Mail": "mail_voted",
+      "EarlyVoting": "early_voted",
       "Early Voting": "early_voted",
+      "ElectionDay": "election_day",
       "Election Day": "election_day",
       "Provisional": "provisional"
     }
