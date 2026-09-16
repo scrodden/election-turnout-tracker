@@ -38,6 +38,7 @@
   var precinctGeo = null, precinctData = null, precinctLoading = false;
   var compare = false, baseline = null, BASELINE_URL = null;
   var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
+  var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -114,6 +115,11 @@
       }
     }
     return "#eef2f4";
+  }
+
+  function colorForFrac(f) {   // 0..1 relative intensity -> light..dark green
+    if (f == null || f <= 0) return "#eef2f4";
+    return colorForTurnout(Math.min(50, f * 50));
   }
 
   // ---- map projection ------------------------------------------------------
@@ -203,6 +209,20 @@
     host.innerHTML = "";
     var b = block(data.statewide, method);
     var total = b.total || 0;
+
+    if (!partisan) {
+      var mlabel = METHODS.filter(function (m) { return m.key === method; })[0].label;
+      host.appendChild(statCard("", mlabel, fmt(total), "ballots in this category"));
+      var reg = data.statewide.registered || 0, tp = data.statewide.turnout_pct;
+      if (reg) host.appendChild(statCard("", "Turnout", (tp == null ? "0.00" : tp.toFixed(2)) + "%",
+        fmt((data.statewide.cast || {}).total || 0) + " of " + fmt(reg) + " registered"));
+      ["mail_voted", "early_voted", "election_day"].forEach(function (mk) {
+        if (!methodAvailable(mk)) return;
+        var bb = block(data.statewide, mk);
+        if (bb.total) host.appendChild(statCard("", (data.method_labels && data.method_labels[mk]) || mk, fmt(bb.total), ""));
+      });
+      return;
+    }
     host.appendChild(statCard("", (method === "mail_provided" ? "Ballots outstanding" : "Ballots (statewide)"),
       fmt(total), METHODS.filter(function (m) { return m.key === method; })[0].label,
       total ? [
@@ -336,11 +356,19 @@
     pzInit(); pzApply();
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     var cmp = compareActive();
+    var maxTot = 0;
+    if (!partisan) {
+      geo.features.forEach(function (ft) { var t = block(data.counties[ft.properties.name], method).total || 0; if (t > maxTot) maxTot = t; });
+    }
     geo.features.forEach(function (ft) {
       var name = ft.properties.name;
       var b = block(data.counties[name], method);
       var fill;
-      if (cmp) {
+      if (!partisan) {
+        var cty = data.counties[name] || {};
+        fill = (cty.turnout_pct != null) ? colorForTurnout(cty.turnout_pct)
+             : colorForFrac(maxTot ? (b.total / maxTot) : 0);
+      } else if (cmp) {
         var m22 = b22(name);
         var sh = (b.margin != null && m22 && m22.margin != null) ? (b.margin - m22.margin) : null;
         fill = sh == null ? "#c9ced6" : colorForMargin(sh);
@@ -405,8 +433,8 @@
 
   function renderLegend() {
     var lg = $("#legend");
-    if (mapMode === "precinct") {
-      lg.innerHTML = "<span>0%</span><span class='grad grad-turnout'></span><span>50%+ turnout</span>";
+    if (mapMode === "precinct" || !partisan) {
+      lg.innerHTML = "<span>less</span><span class='grad grad-turnout'></span><span>more turnout</span>";
     } else if (compareActive()) {
       lg.innerHTML = "<span>more Dem</span><span class='grad'></span><span>more Rep</span><span style='margin-left:5px'>vs&nbsp;2022</span>";
     } else {
@@ -439,6 +467,14 @@
     var b = block(data.counties[name], method);
     var tip = $("#tooltip");
     tip.hidden = false;
+    if (!partisan) {
+      var cty = data.counties[name] || {};
+      tip.innerHTML = "<b>" + name + "</b><br>Ballots: " + fmt(b.total) +
+        (cty.turnout_pct != null ? "<br>Turnout: <span class='tt-margin'>" + pctText(cty.turnout_pct) + "</span>" : "");
+      var hh = $("#map-holder").getBoundingClientRect();
+      tip.style.left = (ev.clientX - hh.left) + "px"; tip.style.top = (ev.clientY - hh.top) + "px";
+      return;
+    }
     tip.innerHTML = "<b>" + name + "</b><br>" +
       "R " + fmt(b.rep) + " · D " + fmt(b.dem) + " · NPA " + fmt(b.npa) + "<br>" +
       "Total " + fmt(b.total) + " — <span class='tt-margin' style='color:" +
@@ -467,6 +503,8 @@
     { key: "margin", label: "Lean" }
   ];
   function activeCols() {
+    if (!partisan) return [{ key: "county", label: "County", cls: "county" },
+                           { key: "total", label: "Ballots" }, { key: "turnout", label: "Turnout" }];
     var cols = COLS.slice();
     if (compareActive()) { cols.push({ key: "m22", label: "2022" }); cols.push({ key: "shift", label: "Δ vs '22" }); }
     return cols;
@@ -516,6 +554,12 @@
       var pill = "<span class='pill' style='background:" + colorForMargin(r.margin) + ";color:" +
         (r.margin == null ? "#333" : "#fff") + "'>" + marginText(r.margin) + "</span>";
       var link = r.tqv ? " <a class='tqv-mini' href='" + r.tqv + "' target='_blank' rel='noopener' title='Live TQV feed for " + r.name + "'>&#8599;</a>" : "";
+      if (!partisan) {
+        tr.innerHTML = "<td class='county'>" + r.name + link + "</td><td>" + fmt(r.total) + "</td><td>" + pctText(r.turnout) + "</td>";
+        tr.addEventListener("click", function (ev) { if (ev.target.closest("a")) return; selectCounty(r.name, false); });
+        tb.appendChild(tr);
+        return;
+      }
       tr.innerHTML = "<td class='county'>" + r.name + link + "</td>" +
         "<td>" + fmt(r.rep) + "</td><td>" + fmt(r.dem) + "</td><td>" + fmt(r.oth) + "</td>" +
         "<td>" + fmt(r.npa) + "</td><td>" + fmt(r.total) + "</td>" +
@@ -797,6 +841,7 @@
     data = geo = precinctGeo = precinctData = baseline = trendData = null;
     precinctLoading = false; selected = null; filter = ""; cur = null;
     compare = false; mapMode = "county"; method = "cast";
+    partisan = (st.partisan !== false);
     $("#filter").value = ""; var cb = $("#cmp-2022"); if (cb) cb.checked = false;
     DATA_URL = st.data; GEO_URL = st.geojson;
     PRECINCT_GEO_URL = st.precincts || null; PRECINCT_DATA_URL = st.precinct_data || null;
