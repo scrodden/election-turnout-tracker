@@ -1,0 +1,273 @@
+{
+ "note": "PA counties: name, FIPS. data.pa.gov countyname is UPPERCASE.",
+ "counties": [
+  {
+   "name": "Adams",
+   "fips": "42001"
+  },
+  {
+   "name": "Allegheny",
+   "fips": "42003"
+  },
+  {
+   "name": "Armstrong",
+   "fips": "42005"
+  },
+  {
+   "name": "Beaver",
+   "fips": "42007"
+  },
+  {
+   "name": "Bedford",
+   "fips": "42009"
+  },
+  {
+   "name": "Berks",
+   "fips": "42011"
+  },
+  {
+   "name": "Blair",
+   "fips": "42013"
+  },
+  {
+   "name": "Bradford",
+   "fips": "42015"
+  },
+  {
+   "name": "Bucks",
+   "fips": "42017"
+  },
+  {
+   "name": "Butler",
+   "fips": "42019"
+  },
+  {
+   "name": "Cambria",
+   "fips": "42021"
+  },
+  {
+   "name": "Cameron",
+   "fips": "42023"
+  },
+  {
+   "name": "Carbon",
+   "fips": "42025"
+  },
+  {
+   "name": "Centre",
+   "fips": "42027"
+  },
+  {
+   "name": "Chester",
+   "fips": "42029"
+  },
+  {
+   "name": "Clarion",
+   "fips": "42031"
+  },
+  {
+   "name": "Clearfield",
+   "fips": "42033"
+  },
+  {
+   "name": "Clinton",
+   "fips": "42035"
+  },
+  {
+   "name": "Columbia",
+   "fips": "42037"
+  },
+  {
+   "name": "Crawford",
+   "fips": "42039"
+  },
+  {
+   "name": "Cumberland",
+   "fips": "42041"
+  },
+  {
+   "name": "Dauphin",
+   "fips": "42043"
+  },
+  {
+   "name": "Delaware",
+   "fips": "42045"
+  },
+  {
+   "name": "Elk",
+   "fips": "42047"
+  },
+  {
+   "name": "Erie",
+   "fips": "42049"
+  },
+  {
+   "name": "Fayette",
+   "fips": "42051"
+  },
+  {
+   "name": "Forest",
+   "fips": "42053"
+  },
+  {
+   "name": "Franklin",
+   "fips": "42055"
+  },
+  {
+   "name": "Fulton",
+   "fips": "42057"
+  },
+  {
+   "name": "Greene",
+   "fips": "42059"
+  },
+  {
+   "name": "Huntingdon",
+   "fips": "42061"
+  },
+  {
+   "name": "Indiana",
+   "fips": "42063"
+  },
+  {
+   "name": "Jefferson",
+   "fips": "42065"
+  },
+  {
+   "name": "Juniata",
+   "fips": "42067"
+  },
+  {
+   "name": "Lackawanna",
+   "fips": "42069"
+  },
+  {
+   "name": "Lancaster",
+   "fips": "42071"
+  },
+  {
+   "name": "Lawrence",
+   "fips": "42073"
+  },
+  {
+   "name": "Lebanon",
+   "fips": "42075"
+  },
+  {
+   "name": "Lehigh",
+   "fips": "42077"
+  },
+  {
+   "name": "Luzerne",
+   "fips": "42079"
+  },
+  {
+   "name": "Lycoming",
+   "fips": "42081"
+  },
+  {
+   "name": "McKean",
+   "fips": "42083"
+  },
+  {
+   "name": "Mercer",
+   "fips": "42085"
+  },
+  {
+   "name": "Mifflin",
+   "fips": "42087"
+  },
+  {
+   "name": "Monroe",
+   "fips": "42089"
+  },
+  {
+   "name": "Montgomery",
+   "fips": "42091"
+  },
+  {
+   "name": "Montour",
+   "fips": "42093"
+  },
+  {
+   "name": "Northampton",
+   "fips": "42095"
+  },
+  {
+   "name": "Northumberland",
+   "fips": "42097"
+  },
+  {
+   "name": "Perry",
+   "fips": "42099"
+  },
+  {
+   "name": "Philadelphia",
+   "fips": "42101"
+  },
+  {
+   "name": "Pike",
+   "fips": "42103"
+  },
+  {
+   "name": "Potter",
+   "fips": "42105"
+  },
+  {
+   "name": "Schuylkill",
+   "fips": "42107"
+  },
+  {
+   "name": "Snyder",
+   "fips": "42109"
+  },
+  {
+   "name": "Somerset",
+   "fips": "42111"
+  },
+  {
+   "name": "Sullivan",
+   "fips": "42113"
+  },
+  {
+   "name": "Susquehanna",
+   "fips": "42115"
+  },
+  {
+   "name": "Tioga",
+   "fips": "42117"
+  },
+  {
+   "name": "Union",
+   "fips": "42119"
+  },
+  {
+   "name": "Venango",
+   "fips": "42121"
+  },
+  {
+   "name": "Warren",
+   "fips": "42123"
+  },
+  {
+   "name": "Washington",
+   "fips": "42125"
+  },
+  {
+   "name": "Wayne",
+   "fips": "42127"
+  },
+  {
+   "name": "Westmoreland",
+   "fips": "42129"
+  },
+  {
+   "name": "Wyoming",
+   "fips": "42131"
+  },
+  {
+   "name": "York",
+   "fips": "42133"
+  }
+ ]
+}

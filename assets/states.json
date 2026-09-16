@@ -28,6 +28,14 @@
       "geojson": "assets/nv-counties.geojson",
       "history": "data/nv/history.jsonl",
       "source_note": "Source: <a href='https://www.nvsos.gov/vivid/' target='_blank' rel='noopener'>Nevada Secretary of State (VIVID)</a> — in-person early voting turnout and the statewide mail-ballot tracker, by county and registered party. Nevada is all-mail; general-election early voting &amp; mail begin in October, so figures read zero until then."
+    },
+    {
+      "code": "pa",
+      "name": "Pennsylvania",
+      "data": "data/pa/latest.json",
+      "geojson": "assets/pa-counties.geojson",
+      "history": "data/pa/history.jsonl",
+      "source_note": "Source: <a href='https://data.pa.gov/Government-Efficiency-Citizen-Engagement/2026-General-Election-Mail-Ballot-Requests-Departm/nbwd-pfn4' target='_blank' rel='noopener'>PA Department of State open data</a> — 2026 general mail-ballot applications by county &amp; registered party. PA has no in-person early voting; “mail outstanding” = approved applications not yet returned."
     }
   ]
 }

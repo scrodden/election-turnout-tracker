@@ -1,0 +1,21 @@
+{
+  "state": "pa",
+  "state_name": "Pennsylvania",
+  "state_fips": "42",
+  "election": { "number": "2026_11_03", "date": "2026-11-03", "name": "2026 General" },
+  "source": {
+    "_comment": "PA Dept of State open-data (Socrata): 2026 General mail-ballot applications, voter-level, by county/party/status. We pull server-side aggregated county x party x ballot_status counts. PA has no in-person early voting; mail + election day only.",
+    "socrata": "https://data.pa.gov/resource/nbwd-pfn4.json",
+    "page": "https://data.pa.gov/Government-Efficiency-Citizen-Engagement/2026-General-Election-Mail-Ballot-Requests-Departm/nbwd-pfn4"
+  },
+  "party_map": { "DEM": "dem", "REP": "rep" },
+  "status_map": {
+    "Vote Recorded": "mail_voted",
+    "Pending": "mail_provided"
+  },
+  "method_labels": {
+    "cast": "All ballots cast",
+    "mail_voted": "Voted by mail",
+    "mail_provided": "Mail ballots outstanding"
+  }
+}

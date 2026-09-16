@@ -631,12 +631,14 @@
     if (!methodAvailable(method)) method = pickDefaultMethod();
   }
   function pickDefaultMethod() {
-    var order = ["cast", "mail_voted", "early_voted", "election_day"];
-    for (var i = 0; i < order.length; i++) {
-      if (methodAvailable(order[i]) && block(data.statewide, order[i]).total > 0) return order[i];
-    }
-    if (methodAvailable("mail_provided") && block(data.statewide, "mail_provided").total > 0) return "mail_provided";
-    return "cast";
+    // show whichever available method currently has the most data
+    var best = "cast", bestN = -1;
+    METHODS.forEach(function (m) {
+      if (!methodAvailable(m.key)) return;
+      var t = block(data.statewide, m.key).total || 0;
+      if (t > bestN) { bestN = t; best = m.key; }
+    });
+    return bestN > 0 ? best : "cast";
   }
 
   // ---- mail return-rate panel ---------------------------------------------
