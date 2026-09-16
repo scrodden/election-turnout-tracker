@@ -219,6 +219,86 @@
     return p;
   }
 
+  // ---- pan / zoom (viewBox based, dependency-free) -------------------------
+  var baseW = 0, baseH = 0, cur = null, panMoved = false;
+  function pzInit() {
+    baseW = proj.W; baseH = proj.H;
+    if (!cur) cur = { x: 0, y: 0, w: baseW, h: baseH };
+  }
+  function pzApply() {
+    if (cur) $("#map").setAttribute("viewBox", cur.x + " " + cur.y + " " + cur.w + " " + cur.h);
+  }
+  function pzClamp() {
+    cur.w = Math.min(baseW, Math.max(baseW / 40, cur.w));
+    cur.h = cur.w * (baseH / baseW);
+    cur.x = Math.min(baseW - cur.w, Math.max(0, cur.x));
+    cur.y = Math.min(baseH - cur.h, Math.max(0, cur.y));
+  }
+  function pzReset() { cur = { x: 0, y: 0, w: baseW, h: baseH }; pzApply(); }
+  function pzZoomAt(factor, fx, fy) {
+    var bx = cur.x + fx * cur.w, by = cur.y + fy * cur.h;
+    cur.w = cur.w / factor;
+    cur.h = cur.w * (baseH / baseW);
+    cur.x = bx - fx * cur.w; cur.y = by - fy * cur.h;
+    pzClamp(); pzApply();
+  }
+  function svgFrac(cx, cy) {
+    var r = $("#map").getBoundingClientRect();
+    return { fx: (cx - r.left) / r.width, fy: (cy - r.top) / r.height, r: r };
+  }
+  function setupPanZoom() {
+    var map = $("#map");
+    map.addEventListener("wheel", function (e) {
+      e.preventDefault();
+      var f = svgFrac(e.clientX, e.clientY);
+      pzZoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, f.fx, f.fy);
+    }, { passive: false });
+    var pointers = {}, startCur = null, startMid = null, startDist = 0, downXY = null;
+    map.addEventListener("pointerdown", function (e) {
+      try { map.setPointerCapture(e.pointerId); } catch (err) {}
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      panMoved = false; downXY = { x: e.clientX, y: e.clientY };
+      startCur = { x: cur.x, y: cur.y, w: cur.w, h: cur.h };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2) {
+        var a = pointers[ids[0]], b = pointers[ids[1]];
+        startDist = Math.hypot(a.x - b.x, a.y - b.y);
+        startMid = svgFrac((a.x + b.x) / 2, (a.y + b.y) / 2);
+      }
+      map.classList.add("grabbing");
+    });
+    map.addEventListener("pointermove", function (e) {
+      if (!pointers[e.pointerId]) return;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2 && startDist) {
+        var a = pointers[ids[0]], b = pointers[ids[1]];
+        var dist = Math.hypot(a.x - b.x, a.y - b.y);
+        cur = { x: startCur.x, y: startCur.y, w: startCur.w, h: startCur.h };
+        pzZoomAt(dist / startDist, startMid.fx, startMid.fy);
+        panMoved = true;
+        return;
+      }
+      if (downXY) {
+        var r = map.getBoundingClientRect();
+        cur.x = startCur.x - (e.clientX - downXY.x) * (startCur.w / r.width);
+        cur.y = startCur.y - (e.clientY - downXY.y) * (startCur.h / r.height);
+        if (Math.abs(e.clientX - downXY.x) + Math.abs(e.clientY - downXY.y) > 4) panMoved = true;
+        pzClamp(); pzApply();
+      }
+    });
+    function up(e) {
+      delete pointers[e.pointerId];
+      if (!Object.keys(pointers).length) { map.classList.remove("grabbing"); downXY = null; startDist = 0; }
+      setTimeout(function () { panMoved = false; }, 60);
+    }
+    map.addEventListener("pointerup", up);
+    map.addEventListener("pointercancel", up);
+    $("#zoom-in").addEventListener("click", function () { pzZoomAt(1.5, 0.5, 0.5); });
+    $("#zoom-out").addEventListener("click", function () { pzZoomAt(1 / 1.5, 0.5, 0.5); });
+    $("#zoom-reset").addEventListener("click", pzReset);
+  }
+
   function renderMap() {
     if (mapMode === "precinct") return renderPrecinctMap();
     return renderCountyMap();
@@ -226,7 +306,7 @@
 
   function renderCountyMap() {
     var svg = $("#map");
-    svg.setAttribute("viewBox", "0 0 " + proj.W + " " + proj.H);
+    pzInit(); pzApply();
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     geo.features.forEach(function (ft) {
       var name = ft.properties.name;
@@ -235,7 +315,7 @@
       p.setAttribute("data-name", name);
       p.addEventListener("mousemove", function (ev) { showTip(ev, name); });
       p.addEventListener("mouseleave", hideTip);
-      p.addEventListener("click", function () { selectCounty(name, true); });
+      p.addEventListener("click", function () { if (panMoved) return; selectCounty(name, true); });
       svg.appendChild(p);
     });
     renderLegend();
@@ -245,7 +325,7 @@
 
   function renderPrecinctMap() {
     var svg = $("#map");
-    svg.setAttribute("viewBox", "0 0 " + proj.W + " " + proj.H);
+    pzInit(); pzApply();
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     // base: county outlines for statewide context
     geo.features.forEach(function (ft) {
@@ -504,6 +584,7 @@
       proj = buildProjection(geo);
       method = pickDefaultMethod();
       renderAll();
+      setupPanZoom();
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
       $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
       var modeBtns = $("#map-mode").querySelectorAll("button");

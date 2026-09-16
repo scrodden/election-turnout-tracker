@@ -72,7 +72,12 @@ a { color: var(--accent); }
 .map-mode button { border: none; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; padding: 4px 11px; border-radius: 6px; cursor: pointer; }
 .map-mode button[aria-selected="true"] { background: var(--accent); color: #fff; }
 .map-holder { position: relative; }
-#map { width: 100%; height: auto; display: block; }
+#map { width: 100%; height: auto; display: block; touch-action: none; cursor: grab; }
+#map.grabbing { cursor: grabbing; }
+.zoom-ctrl { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 15; }
+.zoom-ctrl button { width: 30px; height: 30px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 7px; font-size: 17px; line-height: 1; cursor: pointer; box-shadow: var(--shadow); font-weight: 700; }
+.zoom-ctrl button:hover { background: rgba(127,127,127,.12); }
+.zoom-ctrl button:active { transform: translateY(1px); }
 #map path { stroke: var(--card); stroke-width: .6; cursor: pointer; transition: opacity .1s; }
 #map path:hover { stroke: var(--ink); stroke-width: 1.2; }
 #map path.sel { stroke: var(--ink); stroke-width: 1.6; }
