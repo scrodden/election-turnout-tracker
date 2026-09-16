@@ -20,6 +20,14 @@
       "geojson": "assets/nc-counties.geojson",
       "history": "data/nc/history.jsonl",
       "source_note": "Source: <a href='https://www.ncsbe.gov/results-data/absentee-and-provisional-data' target='_blank' rel='noopener'>NC State Board of Elections</a> voter-level absentee file (mail + one-stop early voting; returned ballots, by registered party). NC does not publish mail requests until a ballot is returned, so there is no “mail outstanding” figure."
+    },
+    {
+      "code": "nv",
+      "name": "Nevada",
+      "data": "data/nv/latest.json",
+      "geojson": "assets/nv-counties.geojson",
+      "history": "data/nv/history.jsonl",
+      "source_note": "Source: <a href='https://www.nvsos.gov/vivid/' target='_blank' rel='noopener'>Nevada Secretary of State (VIVID)</a> — in-person early voting turnout and the statewide mail-ballot tracker, by county and registered party. Nevada is all-mail; general-election early voting &amp; mail begin in October, so figures read zero until then."
     }
   ]
 }

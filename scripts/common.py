@@ -22,14 +22,17 @@ USER_AGENT = (
 _SSL_CTX = ssl.create_default_context()
 
 
-def http_get(url, retries=3, timeout=45, binary=False, no_cache=False):
+def http_get(url, retries=3, timeout=45, binary=False, no_cache=False, referer=None):
     """GET a URL with a browser User-Agent, small retry/backoff. Returns text
     (utf-8, replacement on bad bytes) or bytes when binary=True.
 
     The Florida data files sit behind a caching layer (observed `x-cache: HIT`)
     that can serve a stale copy to an automated fetcher. no_cache=True adds a
     unique query param (changes the cache key) plus no-cache headers so each
-    run pulls the freshest object, not yesterday's cached one."""
+    run pulls the freshest object, not yesterday's cached one.
+
+    Some portals (e.g. Nevada VIVID behind Imperva/Incapsula) require a Referer
+    header; pass referer= for those."""
     last_err = None
     for attempt in range(retries):
         try:
@@ -39,6 +42,8 @@ def http_get(url, retries=3, timeout=45, binary=False, no_cache=False):
                 "Accept": "*/*",
                 "Accept-Language": "en-US,en;q=0.9",
             }
+            if referer:
+                headers["Referer"] = referer
             if no_cache:
                 sep = "&" if ("?" in url) else "?"
                 fetch_url = url + sep + "_=" + str(int(time.time() * 1000)) + str(attempt)

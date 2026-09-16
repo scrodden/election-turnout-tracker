@@ -635,7 +635,8 @@
     for (var i = 0; i < order.length; i++) {
       if (methodAvailable(order[i]) && block(data.statewide, order[i]).total > 0) return order[i];
     }
-    return "mail_provided";
+    if (methodAvailable("mail_provided") && block(data.statewide, "mail_provided").total > 0) return "mail_provided";
+    return "cast";
   }
 
   // ---- mail return-rate panel ---------------------------------------------

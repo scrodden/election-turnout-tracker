@@ -34,6 +34,9 @@ jobs:
       - name: Fetch and process North Carolina turnout
         run: python scripts/nc_update.py || echo "NC update failed (non-fatal)"
 
+      - name: Fetch and process Nevada turnout
+        run: python scripts/nv_update.py || echo "NV update failed (non-fatal)"
+
       - name: Commit if data changed
         run: |
           git config user.name  "turnout-bot"

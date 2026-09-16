@@ -1,0 +1,73 @@
+{
+ "note": "NV counties: name, FIPS (Carson City is an independent city, FIPS 32510)",
+ "counties": [
+  {
+   "name": "Carson City",
+   "fips": "32510"
+  },
+  {
+   "name": "Churchill",
+   "fips": "32001"
+  },
+  {
+   "name": "Clark",
+   "fips": "32003"
+  },
+  {
+   "name": "Douglas",
+   "fips": "32005"
+  },
+  {
+   "name": "Elko",
+   "fips": "32007"
+  },
+  {
+   "name": "Esmeralda",
+   "fips": "32009"
+  },
+  {
+   "name": "Eureka",
+   "fips": "32011"
+  },
+  {
+   "name": "Humboldt",
+   "fips": "32013"
+  },
+  {
+   "name": "Lander",
+   "fips": "32015"
+  },
+  {
+   "name": "Lincoln",
+   "fips": "32017"
+  },
+  {
+   "name": "Lyon",
+   "fips": "32019"
+  },
+  {
+   "name": "Mineral",
+   "fips": "32021"
+  },
+  {
+   "name": "Nye",
+   "fips": "32023"
+  },
+  {
+   "name": "Pershing",
+   "fips": "32027"
+  },
+  {
+   "name": "Storey",
+   "fips": "32029"
+  },
+  {
+   "name": "Washoe",
+   "fips": "32031"
+  },
+  {
+   "name": "White Pine",
+   "fips": "32033"
+  }
+ ]
+}
