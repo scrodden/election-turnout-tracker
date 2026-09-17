@@ -5,7 +5,12 @@
 (function () {
   "use strict";
   var STATES_URL = "assets/us-states.geojson";
-  var REFRESH_MS = 10 * 60 * 1000;
+  // On Election Day (and the UTC day after, for late western counting) poll every
+  // 2 minutes to match the faster server-side updates; otherwise every 10 minutes.
+  function refreshMs() {
+    var d = new Date().toISOString().slice(0, 10);
+    return (d === "2026-11-03" || d === "2026-11-04") ? 2 * 60 * 1000 : 10 * 60 * 1000;
+  }
   var INSET = { AK: null, HI: null };           // filled after load; drawn as boxes
   var office = "senate";
   var geo = null, cache = {}, proj = null, sort = { key: "state", dir: 1 }, filter = "";
@@ -193,7 +198,7 @@
       geo = g;
       $("#tabs").querySelectorAll("button").forEach(function (b) { b.addEventListener("click", function () { loadOffice(b.getAttribute("data-office")); }); });
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderScore(cache[office]); });
-      setInterval(refresh, REFRESH_MS);
+      (function schedule() { setTimeout(function () { refresh(); schedule(); }, refreshMs()); })();
       loadOffice("senate");
     }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load map: " + e.message + "</span>"; });
   }

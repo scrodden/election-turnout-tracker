@@ -1,0 +1,68 @@
+name: Election-Day live results (2-min)
+
+# On Election Day the results page must refresh every 2 minutes. GitHub's cron
+# can't reliably fire faster than ~5 min, so this workflow is triggered every
+# 10 min but, WHEN it is Election Day (UTC 2026-11-03 or 11-04, covering ET
+# morning through late western counting), runs an internal ~9.5-minute loop that
+# regenerates the live results (and Election-Day turnout) every 2 minutes and
+# commits changes. Off Election Day it exits immediately and does nothing.
+# The regular every-10-min workflow keeps running for everything else.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: results-eday
+  cancel-in-progress: true
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Election-Day gate
+        id: g
+        run: |
+          D=$(date -u +%Y-%m-%d)
+          if [ "$D" = "2026-11-03" ] || [ "$D" = "2026-11-04" ]; then
+            echo "go=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=0" >> "$GITHUB_OUTPUT"
+            echo "Not Election Day (UTC $D) — skipping."
+          fi
+
+      - name: Checkout
+        if: steps.g.outputs.go == '1'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.g.outputs.go == '1'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Live 2-minute results loop
+        if: steps.g.outputs.go == '1'
+        run: |
+          git config user.name  "turnout-bot"
+          git config user.email "actions@users.noreply.github.com"
+          pip install --quiet pypdf || true
+          end=$(( $(date +%s) + 570 ))   # ~9.5 minutes, then the next scheduled run continues
+          while [ "$(date +%s)" -lt "$end" ]; do
+            python scripts/results_update.py || echo "results update failed (non-fatal)"
+            python scripts/eday_scrape.py   || echo "eday scrape failed (non-fatal)"
+            for s in nv nc ga tx; do
+              [ -f "data/$s/_frozen.json" ] || python "scripts/${s}_update.py" || echo "$s update failed (non-fatal)"
+            done
+            git add data
+            if ! git diff --cached --quiet; then
+              git commit -m "Live results $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+              git push || true
+            fi
+            sleep 120
+          done
