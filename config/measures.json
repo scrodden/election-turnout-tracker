@@ -1,0 +1,4 @@
+{
+  "_comment": "2026 statewide ballot measures. Each item: {id (e.g. 'meas-FL-1'), state (USPS), state_name, title, subject}. Vote results (yes/no votes, reporting %, Pass/Fail) are filled by results_update.py from official state feeds near the election. Populate this list from Ballotpedia '2026 ballot measures' or each state's SoS as measures are certified for the ballot; left empty until confirmed — do not fabricate measures.",
+  "measures": []
+}

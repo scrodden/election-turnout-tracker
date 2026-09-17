@@ -24,7 +24,54 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SLATE_PATH = os.path.join(ROOT, "config", "results_races.json")
 CHAMBERS_PATH = os.path.join(ROOT, "config", "chambers.json")
+MEASURES_PATH = os.path.join(ROOT, "config", "measures.json")
 OUT_DIR = os.path.join(ROOT, "data", "results")
+
+# SOURCES_MEASURES[usps] -> {measure_id: {yes, no, reporting, called}} (wired near election)
+SOURCES_MEASURES = {}
+
+
+def write_measures():
+    try:
+        slate = load(MEASURES_PATH).get("measures", [])
+    except (OSError, ValueError):
+        slate = []
+    passed = failed = und = 0
+    live = {}
+    for usps, fn in SOURCES_MEASURES.items():
+        try:
+            live[usps] = fn() or {}
+        except Exception:  # noqa: BLE001
+            live[usps] = {}
+    out = []
+    for m in slate:
+        r = dict(m); r["office"] = "Ballot Measure"
+        src = live.get(m.get("state"), {}).get(m.get("id"))
+        yes = no = None; reporting = called = None
+        if src:
+            yes = int(src.get("yes", 0)); no = int(src.get("no", 0))
+            reporting = src.get("reporting"); called = src.get("called")
+        tot = (yes or 0) + (no or 0)
+        r["candidates"] = ([{"name": "Yes", "party": "Y", "votes": yes}, {"name": "No", "party": "N", "votes": no}] if src else [])
+        r["reporting_pct"] = reporting
+        r["called"] = called
+        r["yes_pct"] = (round(100.0 * yes / tot, 1) if tot else None)
+        if called == "Pass" or (tot and yes > no):
+            passed += 1
+        elif called == "Fail" or (tot and no > yes):
+            failed += 1
+        else:
+            und += 1
+        out.append(r)
+    doc = {"office": "measures", "election": {"date": "2026-11-03", "name": "2026 General"},
+           "generated_at": utc_now(), "updated": (utc_now() if any(x.get("candidates") for x in out) else ""),
+           "note": "2026 statewide ballot measures; results wired near Election Day.",
+           "summary": {"total": len(out), "passed": passed, "failed": failed, "undecided": und},
+           "races": out}
+    os.makedirs(OUT_DIR, exist_ok=True)
+    with open(os.path.join(OUT_DIR, "measures.json"), "w", encoding="utf-8") as f:
+        json.dump(doc, f, separators=(",", ":"))
+    print("measures   count=%d  passed=%d failed=%d undecided=%d" % (len(out), passed, failed, und))
 
 
 def load(p):
@@ -125,6 +172,7 @@ def main():
         print("%-9s races=%d  D=%d R=%d other=%d undecided=%d" % (office, len(out_races), d, r, other, tally["undecided"]))
     if not any_data:
         print("no wired results sources yet (slate refreshed; empty results — expected off Election Day).")
+    write_measures()
     return 0
 
 
