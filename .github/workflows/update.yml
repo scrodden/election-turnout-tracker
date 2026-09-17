@@ -306,6 +306,10 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/results_county_update.py || echo "county results update failed (non-fatal)"
 
+      - name: Build status manifest
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/build_status.py || echo "status build failed (non-fatal)"
+
       - name: Freeze & archive states whose results are certified
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/freeze.py || echo "freeze step failed (non-fatal)"

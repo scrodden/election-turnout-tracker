@@ -967,14 +967,20 @@
       function addOption(s) { var o = el("option"); o.value = s.code; o.textContent = s.name; sel.appendChild(o); }
       STATES.forEach(function (s) { if (!s.hidden) addOption(s); });
       // Staged states (hidden:true) are wired but empty until their feed opens;
-      // reveal each automatically once its data reports any ballots.
-      STATES.forEach(function (s) {
-        if (!s.hidden) return;
-        getJSON(s.data).then(function (d) {
-          var has = d && ((d.methods_present && d.methods_present.length) ||
-            (d.statewide && d.statewide.cast && d.statewide.cast.total > 0));
-          if (has && !sel.querySelector('option[value="' + s.code + '"]')) addOption(s);
-        }).catch(function () {});
+      // reveal each once its data reports ballots. One manifest fetch (data/status.json)
+      // instead of probing every hidden state; falls back to per-state probing.
+      getJSON("data/status.json").then(function (mf) {
+        var liveSet = {}; (mf.states || []).forEach(function (x) { if (x.has_data) liveSet[x.code] = 1; });
+        STATES.forEach(function (s) { if (s.hidden && liveSet[s.code] && !sel.querySelector('option[value="' + s.code + '"]')) addOption(s); });
+      }).catch(function () {
+        STATES.forEach(function (s) {
+          if (!s.hidden) return;
+          getJSON(s.data).then(function (d) {
+            var has = d && ((d.methods_present && d.methods_present.length) ||
+              (d.statewide && d.statewide.cast && d.statewide.cast.total > 0));
+            if (has && !sel.querySelector('option[value="' + s.code + '"]')) addOption(s);
+          }).catch(function () {});
+        });
       });
       sel.addEventListener("change", function () { loadState(this.value, false); });
       setupPanZoom();
