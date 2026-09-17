@@ -14,6 +14,7 @@
   var INSET = { AK: null, HI: null };           // filled after load; drawn as boxes
   var office = "senate";
   var geo = null, cache = {}, proj = null, sort = { key: "state", dir: 1 }, filter = "";
+  var whatif = false, overrides = {};   // path-to-majority: {race_id: "D"|"R"|""}
 
   function $(s) { return document.querySelector(s); }
   function el(t, c) { var e = document.createElement(t); if (c) e.className = c; return e; }
@@ -163,14 +164,23 @@
       var lead = c.hasData ? (leanLabel(c.leader) + (c.leaderName ? " " + c.leaderName : "")) : "—";
       var status = r.called ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>Called " + r.called + "</span>"
         : c.hasData ? "<span class='badge unc'>Leading</span>" : "<span class='badge unc'>—</span>";
-      var tds = ["<span class='lean' style='background:" + (c.hasData ? color(c.rd) : "#c9ced6") + "'></span>" + r.state_name + (r.special ? " *" : "")];
+      var ovBadge = (whatif && (r.id in overrides)) ? " <span class='badge " + (overrides[r.id] === "D" ? "dem" : overrides[r.id] === "R" ? "rep" : "unc") + "'>" + (overrides[r.id] || "UND") + "?</span>" : "";
+      var tds = ["<span class='lean' style='background:" + (c.hasData ? color(c.rd) : "#c9ced6") + "'></span>" + r.state_name + (r.special ? " *" : "") + ovBadge];
       if (office === "house") tds.push(r.district);
       tds.push(lead, c.margin == null ? "—" : (c.leader || "") + "+" + c.margin, c.reporting == null ? "—" : c.reporting + "%", status);
       return "<tr data-id='" + r.id + "' style='cursor:pointer'>" + tds.map(function (x) { return "<td>" + x + "</td>"; }).join("") + "</tr>";
     }).join("");
     $("#score tbody").onclick = function (e) {
       var tr = e.target.closest("tr[data-id]"); if (!tr) return;
-      var rr = (cache[office].races || []).filter(function (x) { return x.id === tr.getAttribute("data-id"); })[0];
+      var id = tr.getAttribute("data-id");
+      if (whatif) {
+        var cur = (id in overrides) ? (overrides[id] || "UND") : "actual";
+        var nextMap = { "actual": "D", "D": "R", "R": "UND", "UND": "remove" };
+        var nx = nextMap[cur];
+        if (nx === "remove") delete overrides[id]; else overrides[id] = (nx === "UND" ? "" : nx);
+        renderScore(cache[office]); renderWhatif(); return;
+      }
+      var rr = (cache[office].races || []).filter(function (x) { return x.id === id; })[0];
       if (rr) renderDetail(rr);
     };
     $("#score-note").textContent = rows.length + " races · click a row for detail" + (office === "senate" ? " · * = special" : "");
@@ -234,9 +244,33 @@
       (b.dem_lead + b.rep_lead ? " · lighter shades = currently leading, not yet called" : "");
   }
 
+  function whatifBalance() {
+    var data = cache[office], b = data.balance; if (!b) return null;
+    var nu = b.not_up || { D: 0, R: 0, other: 0 };
+    var D = nu.D || 0, R = nu.R || 0, O = nu.other || 0, und = 0;
+    (data.races || []).forEach(function (r) {
+      var win = (r.id in overrides) ? overrides[r.id] : (r.called || computeRace(r).leader);
+      if (win === "D") D++; else if (win === "R") R++; else if (win) O++; else und++;
+    });
+    return { D: D, R: R, O: O, und: und, control: b.control, total: b.total };
+  }
+  function renderWhatif() {
+    var wb = $("#whatif-bar"), note = $("#whatif-note");
+    if (!whatif || !cache[office] || !cache[office].balance) { wb.hidden = true; if (!whatif) note.textContent = ""; return; }
+    var b = whatifBalance(), T = b.total, cx = b.control;
+    function seg(w, c) { return w ? "<div style='width:" + (100 * w / T) + "%;background:" + c + "'></div>" : ""; }
+    wb.hidden = false;
+    wb.innerHTML = seg(b.D, "#2b6cb0") + seg(b.und, "#c9ced6") + seg(b.O, "#7a7f87") + seg(b.R, "#d62f2f") +
+      "<div style='position:absolute;top:-3px;bottom:-3px;left:" + (100 * cx / T) + "%;width:2px;background:var(--ink)'></div>";
+    var verdict = b.D >= cx ? "Democrats reach " + cx : b.R >= cx ? "Republicans reach " + cx : (b.und + " still undecided");
+    var n = Object.keys(overrides).length;
+    note.innerHTML = "<b>Projected:</b> <span class='sh-d'>D " + b.D + "</span> · <span class='sh-r'>R " + b.R + "</span> · " + b.und + " undecided — " + verdict +
+      (n ? " · " + n + " set" : "") + ". Click uncalled races to cycle D → R → undecided.";
+  }
+
   function render() {
     var data = cache[office];
-    renderMeta(data); renderBalance(data); renderSummary(data); renderMap(data); renderScore(data);
+    renderMeta(data); renderBalance(data); renderSummary(data); renderMap(data); renderScore(data); renderWhatif();
   }
   function loadOffice(o) {
     office = o;
@@ -253,6 +287,13 @@
       $("#tabs").querySelectorAll("button").forEach(function (b) { b.addEventListener("click", function () { loadOffice(b.getAttribute("data-office")); }); });
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderScore(cache[office]); });
       $("#detail-close").addEventListener("click", function () { $("#detail").hidden = true; });
+      $("#whatif-toggle").addEventListener("click", function () {
+        whatif = !whatif;
+        this.textContent = whatif ? "Path to majority ▾" : "Path to majority ▸";
+        $("#whatif-reset").hidden = !whatif;
+        renderScore(cache[office]); renderWhatif();
+      });
+      $("#whatif-reset").addEventListener("click", function () { overrides = {}; renderScore(cache[office]); renderWhatif(); });
       (function schedule() { setTimeout(function () { refresh(); schedule(); }, refreshMs()); })();
       loadOffice("senate");
     }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load map: " + e.message + "</span>"; });

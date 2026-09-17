@@ -59,6 +59,12 @@
     <div class="card-head"><h2 id="balance-title">Balance of power</h2><span id="balance-verdict" style="font-weight:700"></span></div>
     <div id="balance-bar" style="position:relative;height:28px;border-radius:6px;overflow:hidden;display:flex;background:var(--line);margin:10px 0;"></div>
     <p class="fineprint" id="balance-note"></p>
+    <div style="margin-top:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <button id="whatif-toggle" class="mini-btn">Path to majority ▸</button>
+      <button id="whatif-reset" class="mini-btn" hidden>Reset picks</button>
+      <span id="whatif-note" class="dim"></span>
+    </div>
+    <div id="whatif-bar" hidden style="position:relative;height:22px;border-radius:6px;overflow:hidden;display:flex;background:var(--line);margin:8px 0 2px;"></div>
   </section>
 
   <section class="rsum" id="summary" aria-label="Summary"></section>
