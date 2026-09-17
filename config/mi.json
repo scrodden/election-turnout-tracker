@@ -1,0 +1,13 @@
+{
+  "state": "mi",
+  "state_name": "Michigan",
+  "state_fips": "26",
+  "partisan": false,
+  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "general_start": "2026-09-19",
+  "source": {
+    "_comment": "Michigan has NO party registration -> turnout-only. The MI SoS Voter Participation Dashboard (Power BI, app.powerbigov.us) publishes absentee/early voting counts by county, updated daily starting 45 days before Election Day (~Sept 19 2026). MI does not distinguish mail vs in-person early in its data. Public access is the Power BI dashboard; the raw weekday county file has no public URL. STAGED SKELETON: writes 0 until a verified live feed is wired (the Friday rollout routine captures the Power BI querydata endpoint / county file in Oct). Turnout-only: 'cast' = ballots cast; the map shades by turnout %.",
+    "dashboard": "https://www.michigan.gov/sos/elections/election-results-and-data/voter-participation-dashboard"
+  },
+  "method_labels": { "cast": "Ballots cast", "early_voted": "Absentee / early ballots" }
+}

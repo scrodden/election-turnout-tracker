@@ -73,6 +73,26 @@
       "geojson": "assets/wa-counties.geojson",
       "history": "data/wa/history.jsonl",
       "source_note": "Source: <a href='https://www.sos.wa.gov/elections/data-research/election-data-and-maps/ballot-return-statistics' target='_blank' rel='noopener'>Washington Secretary of State</a> ballot-return statistics. Washington has no party registration, so this is turnout-only — ballots returned &amp; turnout% by county. Washington is all-mail; ballots return through late October, so figures read zero until then."
+    },
+    {
+      "code": "ga",
+      "name": "Georgia",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/ga/latest.json",
+      "geojson": "assets/ga-counties.geojson",
+      "history": "data/ga/history.jsonl",
+      "source_note": "Source: <a href='https://sos.ga.gov/page/election-data-hub-turnout' target='_blank' rel='noopener'>Georgia Secretary of State</a> Election Data Hub (unofficial turnout). Georgia has no party registration, so this is turnout-only — early in-person + absentee + election-day ballots &amp; turnout% by county. General-election early voting begins in mid-October, so figures read zero until then."
+    },
+    {
+      "code": "mi",
+      "name": "Michigan",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/mi/latest.json",
+      "geojson": "assets/mi-counties.geojson",
+      "history": "data/mi/history.jsonl",
+      "source_note": "Source: <a href='https://www.michigan.gov/sos/elections/election-results-and-data/voter-participation-dashboard' target='_blank' rel='noopener'>Michigan Secretary of State</a> Voter Participation Dashboard. Michigan has no party registration, so this is turnout-only — absentee/early ballots &amp; turnout% by county. The dashboard updates daily starting ~45 days before Election Day, so figures read zero until then."
     }
   ]
 }
