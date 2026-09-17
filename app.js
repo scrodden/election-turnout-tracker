@@ -734,14 +734,9 @@
     if (!methodAvailable(method)) method = pickDefaultMethod();
   }
   function pickDefaultMethod() {
-    // show whichever available method currently has the most data
-    var best = "cast", bestN = -1;
-    METHODS.forEach(function (m) {
-      if (!methodAvailable(m.key)) return;
-      var t = block(data.statewide, m.key).total || 0;
-      if (t > bestN) { bestN = t; best = m.key; }
-    });
-    return bestN > 0 ? best : "cast";
+    // Always default to "All cast" (Sam's preference), regardless of which
+    // method currently has the most data.
+    return "cast";
   }
 
   // ---- mail return-rate panel ---------------------------------------------
@@ -777,6 +772,7 @@
           try { return JSON.parse(l); } catch (e) { return null; }
         }).filter(Boolean);
         renderTrends();
+        renderProjection();
       }).catch(function () {});
   }
   function seriesFrom(getY) {
@@ -977,7 +973,41 @@
     host.hidden = false;
   }
 
-  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); renderDemographics(); }
+  function renderProjection() {
+    var host = $("#projection"); if (!host) return;
+    var cast = (data.statewide.cast || {}).total || 0;
+    if (!cast) { host.hidden = true; return; }
+    var reg = data.statewide.registered || 0;
+    var e = data.election || {};
+    var elec = e.date ? new Date(e.date + "T20:00:00") : null, now = new Date();
+    var daysLeft = elec ? Math.max(0, Math.ceil((elec - now) / 86400000)) : null;
+    function histTotal(r) {
+      if (typeof r.cast === "number") return r.cast;
+      var sc = r.statewide && r.statewide.cast;
+      if (Array.isArray(sc)) return sc[4];
+      if (sc && typeof sc.total === "number") return sc.total;
+      return null;
+    }
+    var pts = (trendData || []).map(function (r) { return { t: new Date(r.generated_at), y: histTotal(r) }; })
+      .filter(function (p) { return p.y != null && !isNaN(p.t.getTime()); });
+    var perDay = null, proj = null;
+    if (pts.length >= 2) {
+      var a = pts[0], b = pts[pts.length - 1], days = (b.t - a.t) / 86400000;
+      if (days > 0.4 && b.y >= a.y) { perDay = (b.y - a.y) / days; if (daysLeft != null) proj = Math.max(cast, Math.round(cast + perDay * daysLeft)); }
+    }
+    function pc(k, v, d) { return "<div class='stat'><div class='k'>" + k + "</div><div class='v'>" + v + "</div><div class='d'>" + (d || "") + "</div></div>"; }
+    var parts = [pc("Ballots cast so far", fmt(cast), reg ? (pctText(data.statewide.turnout_pct) + " of registered") : "")];
+    if (daysLeft != null) parts.push(pc("Days to Election Day", daysLeft, e.date ? new Date(e.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""));
+    if (perDay != null && perDay > 0) parts.push(pc("Recent pace", "~" + fmt(Math.round(perDay)) + "/day", "from reported history"));
+    if (proj != null && perDay > 0) parts.push(pc("Projected by Election Day", "~" + fmt(proj), "simple pace estimate"));
+    var b22 = baseline && baseline.statewide && baseline.statewide.cast && baseline.statewide.cast.total;
+    if (b22) parts.push(pc("vs 2022 total", Math.round(100 * cast / b22) + "%", "of 2022's " + fmt(b22)));
+    host.innerHTML = "<div class='card-head'><h2>Turnout pace &amp; projection</h2><span class='dim'>simple linear estimate from reported pace</span></div>" +
+      "<div class='summary' style='margin-top:8px'>" + parts.join("") + "</div>";
+    host.hidden = false;
+  }
+
+  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {
