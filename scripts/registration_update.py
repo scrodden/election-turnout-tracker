@@ -36,11 +36,28 @@ def now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def age_days(iso):
+    from datetime import datetime, timezone
+    try:
+        t = datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - t).total_seconds() / 86400.0
+    except (ValueError, TypeError):
+        return 1e9
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
 SOURCES = {}
 
 
 def main():
+    force = "--force" in sys.argv
+    # Registration changes ~monthly, so refresh at most weekly even though the
+    # workflow calls this every cycle (keeps heavy sources, e.g. NC's voter file,
+    # from being fetched constantly). --force overrides.
+    existing = load(OUT_PATH)
+    if existing and existing.get("states") and not force and age_days(existing.get("generated_at", "")) < 6.5:
+        print("registration.json is fresh (<6.5 days) — skipping (refreshes ~weekly).")
+        return 0
     reg = load(STATES_PATH, {}) or {}
     srcmap = (load(SRC_PATH, {}) or {}).get("sources", {})
     out = {}
