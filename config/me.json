@@ -1,0 +1,13 @@
+{
+  "state": "me",
+  "state_name": "Maine",
+  "state_fips": "23",
+  "partisan": true,
+  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "general_start": "2026-10-05",
+  "source": {
+    "_comment": "Maine SoS publishes Statewide Absentee Voter Data Files (text) with party enrollment: https://www.maine.gov/sos/elections-voting/voter-data . Data is TOWN-level -> needs a town->county crosswalk to aggregate to Maine's 16 counties. Staged skeleton (reads 0) until the routine wires the parser + crosswalk in Oct.",
+    "page": "https://www.maine.gov/sos/elections-voting/voter-data"
+  },
+  "method_labels": { "cast": "Absentee ballots", "mail_voted": "Absentee ballots" }
+}

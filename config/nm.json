@@ -1,0 +1,13 @@
+{
+  "state": "nm",
+  "state_name": "New Mexico",
+  "state_fips": "35",
+  "partisan": true,
+  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "general_start": "2026-10-07",
+  "source": {
+    "_comment": "NM SoS Voter Turnout portal shows early/absentee turnout by county and party. It is an ASPX dashboard (no confirmed flat file off-season). Staged skeleton: reads 0 until the routine wires the live data endpoint in Oct. NM early voting opens ~Oct 7.",
+    "portal": "https://electionresults.sos.nm.gov/VoterTurnoutDetails.aspx"
+  },
+  "method_labels": { "cast": "Early + absentee ballots", "early_voted": "Early in person", "mail_voted": "Absentee / mail" }
+}

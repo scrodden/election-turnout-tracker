@@ -1,0 +1,27 @@
+{
+  "state": "md",
+  "state_name": "Maryland",
+  "state_fips": "24",
+  "partisan": true,
+  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "general_start": "2026-10-01",
+  "source": {
+    "_comment": "MD State Board of Elections posts an 'Official Turnout (By Party and County)' PDF with sections Democrat / Republican / Libertarian / Unaffiliated / Other Parties, each a county table with columns Election Day, Early Voting, Vote By Mail, Provisional, Eligible Voters, Turnout% -> full party x method x county. Requires pypdf (MD workflow step installs it). During the general the file lives under press_room/2026_stats/; the exact daily-vs-official cadence and filename are confirmed by the routine in Oct (general_candidates lists the likely names). validation_url is the persisted 2024 file used by --validate. Baltimore City = FIPS 24510 (renamed 'Baltimore City' in geometry), Baltimore County = 24005.",
+    "base": "https://elections.maryland.gov/press_room/2026_stats/",
+    "general_candidates": [
+      "Official by Party and County.pdf",
+      "Unofficial by Party and County.pdf",
+      "General by Party and County.pdf"
+    ],
+    "validation_url": "https://elections.maryland.gov/press_room/2024_stats/Official%20by%20Party%20and%20County.pdf",
+    "party_headers": { "Democrat": "dem", "Republican": "rep", "Unaffiliated": "npa", "Libertarian": "oth", "Other Parties": "oth" },
+    "header_tokens": ["NLM", "LBE", "Election Day", "Early Voting", "Vote By Mail", "Provisional", "Eligible Voters", "TURNOUT"]
+  },
+  "method_labels": {
+    "cast": "All ballots cast",
+    "election_day": "Voted on election day",
+    "early_voted": "Voted early in person",
+    "mail_voted": "Voted by mail",
+    "provisional": "Provisional ballots"
+  }
+}
