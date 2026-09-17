@@ -298,6 +298,10 @@ jobs:
         run: |
           if [ -f data/wi/_frozen.json ]; then echo "WI frozen — skipping"; else python scripts/wi_update.py || echo "WI update failed (non-fatal)"; fi
 
+      - name: Update election results (House / Senate / Governor)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/results_update.py || echo "results update failed (non-fatal)"
+
       - name: Freeze & archive states whose results are certified
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/freeze.py || echo "freeze step failed (non-fatal)"

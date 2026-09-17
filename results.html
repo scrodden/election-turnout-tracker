@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>2026 Election Results</title>
+<meta name="description" content="Live 2026 U.S. election results — House, Senate, and Governor races on a national map and scorecard, colored by the current margin." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  .tabs { display: flex; gap: 6px; background: var(--card); padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .tabs button { flex: 1; padding: 9px 12px; font-size: 15px; font-weight: 700; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: 8px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+  .rsum { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+  .rsum .pill { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow); }
+  .pill b { font-size: 15px; }
+  .pill.dem b { color: var(--dem); } .pill.rep b { color: var(--rep); } .pill.unc b { color: var(--muted); }
+  .rgrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+  @media (max-width: 820px) { .rgrid { grid-template-columns: 1fr; } }
+  #rmap { width: 100%; height: auto; display: block; }
+  .inset { font-size: 11px; fill: var(--muted); }
+  .score-scroll { max-height: 620px; overflow: auto; }
+  table.score { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.score th, table.score td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.score th { position: sticky; top: 0; background: var(--card); cursor: pointer; }
+  .lean { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  .badge { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 999px; }
+  .badge.dem { background: rgba(43,108,176,.15); color: var(--dem); } .badge.rep { background: rgba(214,47,47,.14); color: var(--rep); }
+  .badge.unc { background: rgba(127,127,127,.14); color: var(--muted); }
+  .navrow { display:flex; justify-content: space-between; align-items:center; gap: 12px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles">
+      <div class="title-row"><h1 id="site-title">2026 Election Results</h1></div>
+      <p class="sub">Live House, Senate &amp; Governor results — national map &amp; scorecard, colored by current margin</p>
+    </div>
+    <div class="status">
+      <div id="updated" class="updated"></div>
+      <div class="refresh-note"><a href="index.html">← Turnout Tracker</a> · Auto-refreshes every 10&nbsp;min</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="pre-note" class="frozen-banner" hidden></div>
+
+  <section class="controls">
+    <div class="tabs" id="tabs" role="tablist" aria-label="Race type">
+      <button data-office="senate" role="tab" aria-selected="true">U.S. Senate</button>
+      <button data-office="governor" role="tab" aria-selected="false">Governor</button>
+      <button data-office="house" role="tab" aria-selected="false">U.S. House</button>
+    </div>
+  </section>
+
+  <section class="rsum" id="summary" aria-label="Summary"></section>
+
+  <section class="rgrid">
+    <div class="card map-card">
+      <div class="card-head">
+        <h2 id="map-title">U.S. Senate — current margin</h2>
+        <div class="legend" id="legend" aria-hidden="true"></div>
+      </div>
+      <div id="map-holder" class="map-holder">
+        <svg id="rmap" role="img" aria-label="National results map"></svg>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </div>
+      <p class="fineprint" id="map-note">Red = Republican lead, blue = Democratic lead, by current margin. Gray = no 2026 race or no results yet.</p>
+    </div>
+
+    <div class="card table-card">
+      <div class="card-head">
+        <h2>Scorecard</h2>
+        <div class="table-actions">
+          <input id="filter" class="filter" type="search" placeholder="Filter by state…" aria-label="Filter races" />
+        </div>
+      </div>
+      <div class="score-scroll">
+        <table class="score" id="score"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="fineprint" id="score-note"></p>
+    </div>
+  </section>
+
+  <footer class="site-foot">
+    <p id="source-note">Results are wired from official state sources near Election Day; races read “not yet reported” until then. Independent, non-partisan data project.</p>
+    <p id="hash" class="dim"></p>
+  </footer>
+</main>
+
+<script src="results.js"></script>
+</body>
+</html>
