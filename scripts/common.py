@@ -136,3 +136,50 @@ def add_blocks(*blocks):
             compiled_iso = b.get("compiled_iso", "")
             compiled = b.get("compiled", "")
     return party_block(rep, dem, oth, npa, compiled, compiled_iso)
+
+
+# --- town/municipality -> county aggregation (for MCD states: ME/NH/VT/MA/RI/CT/WI) ---
+_TOWN_CLASS = re.compile(r"\s+(city|town|village|plantation|gore|grant|township|reservation|"
+                         r"unorganized territory|ut|ccd|borough|municipality)$")
+
+
+def norm_town(name):
+    """Normalize a municipality name to match a town->county crosswalk key:
+    lowercase, drop the class suffix (city/town/village/plantation/...),
+    saint->st, strip non-alphanumerics. Must match how the crosswalk was built
+    (scripts that generate assets/crosswalks/<st>-town-county.json use this)."""
+    n = (name or "").lower()
+    n = _TOWN_CLASS.sub("", n)
+    n = n.replace("saint ", "st ").replace("st. ", "st ")
+    return re.sub(r"[^a-z0-9]", "", n)
+
+
+def load_crosswalk(path):
+    """Load assets/crosswalks/<st>-town-county.json -> {norm_town: {county, fips}}."""
+    with open(path, encoding="utf-8") as f:
+        return json.load(f).get("map", {})
+
+
+def aggregate_towns(rows, crosswalk):
+    """Aggregate town-level rows to counties via a crosswalk.
+
+    rows: {town_name: party_block-like dict OR {'rep','dem','oth','npa'} OR int total}
+    Returns ({county_name: {fips, rep, dem, oth, npa}}, unmatched_town_names[]).
+    An int value is treated as a turnout total and placed in 'oth' only if you
+    want party-less; here ints go to a 'total' key instead. Party dicts sum by party.
+    """
+    out = {}
+    unmatched = []
+    for town, val in rows.items():
+        m = crosswalk.get(norm_town(town))
+        if not m:
+            unmatched.append(town)
+            continue
+        c = out.setdefault(m["county"], {"fips": m["fips"], "rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": 0})
+        if isinstance(val, dict):
+            for k in ("rep", "dem", "oth", "npa"):
+                c[k] += int(val.get(k, 0) or 0)
+            c["total"] += int(val.get("total", val.get("rep", 0) + val.get("dem", 0) + val.get("oth", 0) + val.get("npa", 0)) or 0)
+        else:
+            c["total"] += int(val or 0)
+    return out, unmatched
