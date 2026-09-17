@@ -69,6 +69,21 @@ jobs:
         run: |
           if [ -f data/va/_frozen.json ]; then echo "VA frozen — skipping"; else python scripts/va_update.py || echo "VA update failed (non-fatal)"; fi
 
+      - name: Fetch and process Colorado turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/co/_frozen.json ]; then echo "CO frozen — skipping"; else python scripts/co_update.py || echo "CO update failed (non-fatal)"; fi
+
+      - name: Fetch and process Louisiana turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/la/_frozen.json ]; then echo "LA frozen — skipping"; else pip install --quiet pypdf && python scripts/la_update.py || echo "LA update failed (non-fatal)"; fi
+
+      - name: Fetch and process Washington turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/wa/_frozen.json ]; then echo "WA frozen — skipping"; else python scripts/wa_update.py || echo "WA update failed (non-fatal)"; fi
+
       - name: Freeze & archive states whose results are certified
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/freeze.py || echo "freeze step failed (non-fatal)"

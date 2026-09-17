@@ -1,0 +1,13 @@
+{
+  "state": "wa",
+  "state_name": "Washington",
+  "state_fips": "53",
+  "partisan": false,
+  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "general_start": "2026-10-16",
+  "source": {
+    "_comment": "Washington is all-mail with NO party registration -> turnout-only. The SoS 'Ballot Return Statistics' report gives ballots returned & % by county during the election, but only via a seasonal dashboard/report; no persistent machine-readable county API was found off-season. STAGED SKELETON: writes 0 until a verified live 2026 feed is wired. The Friday rollout routine finalizes the parser against the live report in Oct. Turnout-only: 'cast' = ballots returned; the map shades by turnout %.",
+    "page": "https://www.sos.wa.gov/elections/data-research/election-data-and-maps/ballot-return-statistics"
+  },
+  "method_labels": { "cast": "Ballots returned", "early_voted": "Ballots returned" }
+}

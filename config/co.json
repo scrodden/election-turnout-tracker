@@ -1,0 +1,16 @@
+{
+  "state": "co",
+  "state_name": "Colorado",
+  "state_fips": "08",
+  "partisan": true,
+  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "general_start": "2026-10-13",
+  "source": {
+    "_comment": "Colorado SoS posts a daily 'General Election Activity' XLSX (ballots returned by county, party, age, gender) as press-release attachments during the election: https://www.coloradosos.gov/pubs/newsRoom/<YYYYMMDD>GeneralElectionActivity.xlsx (date = data-as-of day; posted each weekday once ballots mail ~Oct 13 2026). Files are SEASONAL (removed off-season) so there is nothing to validate against now: this reads 0 until the first 2026 file appears (discovered by probing recent weekdays). PENDING VERIFICATION of the exact sheet/column layout against the first live 2026 file (the Friday rollout routine confirms it). CO is all-mail: 'cast' = ballots returned.",
+    "base": "https://www.coloradosos.gov/pubs/newsRoom/",
+    "suffix": "GeneralElectionActivity.xlsx",
+    "party_map": { "DEM": "dem", "DEMOCRAT": "dem", "REP": "rep", "REPUBLICAN": "rep", "UAF": "npa", "UNAFFILIATED": "npa" },
+    "probe_days": 12
+  },
+  "method_labels": { "cast": "Ballots returned" }
+}

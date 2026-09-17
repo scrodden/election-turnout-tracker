@@ -894,7 +894,18 @@
     getJSON(STATES_URL).then(function (reg) {
       STATES = reg.states || [];
       var sel = $("#state-select");
-      STATES.forEach(function (s) { var o = el("option"); o.value = s.code; o.textContent = s.name; sel.appendChild(o); });
+      function addOption(s) { var o = el("option"); o.value = s.code; o.textContent = s.name; sel.appendChild(o); }
+      STATES.forEach(function (s) { if (!s.hidden) addOption(s); });
+      // Staged states (hidden:true) are wired but empty until their feed opens;
+      // reveal each automatically once its data reports any ballots.
+      STATES.forEach(function (s) {
+        if (!s.hidden) return;
+        getJSON(s.data).then(function (d) {
+          var has = d && ((d.methods_present && d.methods_present.length) ||
+            (d.statewide && d.statewide.cast && d.statewide.cast.total > 0));
+          if (has && !sel.querySelector('option[value="' + s.code + '"]')) addOption(s);
+        }).catch(function () {});
+      });
       sel.addEventListener("change", function () { loadState(this.value, false); });
       setupPanZoom();
       $("#dl-csv").addEventListener("click", exportCSV);

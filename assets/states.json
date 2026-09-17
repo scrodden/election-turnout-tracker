@@ -45,6 +45,34 @@
       "geojson": "assets/va-counties.geojson",
       "history": "data/va/history.jsonl",
       "source_note": "Source: <a href='https://www.vpap.org/visuals/visual/early-voting-by-locality/' target='_blank' rel='noopener'>VPAP</a> early-vote-by-locality. Virginia has no party registration, so this is turnout-only — total early/absentee ballots &amp; turnout% by locality, no partisan breakdown. General-election early voting begins Sept 18, so figures read zero until then."
+    },
+    {
+      "code": "co",
+      "name": "Colorado",
+      "hidden": true,
+      "data": "data/co/latest.json",
+      "geojson": "assets/co-counties.geojson",
+      "history": "data/co/history.jsonl",
+      "source_note": "Source: <a href='https://www.coloradosos.gov/pubs/newsRoom/' target='_blank' rel='noopener'>Colorado Secretary of State</a> daily &ldquo;General Election Activity&rdquo; report — ballots returned by county &amp; registered party. Colorado is all-mail; the daily file publishes once ballots mail in mid-October, so figures read zero until then."
+    },
+    {
+      "code": "la",
+      "name": "Louisiana",
+      "hidden": true,
+      "data": "data/la/latest.json",
+      "geojson": "assets/la-parishes.geojson",
+      "history": "data/la/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.la.gov/ElectionsAndVoting/Pages/EarlyVotingStatisticsStatewide.aspx' target='_blank' rel='noopener'>Louisiana Secretary of State</a> early-voting statistics — early ballots cast (in person + absentee) by parish &amp; registered party. General-election early voting begins in late October, so figures read zero until then."
+    },
+    {
+      "code": "wa",
+      "name": "Washington",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/wa/latest.json",
+      "geojson": "assets/wa-counties.geojson",
+      "history": "data/wa/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.wa.gov/elections/data-research/election-data-and-maps/ballot-return-statistics' target='_blank' rel='noopener'>Washington Secretary of State</a> ballot-return statistics. Washington has no party registration, so this is turnout-only — ballots returned &amp; turnout% by county. Washington is all-mail; ballots return through late October, so figures read zero until then."
     }
   ]
 }

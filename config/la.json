@@ -1,0 +1,16 @@
+{
+  "state": "la",
+  "state_name": "Louisiana",
+  "state_fips": "22",
+  "partisan": true,
+  "election": { "date": "2026-11-03", "name": "2026 General", "file_token": "2026_1103" },
+  "general_start": "2026-10-01",
+  "source": {
+    "_comment": "Louisiana SoS publishes early-voting statistics as PDFs on electionstatistics.sos.la.gov. The STATEWIDE file has one clean row per parish: after the 'PARISH-##' token come 15 numbers in this order -> VOTES, WHITE, BLACK, OTHER, MALE, FEMALE, DEM, REP, OTH, IN, OUT, INPER, ABS, D, I. VOTES == DEM+REP+OTH (full partisan partition of the early-vote electorate). Files are named by election date: <YYYY>_<MMDD>_StatewideStats.pdf (Nov 3 2026 -> 2026_1103). The 2026 general file appears when early voting opens (~late Oct); until then this reads 0. Requires pypdf (installed in the LA workflow step). validation_file is the persisted final 2024 file, used by --validate to prove the parser.",
+    "base": "https://electionstatistics.sos.la.gov/Data/Early_Voting_Statistics/statewide/",
+    "suffix": "_StatewideStats.pdf",
+    "cols": { "votes": 0, "dem": 6, "rep": 7, "oth": 8, "inper": 11, "abs": 12 },
+    "validation_file": "2024_1105_StatewideStats.pdf"
+  },
+  "method_labels": { "cast": "Early ballots cast (in person + absentee)" }
+}
