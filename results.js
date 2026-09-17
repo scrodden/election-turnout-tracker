@@ -181,9 +181,38 @@
     else pn.hidden = true;
   }
 
+  function renderBalance(data) {
+    var host = $("#balance"), b = data.balance;
+    if (!b) { host.hidden = true; return; }
+    host.hidden = false;
+    var T = b.total, cx = b.control;
+    $("#balance-title").textContent = (office === "senate" ? "U.S. Senate" : "U.S. House") + " — balance of power";
+    var segs = [
+      ["dc", b.dem_called, "#2b6cb0"], ["dl", b.dem_lead, "#7aa9d6"],
+      ["un", b.undecided, "#c9ced6"],
+      ["rl", b.rep_lead, "#e08f7a"], ["rc", b.rep_called, "#d62f2f"]
+    ];
+    var bar = segs.map(function (s) {
+      if (!s[1]) return "";
+      return "<div title='" + s[1] + "' style='width:" + (100 * s[1] / T) + "%;background:" + s[2] + "'></div>";
+    }).join("");
+    // control marker (magic number) from the left
+    bar += "<div style='position:absolute;top:-3px;bottom:-3px;left:" + (100 * cx / T) + "%;width:2px;background:var(--ink)'></div>";
+    $("#balance-bar").innerHTML = bar;
+    var v = $("#balance-verdict");
+    if (b.dem_total >= cx) { v.textContent = "Democrats control"; v.style.color = "var(--dem)"; }
+    else if (b.rep_total >= cx) { v.textContent = "Republicans control"; v.style.color = "var(--rep)"; }
+    else { v.textContent = "Undecided"; v.style.color = "var(--muted)"; }
+    $("#balance-note").innerHTML = "<span class='sh-d'>Dem " + b.dem_total + "</span> · " +
+      "<span class='sh-r'>Rep " + b.rep_total + "</span> · " + b.undecided + " undecided · " +
+      cx + " for control · " + T + " seats" +
+      (b.not_up && (b.not_up.D || b.not_up.R) ? " (incl. " + b.not_up.D + "D/" + b.not_up.R + "R not up in 2026)" : "") +
+      (b.dem_lead + b.rep_lead ? " · lighter shades = currently leading, not yet called" : "");
+  }
+
   function render() {
     var data = cache[office];
-    renderMeta(data); renderSummary(data); renderMap(data); renderScore(data);
+    renderMeta(data); renderBalance(data); renderSummary(data); renderMap(data); renderScore(data);
   }
   function loadOffice(o) {
     office = o;

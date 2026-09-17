@@ -1,0 +1,5 @@
+{
+  "_comment": "Balance-of-power baselines for the results page. not_up = seats NOT contested in 2026 (holdovers), by caucus party (independents counted with the party they caucus with). Senate: 100 seats; 35 up in 2026 (22 currently Republican, 13 currently Democratic incl. independents) -> holdovers 31 R / 34 D; 51 to control. House: all 435 up -> no holdovers; 218 to control. results_update.py adds 2026 called/leading results to not_up to compute live control.",
+  "senate": { "total": 100, "control": 51, "not_up": { "D": 34, "R": 31, "other": 0 } },
+  "house": { "total": 435, "control": 218, "not_up": { "D": 0, "R": 0, "other": 0 } }
+}
