@@ -957,7 +957,27 @@
     }).catch(function (err) { showError(err.message); });
   }
 
-  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); }
+  function renderDemographics() {
+    var host = $("#demographics"), body = $("#demo-body");
+    var dm = data && data.demographics;   // {age:[{label,count}], gender:[...], race:[...]}
+    if (!dm || !(dm.age || dm.gender || dm.race)) { if (host) host.hidden = true; return; }
+    function group(title, arr) {
+      if (!arr || !arr.length) return "";
+      var tot = arr.reduce(function (s, x) { return s + (x.count || 0); }, 0) || 1;
+      return "<div style='margin:10px 0'><div style='font-weight:700;font-size:13px;margin-bottom:4px'>" + title + "</div>" +
+        arr.map(function (x) {
+          var p = 100 * (x.count || 0) / tot;
+          return "<div style='display:flex;align-items:center;gap:8px;font-size:12.5px;margin:3px 0'>" +
+            "<span style='width:120px'>" + x.label + "</span>" +
+            "<div style='flex:1;height:10px;background:var(--line);border-radius:5px'><div style='width:" + p.toFixed(1) + "%;height:100%;background:var(--accent);border-radius:5px'></div></div>" +
+            "<span style='width:96px;text-align:right'>" + (x.count || 0).toLocaleString("en-US") + " (" + p.toFixed(0) + "%)</span></div>";
+        }).join("") + "</div>";
+    }
+    body.innerHTML = group("Age", dm.age) + group("Gender", dm.gender) + group("Race", dm.race);
+    host.hidden = false;
+  }
+
+  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); renderDemographics(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {
