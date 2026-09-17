@@ -13,11 +13,14 @@ To wire a state: implement parse_<code>() -> {"rep":int,"dem":int,"npa":int,
 Run:  python scripts/registration_update.py
 """
 import os
+import re
 import sys
 import json
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import common as C  # noqa: E402
 STATES_PATH = os.path.join(ROOT, "assets", "states.json")
 SRC_PATH = os.path.join(ROOT, "config", "registration_sources.json")
 OUT_PATH = os.path.join(ROOT, "data", "registration.json")
@@ -45,8 +48,40 @@ def age_days(iso):
         return 1e9
 
 
+def _num(s):
+    return int(str(s).replace(",", "").strip() or 0)
+
+
+def _as_of(text):
+    m = re.search(r"as of ([A-Za-z]+ \d+, \d{4})", text)
+    if not m:
+        return ""
+    from datetime import datetime
+    try:
+        return datetime.strptime(m.group(1), "%B %d, %Y").strftime("%Y-%m-%d")
+    except ValueError:
+        return m.group(1)
+
+
+def parse_fl():
+    """FL DOS 'Voter Registration - By County and Party' — an HTML table on the
+    page (County | Republican | Democratic | Minor | No Party Affiliation | Total).
+    Sum the county rows to statewide. Minor -> oth, No Party Affiliation -> npa."""
+    url = ("https://dos.fl.gov/elections/data-statistics/voter-registration-statistics/"
+           "voter-registration-reports/voter-registration-by-county-and-party/")
+    html = C.http_get(url, no_cache=True)
+    rows = re.findall(r"<td>([A-Z][^<]*)</td>\s*<td>([\d,]+)</td>\s*<td>([\d,]+)</td>\s*"
+                      r"<td>([\d,]+)</td>\s*<td>([\d,]+)</td>\s*<td>([\d,]+)</td>", html)
+    rep = dem = minor = npa = 0
+    for _name, r, d, mnr, n, _tot in rows:
+        rep += _num(r); dem += _num(d); minor += _num(mnr); npa += _num(n)
+    if rep + dem + npa <= 0:
+        raise RuntimeError("FL: no rows parsed")
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": minor, "as_of": _as_of(html)}
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
-SOURCES = {}
+SOURCES = {"fl": parse_fl}
 
 
 def main():
