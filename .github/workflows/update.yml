@@ -114,6 +114,41 @@ jobs:
         run: |
           if [ -f data/me/_frozen.json ]; then echo "ME frozen — skipping"; else python scripts/me_update.py || echo "ME update failed (non-fatal)"; fi
 
+      - name: Fetch and process Alaska turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ak/_frozen.json ]; then echo "AK frozen — skipping"; else python scripts/ak_update.py || echo "AK update failed (non-fatal)"; fi
+
+      - name: Fetch and process Kansas turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ks/_frozen.json ]; then echo "KS frozen — skipping"; else python scripts/ks_update.py || echo "KS update failed (non-fatal)"; fi
+
+      - name: Fetch and process Nebraska turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ne/_frozen.json ]; then echo "NE frozen — skipping"; else python scripts/ne_update.py || echo "NE update failed (non-fatal)"; fi
+
+      - name: Fetch and process New Hampshire turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/nh/_frozen.json ]; then echo "NH frozen — skipping"; else python scripts/nh_update.py || echo "NH update failed (non-fatal)"; fi
+
+      - name: Fetch and process Minnesota turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/mn/_frozen.json ]; then echo "MN frozen — skipping"; else python scripts/mn_update.py || echo "MN update failed (non-fatal)"; fi
+
+      - name: Fetch and process Ohio turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/oh/_frozen.json ]; then echo "OH frozen — skipping"; else python scripts/oh_update.py || echo "OH update failed (non-fatal)"; fi
+
+      - name: Fetch and process Texas turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/tx/_frozen.json ]; then echo "TX frozen — skipping"; else python scripts/tx_update.py || echo "TX update failed (non-fatal)"; fi
+
       - name: Freeze & archive states whose results are certified
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/freeze.py || echo "freeze step failed (non-fatal)"

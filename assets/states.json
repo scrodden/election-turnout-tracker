@@ -129,6 +129,72 @@
       "geojson": "assets/me-counties.geojson",
       "history": "data/me/history.jsonl",
       "source_note": "Source: <a href='https://www.maine.gov/sos/elections-voting/voter-data' target='_blank' rel='noopener'>Maine Secretary of State</a> statewide absentee voter data by party enrollment (town-level, aggregated to county). Absentee voting runs through early November, so figures read zero until then."
+    },
+    {
+      "code": "ak",
+      "name": "Alaska",
+      "hidden": true,
+      "data": "data/ak/latest.json",
+      "geojson": "assets/ak-boroughs.geojson",
+      "history": "data/ak/history.jsonl",
+      "source_note": "Source: <a href='https://www.elections.alaska.gov/' target='_blank' rel='noopener'>Alaska Division of Elections</a> early/absentee voting by registered party, shown by borough/census area. Early voting begins in late October, so figures read zero until then."
+    },
+    {
+      "code": "ks",
+      "name": "Kansas",
+      "hidden": true,
+      "data": "data/ks/latest.json",
+      "geojson": "assets/ks-counties.geojson",
+      "history": "data/ks/history.jsonl",
+      "source_note": "Source: <a href='https://sos.ks.gov/elections/elections.html' target='_blank' rel='noopener'>Kansas Secretary of State</a> advance voting statistics by county &amp; registered party. Advance voting begins in mid-October, so figures read zero until then."
+    },
+    {
+      "code": "ne",
+      "name": "Nebraska",
+      "hidden": true,
+      "data": "data/ne/latest.json",
+      "geojson": "assets/ne-counties.geojson",
+      "history": "data/ne/history.jsonl",
+      "source_note": "Source: <a href='https://sos.nebraska.gov/elections' target='_blank' rel='noopener'>Nebraska Secretary of State</a> early-ballot data by county &amp; registered party. Early voting begins in October, so figures read zero until then."
+    },
+    {
+      "code": "nh",
+      "name": "New Hampshire",
+      "hidden": true,
+      "data": "data/nh/latest.json",
+      "geojson": "assets/nh-counties.geojson",
+      "history": "data/nh/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.nh.gov/elections' target='_blank' rel='noopener'>New Hampshire Secretary of State</a> absentee ballot data by county &amp; party. New Hampshire has no in-person early voting (absentee only with an excuse), so pre-election figures are limited and read zero until returns are reported."
+    },
+    {
+      "code": "mn",
+      "name": "Minnesota",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/mn/latest.json",
+      "geojson": "assets/mn-counties.geojson",
+      "history": "data/mn/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.mn.gov/election-administration-campaigns/data-maps/accepted-absentee-ballot-list-requests/' target='_blank' rel='noopener'>Minnesota Secretary of State</a> accepted absentee/early ballots by county. Minnesota has no party registration, so this is turnout-only. Early voting begins ~46 days out, so figures read zero until then."
+    },
+    {
+      "code": "oh",
+      "name": "Ohio",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/oh/latest.json",
+      "geojson": "assets/oh-counties.geojson",
+      "history": "data/oh/history.jsonl",
+      "source_note": "Source: <a href='https://www.ohiosos.gov/elections/voters/ohio-absentee-data/' target='_blank' rel='noopener'>Ohio Secretary of State</a> daily absentee/early voting report by county. Ohio has no party registration, so this is turnout-only. Early voting begins in October, so figures read zero until then."
+    },
+    {
+      "code": "tx",
+      "name": "Texas",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/tx/latest.json",
+      "geojson": "assets/tx-counties.geojson",
+      "history": "data/tx/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.state.tx.us/elections/earlyvoting/index.shtml' target='_blank' rel='noopener'>Texas Secretary of State</a> early-voting turnout for the ~30 largest counties plus statewide. Texas has no party registration, so this is turnout-only. Early voting begins ~Oct 19, so figures read zero until then."
     }
   ]
 }

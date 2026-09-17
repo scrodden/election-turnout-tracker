@@ -1,0 +1,19 @@
+{
+  "state": "oh",
+  "state_name": "Ohio",
+  "state_fips": "39",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-06",
+  "source": {
+    "_comment": "Ohio has NO party registration for the general -> turnout-only. OH SoS posts a daily 'Absentee Report Count' XLSX by county (all 88 boards) during early voting, plus a dashboard. UPGRADEABLE to a real stdlib-xlsx parser like CO; STAGED SKELETON for now (routine wires + validates the live XLSX in Oct, ~Oct 6 start).",
+    "portal": "https://www.ohiosos.gov/elections/voters/ohio-absentee-data/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

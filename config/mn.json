@@ -1,0 +1,19 @@
+{
+  "state": "mn",
+  "state_name": "Minnesota",
+  "state_fips": "27",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-09-19",
+  "source": {
+    "_comment": "Minnesota has NO party registration -> turnout-only. MN SoS reports accepted absentee/early ballots; county-level data comes via the 'Accepted Absentee Ballot List Request' tool (per business day) rather than a simple persistent file. STAGED SKELETON; routine wires the live feed in Oct (MN early voting ~Sept 19).",
+    "portal": "https://www.sos.mn.gov/election-administration-campaigns/data-maps/accepted-absentee-ballot-list-requests/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

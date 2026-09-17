@@ -1,0 +1,19 @@
+{
+  "state": "tx",
+  "state_name": "Texas",
+  "state_fips": "48",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-19",
+  "source": {
+    "_comment": "Texas has NO party registration -> turnout-only. TX SoS publishes cumulative early-voting turnout for the ~30 most populous counties (plus statewide) during early voting; smaller counties are not in the SoS feed. STAGED SKELETON; routine wires the live feed in Oct (TX early voting ~Oct 19).",
+    "portal": "https://www.sos.state.tx.us/elections/earlyvoting/index.shtml"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

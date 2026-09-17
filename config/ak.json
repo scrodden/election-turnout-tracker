@@ -1,0 +1,20 @@
+{
+  "state": "ak",
+  "state_name": "Alaska",
+  "state_fips": "02",
+  "partisan": true,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-19",
+  "source": {
+    "_comment": "Alaska registers voters by party (R/D/undeclared/nonpartisan) -> partisan. AK Division of Elections publishes early/absentee voting counts; geography is boroughs/census areas (not counties). No confirmed persistent flat file off-season -> STAGED SKELETON; the routine wires the live feed in Oct (AK early voting ~Oct 19).",
+    "portal": "https://www.elections.alaska.gov/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Voted early",
+    "mail_voted": "Voted by mail"
+  }
+}

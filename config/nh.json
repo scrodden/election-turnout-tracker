@@ -1,0 +1,20 @@
+{
+  "state": "nh",
+  "state_name": "New Hampshire",
+  "state_fips": "33",
+  "partisan": true,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-01",
+  "source": {
+    "_comment": "New Hampshire registers voters by party but has NO in-person early voting and absentee-only-with-excuse, so there is very little pre-election turnout data (mostly an election-day state). LOW VALUE. STAGED SKELETON; reads 0 (likely stays near 0 until election day).",
+    "portal": "https://www.sos.nh.gov/elections"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Voted early",
+    "mail_voted": "Voted by mail"
+  }
+}

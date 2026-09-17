@@ -1,0 +1,20 @@
+{
+  "state": "ne",
+  "state_name": "Nebraska",
+  "state_fips": "31",
+  "partisan": true,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-05",
+  "source": {
+    "_comment": "Nebraska registers voters by party -> partisan. NE SoS publishes early-ballot (early voting) counts by county and party. UPGRADEABLE if a persistent file is confirmed; STAGED SKELETON for now (routine wires live feed in Oct).",
+    "portal": "https://sos.nebraska.gov/elections"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Voted early",
+    "mail_voted": "Voted by mail"
+  }
+}

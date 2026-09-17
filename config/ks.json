@@ -1,0 +1,20 @@
+{
+  "state": "ks",
+  "state_name": "Kansas",
+  "state_fips": "20",
+  "partisan": true,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-14",
+  "source": {
+    "_comment": "Kansas registers voters by party -> partisan. KS SoS publishes advance-voting statistics by county and party during elections. UPGRADEABLE if a persistent by-county-by-party file is confirmed; STAGED SKELETON for now (routine wires live feed in Oct).",
+    "portal": "https://sos.ks.gov/elections/elections.html"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Voted early",
+    "mail_voted": "Voted by mail"
+  }
+}
