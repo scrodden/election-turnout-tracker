@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>National Early Vote</title>
+<meta name="description" content="National 2026 early-vote dashboard — total ballots cast, partisan lean across party-registration states, and a US map by state." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin:14px 0; }
+  .ncard { background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; box-shadow:var(--shadow); }
+  .ncard .k { color:var(--muted); font-size:12px; } .ncard .v { font-size:24px; font-weight:800; margin-top:2px; }
+  .rgrid { display:grid; grid-template-columns:1.3fr 1fr; gap:16px; } @media(max-width:820px){ .rgrid{grid-template-columns:1fr;} }
+  #nmap { width:100%; height:auto; display:block; } .inset { font-size:11px; fill:var(--muted); }
+  table.lead { width:100%; border-collapse:collapse; font-size:13px; } .score-scroll{max-height:620px;overflow:auto;}
+  table.lead th, table.lead td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.lead th { position:sticky; top:0; background:var(--card); cursor:pointer; }
+  .lean { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles">
+      <div class="title-row"><h1 id="site-title">National Early Vote</h1></div>
+      <p class="sub">Total 2026 early/mail ballots cast, partisan lean across party-registration states, and a US map</p>
+    </div>
+    <div class="status">
+      <div id="updated" class="updated"></div>
+      <div class="refresh-note"><a href="index.html">← Turnout</a> · <a href="results.html">Results</a> · <a href="status.html">Status</a> · <a href="about.html">About</a></div>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <div id="pre-note" class="frozen-banner" hidden></div>
+  <section class="cards" id="cards"></section>
+  <section class="rgrid">
+    <div class="card map-card">
+      <div class="card-head">
+        <h2 id="map-title">Early-vote partisan lean by state</h2>
+        <div class="legend" id="legend" aria-hidden="true"></div>
+      </div>
+      <div id="map-holder" class="map-holder">
+        <svg id="nmap" role="img" aria-label="National early-vote map"></svg>
+        <div id="tooltip" class="tooltip" hidden></div>
+      </div>
+      <p class="fineprint">Party-registration states: red = Republican-registration lean of ballots cast, blue = Democratic. Turnout-only states (no party registration): shades of green by turnout. Gray = no ballots yet.</p>
+    </div>
+    <div class="card table-card">
+      <div class="card-head"><h2>By state</h2>
+        <input id="filter" class="filter" type="search" placeholder="Filter states…" aria-label="Filter" /></div>
+      <div class="score-scroll"><table class="lead" id="lead"><thead></thead><tbody></tbody></table></div>
+      <p class="fineprint">Sortable. “Lean” is by party registration of ballots cast (party-registration states only).</p>
+    </div>
+  </section>
+  <footer class="site-foot"><p class="dim">National aggregate is a sum of the states currently reporting; it grows through October. Partisan lean aggregates party-registration states only. Independent, non-partisan.</p></footer>
+</main>
+<script src="national.js"></script>
+</body>
+</html>

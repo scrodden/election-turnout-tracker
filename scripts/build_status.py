@@ -34,7 +34,8 @@ def main():
         code = s.get("code")
         d = load(os.path.join(ROOT, *s.get("data", "data/%s/latest.json" % code).split("/"))) or {}
         sw = d.get("statewide", {}) or {}
-        cast = int((sw.get("cast") or {}).get("total", 0) or 0)
+        castb = sw.get("cast") or {}
+        cast = int(castb.get("total", 0) or 0)
         methods = d.get("methods_present", []) or []
         frozen = os.path.exists(os.path.join(ROOT, "data", code, "_frozen.json"))
         has_data = cast > 0 or bool(methods)
@@ -44,6 +45,9 @@ def main():
             "code": code, "name": s.get("name"), "partisan": s.get("partisan", True) is not False,
             "hidden": bool(s.get("hidden")), "has_data": has_data, "frozen": frozen,
             "cast": cast, "registered": int(sw.get("registered", 0) or 0),
+            "rep": int(castb.get("rep", 0) or 0), "dem": int(castb.get("dem", 0) or 0),
+            "npa": int(castb.get("npa", 0) or 0), "oth": int(castb.get("oth", 0) or 0),
+            "margin": castb.get("margin"),
             "turnout_pct": sw.get("turnout_pct"), "methods": methods,
             "updated": d.get("generated_at", ""), "source_compiled": d.get("source_compiled", ""),
         })
