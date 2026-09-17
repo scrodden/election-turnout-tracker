@@ -302,6 +302,10 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/results_update.py || echo "results update failed (non-fatal)"
 
+      - name: Update county-level result margins (turnout-vs-result)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/results_county_update.py || echo "county results update failed (non-fatal)"
+
       - name: Freeze & archive states whose results are certified
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/freeze.py || echo "freeze step failed (non-fatal)"

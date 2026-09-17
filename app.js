@@ -37,6 +37,8 @@
   var mapMode = "county";
   var precinctGeo = null, precinctData = null, precinctLoading = false;
   var compare = false, baseline = null, BASELINE_URL = null;
+  // turnout-vs-2026-result comparison (dormant until data/<st>/results_county.json has data)
+  var rcmp = false, rcData = null, RCMP_URL = null, rcRace = "gov";
   var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
   var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
 
@@ -76,6 +78,19 @@
     var b = baseline.statewide[method]; return { total: b.total, margin: marginOf(b) };
   }
   function shiftText(s) { return s == null ? "—" : s > 0 ? "R+" + s.toFixed(1) : s < 0 ? "D+" + (-s).toFixed(1) : "0"; }
+
+  // ---- turnout vs 2026 result -----
+  function rcHasData() { return !!(rcData && rcData.counties && Object.keys(rcData.counties).length); }
+  function rcActive() { return partisan && rcmp && rcHasData() && method === "cast"; }
+  function rcRaceLabel() { return rcRace === "sen" ? "Senate" : "Governor"; }
+  function rcRow(name) { var c = rcData && rcData.counties && rcData.counties[name]; if (!c) return null; return c[rcRace] || c.gov || c.sen || null; }
+  function rcMarginOf(name) { var r = rcRow(name); return r ? r.margin : null; }
+  function rcSW() {
+    if (!rcHasData()) return null;
+    var R = 0, D = 0, O = 0, any = false;
+    for (var n in rcData.counties) { var r = rcData.counties[n][rcRace] || rcData.counties[n].gov || rcData.counties[n].sen; if (r) { R += r.rep || 0; D += r.dem || 0; O += r.other || 0; any = true; } }
+    var t = R + D + O; return (any && t) ? Math.round((100 * R / t - 100 * D / t) * 10) / 10 : null;
+  }
 
   // ---- diverging color scale ----------------------------------------------
   var STOPS = [
@@ -272,6 +287,15 @@
       cc.querySelector(".v").style.color = sh == null ? "var(--muted)" : sh > 0 ? "var(--rep)" : sh < 0 ? "var(--dem)" : "var(--ink)";
       host.appendChild(cc);
     }
+
+    if (rcActive()) {
+      var rsw = rcSW();
+      var g = (b.margin != null && rsw != null) ? Math.round((b.margin - rsw) * 10) / 10 : null;
+      var rc = statCard("", "Turnout vs " + rcRaceLabel() + " result", shiftText(g),
+        rsw != null ? ("turnout " + marginText(b.margin) + " vs result " + marginText(rsw)) : "no result yet");
+      rc.querySelector(".v").style.color = g == null ? "var(--muted)" : g > 0 ? "var(--rep)" : g < 0 ? "var(--dem)" : "var(--ink)";
+      host.appendChild(rc);
+    }
   }
 
   // ---- render: map ---------------------------------------------------------
@@ -385,6 +409,10 @@
         var cty = data.counties[name] || {};
         fill = (cty.turnout_pct != null) ? colorForTurnout(cty.turnout_pct)
              : colorForFrac(maxTot ? (b.total / maxTot) : 0);
+      } else if (rcActive()) {
+        var rm = rcMarginOf(name);
+        var gap = (b.margin != null && rm != null) ? (b.margin - rm) : null;
+        fill = gap == null ? "#c9ced6" : colorForMargin(gap);
       } else if (cmp) {
         var m22 = b22(name);
         var sh = (b.margin != null && m22 && m22.margin != null) ? (b.margin - m22.margin) : null;
@@ -501,6 +529,11 @@
       var sh = (b.margin != null && m22 && m22.margin != null) ? (b.margin - m22.margin) : null;
       tip.innerHTML += "<br>2022: " + marginText(m22 ? m22.margin : null) + " · shift <b>" + shiftText(sh) + "</b>";
     }
+    if (rcActive()) {
+      var rm = rcMarginOf(name);
+      var g = (b.margin != null && rm != null) ? Math.round((b.margin - rm) * 10) / 10 : null;
+      tip.innerHTML += "<br>" + rcRaceLabel() + " result: " + marginText(rm) + " · vs turnout <b>" + shiftText(g) + "</b>";
+    }
     if (compare && baseline && baseline.counties[name] && baseline.counties[name].method_mix) {
       var mm = baseline.counties[name].method_mix;
       tip.innerHTML += "<br><span style='opacity:.75'>2022 mix: mail " + mm.mail + "% · early " + mm.early + "% · e-day " + mm.eday + "%</span>";
@@ -524,6 +557,7 @@
                            { key: "total", label: "Ballots" }, { key: "turnout", label: "Turnout" }];
     var cols = COLS.slice();
     if (compareActive()) { cols.push({ key: "m22", label: "2022" }); cols.push({ key: "shift", label: "Δ vs '22" }); }
+    if (rcActive()) { cols.push({ key: "res", label: "Result" }); cols.push({ key: "gap", label: "T−Result" }); }
     return cols;
   }
   function renderTableHead() {
@@ -552,9 +586,11 @@
       var m22b = compareActive() ? b22(name) : null;
       var m22 = m22b ? m22b.margin : null;
       var shift = (compareActive() && b.margin != null && m22 != null) ? Math.round((b.margin - m22) * 10) / 10 : null;
+      var res = rcActive() ? rcMarginOf(name) : null;
+      var gap = (rcActive() && b.margin != null && res != null) ? Math.round((b.margin - res) * 10) / 10 : null;
       return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
                margin: b.margin, turnout: cty.turnout_pct, tqv: cty.tqv_url, source: cty.source,
-               m22: m22, shift: shift };
+               m22: m22, shift: shift, res: res, gap: gap };
     });
     if (filter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(filter) >= 0; });
     rows.sort(function (a, b) {
@@ -586,6 +622,12 @@
           (r.m22 == null ? "#333" : "#fff") + "'>" + marginText(r.m22) + "</span>";
         tr.innerHTML += "<td>" + pill22 + "</td><td class='" +
           (r.shift > 0 ? "sh-r" : r.shift < 0 ? "sh-d" : "") + "'>" + shiftText(r.shift) + "</td>";
+      }
+      if (rcActive()) {
+        var pillR = "<span class='pill' style='background:" + colorForMargin(r.res) + ";color:" +
+          (r.res == null ? "#333" : "#fff") + "'>" + marginText(r.res) + "</span>";
+        tr.innerHTML += "<td>" + pillR + "</td><td class='" +
+          (r.gap > 0 ? "sh-r" : r.gap < 0 ? "sh-d" : "") + "'>" + shiftText(r.gap) + "</td>";
       }
       tr.addEventListener("click", function (ev) {
         if (ev.target.closest("a")) return; // let the TQV link work without selecting
@@ -800,6 +842,8 @@
     var head = ["County", "FIPS", "Category", "Rep", "Dem", "Other", "NPA", "Total",
                 "Turnout_pct", "Lean", "Registered", "Mail_return_pct"];
     if (cmp) head.push("Lean_2022", "Shift_vs_2022");
+    var rc = rcActive();
+    if (rc) head.push("Result_" + rcRaceLabel(), "Turnout_minus_result");
     var lines = [head.join(",")];
     Object.keys(data.counties).sort().forEach(function (name) {
       var c = data.counties[name], b = block(c, method);
@@ -809,6 +853,10 @@
       if (cmp) {
         var m22 = b22(name); var m = m22 ? m22.margin : null;
         row.push(m == null ? "" : m, (b.margin != null && m != null) ? Math.round((b.margin - m) * 10) / 10 : "");
+      }
+      if (rc) {
+        var rm = rcMarginOf(name);
+        row.push(rm == null ? "" : rm, (b.margin != null && rm != null) ? Math.round((b.margin - rm) * 10) / 10 : "");
       }
       lines.push(row.join(","));
     });
@@ -825,6 +873,7 @@
     parts.push("m=" + method);
     if (mapMode !== "county") parts.push("v=" + mapMode);
     if (compare) parts.push("cmp=1");
+    if (rcmp) parts.push("rc=1");
     if (selected) parts.push("c=" + encodeURIComponent(selected));
     try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
   }
@@ -842,6 +891,14 @@
     if (CMP_METHODS.indexOf(method) < 0) { e.textContent = "— no 2022 by-party data for this category"; return; }
     e.textContent = "— map & table show the partisan-lean shift vs 2022 (all methods incl. election day; Broward/Monroe/Volusia mail+early only)";
   }
+  function updateResultToggle() {
+    var show = partisan && rcHasData();
+    var lab = $("#cmp-result-label"); if (lab) lab.hidden = !show;
+    var row = $("#cmp-2022").closest(".controls-row");
+    if (row) row.style.display = (BASELINE_URL || show) ? "" : "none";
+    if (!show && rcmp) { rcmp = false; var rb = $("#cmp-result"); if (rb) rb.checked = false; }
+  }
+
   function showError(msg) {
     var m = document.querySelector("main");
     var ex = document.querySelector(".error"); if (ex) ex.remove();
@@ -858,8 +915,12 @@
     data = geo = precinctGeo = precinctData = baseline = trendData = null;
     precinctLoading = false; selected = null; filter = ""; cur = null;
     compare = false; mapMode = "county"; method = "cast";
+    rcmp = false; rcData = null;
+    RCMP_URL = st.data ? st.data.replace(/latest\.json$/, "results_county.json") : null;
     partisan = (st.partisan !== false);
     $("#filter").value = ""; var cb = $("#cmp-2022"); if (cb) cb.checked = false;
+    var rb0 = $("#cmp-result"); if (rb0) rb0.checked = false;
+    var rlab0 = $("#cmp-result-label"); if (rlab0) rlab0.hidden = true;
     DATA_URL = st.data; GEO_URL = st.geojson;
     PRECINCT_GEO_URL = st.precincts || null; PRECINCT_DATA_URL = st.precinct_data || null;
     BASELINE_URL = st.baseline || null; HISTORY_URL = st.history || null;
@@ -883,6 +944,15 @@
       }
       loadTrends();
       if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
+      if (RCMP_URL) getJSON(RCMP_URL).then(function (rc) {
+        rcData = rc; rcRace = (rc.race_types && rc.race_types.indexOf("gov") >= 0) ? "gov" : "sen";
+        if (applyHash && parseHash().rc === "1" && rcHasData()) {
+          rcmp = true; compare = false;
+          var rbx = $("#cmp-result"); if (rbx) rbx.checked = true;
+          var cbx = $("#cmp-2022"); if (cbx) cbx.checked = false;
+        }
+        updateResultToggle(); renderAll();
+      }).catch(function () { rcData = null; updateResultToggle(); });
       updateHash();
     }).catch(function (err) { showError(err.message); });
   }
@@ -911,7 +981,19 @@
       $("#dl-csv").addEventListener("click", exportCSV);
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
       $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
-      $("#cmp-2022").addEventListener("change", function (e) { compare = e.target.checked; updateHash(); renderAll(); });
+      $("#cmp-2022").addEventListener("change", function (e) {
+        compare = e.target.checked;
+        if (compare && rcmp) { rcmp = false; var rb = $("#cmp-result"); if (rb) rb.checked = false; }
+        updateHash(); renderAll();
+      });
+      $("#cmp-result").addEventListener("change", function (e) {
+        rcmp = e.target.checked;
+        if (rcmp) {
+          method = "cast";                              // comparison is against the cast electorate
+          if (compare) { compare = false; var cb2 = $("#cmp-2022"); if (cb2) cb2.checked = false; }
+        }
+        updateHash(); renderAll();
+      });
       var modeBtns = $("#map-mode").querySelectorAll("button");
       for (var i = 0; i < modeBtns.length; i++) modeBtns[i].addEventListener("click", function () { setMode(this.getAttribute("data-mode")); });
       setInterval(refresh, REFRESH_MS);
