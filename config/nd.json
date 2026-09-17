@@ -1,0 +1,19 @@
+{
+  "state": "nd",
+  "state_name": "North Dakota",
+  "state_fips": "38",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. No voter registration at all; early/absentee turnout only, limited. Source pointer: https://vip.sos.nd.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://vip.sos.nd.gov/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

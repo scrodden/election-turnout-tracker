@@ -1,0 +1,19 @@
+{
+  "state": "vt",
+  "state_name": "Vermont",
+  "state_fips": "50",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. Ballots mailed to all active voters; returned by town (town->county). Source pointer: https://sos.vermont.gov/elections/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://sos.vermont.gov/elections/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

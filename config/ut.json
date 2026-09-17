@@ -1,0 +1,20 @@
+{
+  "state": "ut",
+  "state_name": "Utah",
+  "state_fips": "49",
+  "partisan": true,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. All-mail; ballots returned by county; party registration tracked. Source pointer: https://elections.utah.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://elections.utah.gov/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Voted early",
+    "mail_voted": "Voted by mail"
+  }
+}

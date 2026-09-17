@@ -1,0 +1,19 @@
+{
+  "state": "ca",
+  "state_name": "California",
+  "state_fips": "06",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. All-mail; California registers by party but a free daily by-party return feed is not available, so this is turnout-only. Source pointer: https://www.sos.ca.gov/elections . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://www.sos.ca.gov/elections"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

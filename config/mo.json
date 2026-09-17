@@ -1,0 +1,19 @@
+{
+  "state": "mo",
+  "state_name": "Missouri",
+  "state_fips": "29",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. No-excuse early voting (~2 weeks) by county (no party registration). Source pointer: https://www.sos.mo.gov/elections . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://www.sos.mo.gov/elections"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

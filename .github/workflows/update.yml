@@ -149,6 +149,151 @@ jobs:
         run: |
           if [ -f data/tx/_frozen.json ]; then echo "TX frozen — skipping"; else python scripts/tx_update.py || echo "TX update failed (non-fatal)"; fi
 
+      - name: Fetch and process Arizona turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/az/_frozen.json ]; then echo "AZ frozen — skipping"; else python scripts/az_update.py || echo "AZ update failed (non-fatal)"; fi
+
+      - name: Fetch and process California turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ca/_frozen.json ]; then echo "CA frozen — skipping"; else python scripts/ca_update.py || echo "CA update failed (non-fatal)"; fi
+
+      - name: Fetch and process Connecticut turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ct/_frozen.json ]; then echo "CT frozen — skipping"; else python scripts/ct_update.py || echo "CT update failed (non-fatal)"; fi
+
+      - name: Fetch and process Delaware turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/de/_frozen.json ]; then echo "DE frozen — skipping"; else python scripts/de_update.py || echo "DE update failed (non-fatal)"; fi
+
+      - name: Fetch and process Idaho turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/id/_frozen.json ]; then echo "ID frozen — skipping"; else python scripts/id_update.py || echo "ID update failed (non-fatal)"; fi
+
+      - name: Fetch and process Kentucky turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ky/_frozen.json ]; then echo "KY frozen — skipping"; else python scripts/ky_update.py || echo "KY update failed (non-fatal)"; fi
+
+      - name: Fetch and process Massachusetts turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ma/_frozen.json ]; then echo "MA frozen — skipping"; else python scripts/ma_update.py || echo "MA update failed (non-fatal)"; fi
+
+      - name: Fetch and process New Jersey turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/nj/_frozen.json ]; then echo "NJ frozen — skipping"; else python scripts/nj_update.py || echo "NJ update failed (non-fatal)"; fi
+
+      - name: Fetch and process New York turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ny/_frozen.json ]; then echo "NY frozen — skipping"; else python scripts/ny_update.py || echo "NY update failed (non-fatal)"; fi
+
+      - name: Fetch and process Oklahoma turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ok/_frozen.json ]; then echo "OK frozen — skipping"; else python scripts/ok_update.py || echo "OK update failed (non-fatal)"; fi
+
+      - name: Fetch and process Oregon turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/or/_frozen.json ]; then echo "OR frozen — skipping"; else python scripts/or_update.py || echo "OR update failed (non-fatal)"; fi
+
+      - name: Fetch and process Rhode Island turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ri/_frozen.json ]; then echo "RI frozen — skipping"; else python scripts/ri_update.py || echo "RI update failed (non-fatal)"; fi
+
+      - name: Fetch and process South Dakota turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/sd/_frozen.json ]; then echo "SD frozen — skipping"; else python scripts/sd_update.py || echo "SD update failed (non-fatal)"; fi
+
+      - name: Fetch and process Utah turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ut/_frozen.json ]; then echo "UT frozen — skipping"; else python scripts/ut_update.py || echo "UT update failed (non-fatal)"; fi
+
+      - name: Fetch and process West Virginia turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/wv/_frozen.json ]; then echo "WV frozen — skipping"; else python scripts/wv_update.py || echo "WV update failed (non-fatal)"; fi
+
+      - name: Fetch and process Wyoming turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/wy/_frozen.json ]; then echo "WY frozen — skipping"; else python scripts/wy_update.py || echo "WY update failed (non-fatal)"; fi
+
+      - name: Fetch and process Alabama turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/al/_frozen.json ]; then echo "AL frozen — skipping"; else python scripts/al_update.py || echo "AL update failed (non-fatal)"; fi
+
+      - name: Fetch and process Arkansas turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ar/_frozen.json ]; then echo "AR frozen — skipping"; else python scripts/ar_update.py || echo "AR update failed (non-fatal)"; fi
+
+      - name: Fetch and process Hawaii turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/hi/_frozen.json ]; then echo "HI frozen — skipping"; else python scripts/hi_update.py || echo "HI update failed (non-fatal)"; fi
+
+      - name: Fetch and process Illinois turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/il/_frozen.json ]; then echo "IL frozen — skipping"; else python scripts/il_update.py || echo "IL update failed (non-fatal)"; fi
+
+      - name: Fetch and process Indiana turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/in/_frozen.json ]; then echo "IN frozen — skipping"; else python scripts/in_update.py || echo "IN update failed (non-fatal)"; fi
+
+      - name: Fetch and process Mississippi turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/ms/_frozen.json ]; then echo "MS frozen — skipping"; else python scripts/ms_update.py || echo "MS update failed (non-fatal)"; fi
+
+      - name: Fetch and process Missouri turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/mo/_frozen.json ]; then echo "MO frozen — skipping"; else python scripts/mo_update.py || echo "MO update failed (non-fatal)"; fi
+
+      - name: Fetch and process Montana turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/mt/_frozen.json ]; then echo "MT frozen — skipping"; else python scripts/mt_update.py || echo "MT update failed (non-fatal)"; fi
+
+      - name: Fetch and process North Dakota turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/nd/_frozen.json ]; then echo "ND frozen — skipping"; else python scripts/nd_update.py || echo "ND update failed (non-fatal)"; fi
+
+      - name: Fetch and process South Carolina turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/sc/_frozen.json ]; then echo "SC frozen — skipping"; else python scripts/sc_update.py || echo "SC update failed (non-fatal)"; fi
+
+      - name: Fetch and process Tennessee turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/tn/_frozen.json ]; then echo "TN frozen — skipping"; else python scripts/tn_update.py || echo "TN update failed (non-fatal)"; fi
+
+      - name: Fetch and process Vermont turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/vt/_frozen.json ]; then echo "VT frozen — skipping"; else python scripts/vt_update.py || echo "VT update failed (non-fatal)"; fi
+
+      - name: Fetch and process Wisconsin turnout
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          if [ -f data/wi/_frozen.json ]; then echo "WI frozen — skipping"; else python scripts/wi_update.py || echo "WI update failed (non-fatal)"; fi
+
       - name: Freeze & archive states whose results are certified
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/freeze.py || echo "freeze step failed (non-fatal)"

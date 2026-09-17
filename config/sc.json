@@ -1,0 +1,19 @@
+{
+  "state": "sc",
+  "state_name": "South Carolina",
+  "state_fips": "45",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. Two weeks of in-person early voting by county (no party registration). Source pointer: https://scvotes.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://scvotes.gov/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

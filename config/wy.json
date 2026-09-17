@@ -1,0 +1,20 @@
+{
+  "state": "wy",
+  "state_name": "Wyoming",
+  "state_fips": "56",
+  "partisan": true,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. Absentee/early by county & registered party (small electorate). Source pointer: https://sos.wyo.gov/elections/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://sos.wyo.gov/elections/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Voted early",
+    "mail_voted": "Voted by mail"
+  }
+}

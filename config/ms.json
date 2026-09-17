@@ -1,0 +1,19 @@
+{
+  "state": "ms",
+  "state_name": "Mississippi",
+  "state_fips": "28",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. No in-person early voting (excuse-absentee only) -> minimal pre-election data. Source pointer: https://www.sos.ms.gov/elections-voting . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://www.sos.ms.gov/elections-voting"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "state": "hi",
+  "state_name": "Hawaii",
+  "state_fips": "15",
+  "partisan": false,
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-10-15",
+  "source": {
+    "_comment": "STAGED SKELETON. All-mail; ballots returned by county (no party registration). Source pointer: https://elections.hawaii.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "portal": "https://elections.hawaii.gov/"
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early / absentee ballots"
+  }
+}

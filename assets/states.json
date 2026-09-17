@@ -195,6 +195,281 @@
       "geojson": "assets/tx-counties.geojson",
       "history": "data/tx/history.jsonl",
       "source_note": "Source: <a href='https://www.sos.state.tx.us/elections/earlyvoting/index.shtml' target='_blank' rel='noopener'>Texas Secretary of State</a> early-voting turnout for the ~30 largest counties plus statewide. Texas has no party registration, so this is turnout-only. Early voting begins ~Oct 19, so figures read zero until then."
+    },
+    {
+      "code": "az",
+      "name": "Arizona",
+      "hidden": true,
+      "data": "data/az/latest.json",
+      "geojson": "assets/az-counties.geojson",
+      "history": "data/az/history.jsonl",
+      "source_note": "Source: <a href='https://azsos.gov/elections' target='_blank' rel='noopener'>Arizona Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ca",
+      "name": "California",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/ca/latest.json",
+      "geojson": "assets/ca-counties.geojson",
+      "history": "data/ca/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.ca.gov/elections' target='_blank' rel='noopener'>California Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ct",
+      "name": "Connecticut",
+      "hidden": true,
+      "data": "data/ct/latest.json",
+      "geojson": "assets/ct-counties.geojson",
+      "history": "data/ct/history.jsonl",
+      "source_note": "Source: <a href='https://portal.ct.gov/sots/election-services/' target='_blank' rel='noopener'>Connecticut Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "de",
+      "name": "Delaware",
+      "hidden": true,
+      "data": "data/de/latest.json",
+      "geojson": "assets/de-counties.geojson",
+      "history": "data/de/history.jsonl",
+      "source_note": "Source: <a href='https://elections.delaware.gov/' target='_blank' rel='noopener'>Delaware Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "id",
+      "name": "Idaho",
+      "hidden": true,
+      "data": "data/id/latest.json",
+      "geojson": "assets/id-counties.geojson",
+      "history": "data/id/history.jsonl",
+      "source_note": "Source: <a href='https://sos.idaho.gov/elections-division/' target='_blank' rel='noopener'>Idaho Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ky",
+      "name": "Kentucky",
+      "hidden": true,
+      "data": "data/ky/latest.json",
+      "geojson": "assets/ky-counties.geojson",
+      "history": "data/ky/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.ky.gov/elections' target='_blank' rel='noopener'>Kentucky Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ma",
+      "name": "Massachusetts",
+      "hidden": true,
+      "data": "data/ma/latest.json",
+      "geojson": "assets/ma-counties.geojson",
+      "history": "data/ma/history.jsonl",
+      "source_note": "Source: <a href='https://www.sec.state.ma.us/divisions/elections/' target='_blank' rel='noopener'>Massachusetts Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "nj",
+      "name": "New Jersey",
+      "hidden": true,
+      "data": "data/nj/latest.json",
+      "geojson": "assets/nj-counties.geojson",
+      "history": "data/nj/history.jsonl",
+      "source_note": "Source: <a href='https://www.nj.gov/state/elections/' target='_blank' rel='noopener'>New Jersey Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ny",
+      "name": "New York",
+      "hidden": true,
+      "data": "data/ny/latest.json",
+      "geojson": "assets/ny-counties.geojson",
+      "history": "data/ny/history.jsonl",
+      "source_note": "Source: <a href='https://www.elections.ny.gov/' target='_blank' rel='noopener'>New York Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ok",
+      "name": "Oklahoma",
+      "hidden": true,
+      "data": "data/ok/latest.json",
+      "geojson": "assets/ok-counties.geojson",
+      "history": "data/ok/history.jsonl",
+      "source_note": "Source: <a href='https://oklahoma.gov/elections.html' target='_blank' rel='noopener'>Oklahoma Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "or",
+      "name": "Oregon",
+      "hidden": true,
+      "data": "data/or/latest.json",
+      "geojson": "assets/or-counties.geojson",
+      "history": "data/or/history.jsonl",
+      "source_note": "Source: <a href='https://sos.oregon.gov/voting-elections/' target='_blank' rel='noopener'>Oregon Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ri",
+      "name": "Rhode Island",
+      "hidden": true,
+      "data": "data/ri/latest.json",
+      "geojson": "assets/ri-counties.geojson",
+      "history": "data/ri/history.jsonl",
+      "source_note": "Source: <a href='https://elections.ri.gov/' target='_blank' rel='noopener'>Rhode Island Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "sd",
+      "name": "South Dakota",
+      "hidden": true,
+      "data": "data/sd/latest.json",
+      "geojson": "assets/sd-counties.geojson",
+      "history": "data/sd/history.jsonl",
+      "source_note": "Source: <a href='https://sdsos.gov/elections-voting/' target='_blank' rel='noopener'>South Dakota Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ut",
+      "name": "Utah",
+      "hidden": true,
+      "data": "data/ut/latest.json",
+      "geojson": "assets/ut-counties.geojson",
+      "history": "data/ut/history.jsonl",
+      "source_note": "Source: <a href='https://elections.utah.gov/' target='_blank' rel='noopener'>Utah Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "wv",
+      "name": "West Virginia",
+      "hidden": true,
+      "data": "data/wv/latest.json",
+      "geojson": "assets/wv-counties.geojson",
+      "history": "data/wv/history.jsonl",
+      "source_note": "Source: <a href='https://sos.wv.gov/elections/' target='_blank' rel='noopener'>West Virginia Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "wy",
+      "name": "Wyoming",
+      "hidden": true,
+      "data": "data/wy/latest.json",
+      "geojson": "assets/wy-counties.geojson",
+      "history": "data/wy/history.jsonl",
+      "source_note": "Source: <a href='https://sos.wyo.gov/elections/' target='_blank' rel='noopener'>Wyoming Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "al",
+      "name": "Alabama",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/al/latest.json",
+      "geojson": "assets/al-counties.geojson",
+      "history": "data/al/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.alabama.gov/alabama-votes' target='_blank' rel='noopener'>Alabama Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ar",
+      "name": "Arkansas",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/ar/latest.json",
+      "geojson": "assets/ar-counties.geojson",
+      "history": "data/ar/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.arkansas.gov/elections' target='_blank' rel='noopener'>Arkansas Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "hi",
+      "name": "Hawaii",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/hi/latest.json",
+      "geojson": "assets/hi-counties.geojson",
+      "history": "data/hi/history.jsonl",
+      "source_note": "Source: <a href='https://elections.hawaii.gov/' target='_blank' rel='noopener'>Hawaii Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "il",
+      "name": "Illinois",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/il/latest.json",
+      "geojson": "assets/il-counties.geojson",
+      "history": "data/il/history.jsonl",
+      "source_note": "Source: <a href='https://www.elections.il.gov/' target='_blank' rel='noopener'>Illinois Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "in",
+      "name": "Indiana",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/in/latest.json",
+      "geojson": "assets/in-counties.geojson",
+      "history": "data/in/history.jsonl",
+      "source_note": "Source: <a href='https://www.in.gov/sos/elections/' target='_blank' rel='noopener'>Indiana Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "ms",
+      "name": "Mississippi",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/ms/latest.json",
+      "geojson": "assets/ms-counties.geojson",
+      "history": "data/ms/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.ms.gov/elections-voting' target='_blank' rel='noopener'>Mississippi Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "mo",
+      "name": "Missouri",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/mo/latest.json",
+      "geojson": "assets/mo-counties.geojson",
+      "history": "data/mo/history.jsonl",
+      "source_note": "Source: <a href='https://www.sos.mo.gov/elections' target='_blank' rel='noopener'>Missouri Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "mt",
+      "name": "Montana",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/mt/latest.json",
+      "geojson": "assets/mt-counties.geojson",
+      "history": "data/mt/history.jsonl",
+      "source_note": "Source: <a href='https://sosmt.gov/elections/' target='_blank' rel='noopener'>Montana Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "nd",
+      "name": "North Dakota",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/nd/latest.json",
+      "geojson": "assets/nd-counties.geojson",
+      "history": "data/nd/history.jsonl",
+      "source_note": "Source: <a href='https://vip.sos.nd.gov/' target='_blank' rel='noopener'>North Dakota Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "sc",
+      "name": "South Carolina",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/sc/latest.json",
+      "geojson": "assets/sc-counties.geojson",
+      "history": "data/sc/history.jsonl",
+      "source_note": "Source: <a href='https://scvotes.gov/' target='_blank' rel='noopener'>South Carolina Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "tn",
+      "name": "Tennessee",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/tn/latest.json",
+      "geojson": "assets/tn-counties.geojson",
+      "history": "data/tn/history.jsonl",
+      "source_note": "Source: <a href='https://sos.tn.gov/elections' target='_blank' rel='noopener'>Tennessee Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "vt",
+      "name": "Vermont",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/vt/latest.json",
+      "geojson": "assets/vt-counties.geojson",
+      "history": "data/vt/history.jsonl",
+      "source_note": "Source: <a href='https://sos.vermont.gov/elections/' target='_blank' rel='noopener'>Vermont Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+    },
+    {
+      "code": "wi",
+      "name": "Wisconsin",
+      "partisan": false,
+      "hidden": true,
+      "data": "data/wi/latest.json",
+      "geojson": "assets/wi-counties.geojson",
+      "history": "data/wi/history.jsonl",
+      "source_note": "Source: <a href='https://elections.wi.gov/' target='_blank' rel='noopener'>Wisconsin Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
     }
   ]
 }
