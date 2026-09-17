@@ -166,9 +166,33 @@
       var tds = ["<span class='lean' style='background:" + (c.hasData ? color(c.rd) : "#c9ced6") + "'></span>" + r.state_name + (r.special ? " *" : "")];
       if (office === "house") tds.push(r.district);
       tds.push(lead, c.margin == null ? "—" : (c.leader || "") + "+" + c.margin, c.reporting == null ? "—" : c.reporting + "%", status);
-      return "<tr>" + tds.map(function (x) { return "<td>" + x + "</td>"; }).join("") + "</tr>";
+      return "<tr data-id='" + r.id + "' style='cursor:pointer'>" + tds.map(function (x) { return "<td>" + x + "</td>"; }).join("") + "</tr>";
     }).join("");
-    $("#score-note").textContent = rows.length + " races" + (office === "senate" ? " · * = special election" : "");
+    $("#score tbody").onclick = function (e) {
+      var tr = e.target.closest("tr[data-id]"); if (!tr) return;
+      var rr = (cache[office].races || []).filter(function (x) { return x.id === tr.getAttribute("data-id"); })[0];
+      if (rr) renderDetail(rr);
+    };
+    $("#score-note").textContent = rows.length + " races · click a row for detail" + (office === "senate" ? " · * = special" : "");
+  }
+
+  function renderDetail(r) {
+    var d = $("#detail"), body = $("#detail-body"), c = computeRace(r);
+    $("#detail-title").textContent = r.state_name + (r.district ? (" — District " + r.district) : "") + " · " + r.office + (r.special ? " (special)" : "");
+    if (!r.candidates || !r.candidates.length) {
+      body.innerHTML = "<p class='dim'>No results reported yet for this race.</p>";
+      d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" }); return;
+    }
+    var tot = r.candidates.reduce(function (s, x) { return s + (x.votes || 0); }, 0);
+    var sorted = r.candidates.slice().sort(function (a, b) { return (b.votes || 0) - (a.votes || 0); });
+    body.innerHTML = "<p class='dim'>" + (c.reporting != null ? c.reporting + "% reporting" : "reporting —") + (r.called ? (" · Called " + r.called) : "") + "</p>" +
+      sorted.map(function (x) {
+        var p = tot ? 100 * (x.votes || 0) / tot : 0, pc = (x.party || "").toUpperCase()[0];
+        var col = pc === "R" ? "#d62f2f" : pc === "D" ? "#2b6cb0" : "#6b7280";
+        return "<div style='margin:8px 0'><div style='display:flex;justify-content:space-between;font-size:13px'><span><b>" + (x.name || "—") + "</b> (" + (x.party || "?") + ")</span><span>" + fmt(x.votes || 0) + " · " + p.toFixed(1) + "%</span></div>" +
+          "<div style='height:9px;border-radius:5px;background:var(--line);margin-top:3px'><div style='width:" + p.toFixed(1) + "%;height:100%;border-radius:5px;background:" + col + "'></div></div></div>";
+      }).join("");
+    d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function renderMeta(data) {
@@ -216,6 +240,7 @@
   }
   function loadOffice(o) {
     office = o;
+    var dt = $("#detail"); if (dt) dt.hidden = true;
     $("#tabs").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-office") === o)); });
     if (cache[o]) { render(); return; }
     getJSON("data/results/" + o + ".json").then(function (d) { cache[o] = d; render(); }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load results: " + e.message + "</span>"; });
@@ -227,6 +252,7 @@
       geo = g;
       $("#tabs").querySelectorAll("button").forEach(function (b) { b.addEventListener("click", function () { loadOffice(b.getAttribute("data-office")); }); });
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderScore(cache[office]); });
+      $("#detail-close").addEventListener("click", function () { $("#detail").hidden = true; });
       (function schedule() { setTimeout(function () { refresh(); schedule(); }, refreshMs()); })();
       loadOffice("senate");
     }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load map: " + e.message + "</span>"; });
