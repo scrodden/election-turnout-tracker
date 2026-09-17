@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Registration vs. Turnout</title>
+<meta name="description" content="How each party's share of 2026 early/mail ballots cast compares to its share of registered voters — by state and nationally." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  table.rt { width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.rt th, table.rt td { text-align:right; padding:6px 7px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.rt th:first-child, table.rt td:first-child { text-align:left; }
+  table.rt th { position:sticky; top:0; background:var(--card); cursor:pointer; }
+  .r { color:var(--rep); } .d { color:var(--dem); } .n { color:var(--muted); }
+  .gpos { color:var(--rep); font-weight:700; } .gneg { color:var(--dem); font-weight:700; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:14px 0; }
+  .ncard { background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; box-shadow:var(--shadow); }
+  .ncard .k { color:var(--muted); font-size:12px; } .mixbar { display:flex; height:14px; border-radius:4px; overflow:hidden; margin-top:6px; }
+</style>
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles"><div class="title-row"><h1 id="site-title">Registration vs. Turnout</h1></div>
+      <p class="sub">Each party's share of ballots cast vs. its share of registered voters — who's over/under-performing</p></div>
+    <div class="status"><div id="updated" class="updated"></div>
+      <div class="refresh-note"><a href="index.html">← Turnout</a> · <a href="national.html">National</a> · <a href="results.html">Results</a> · <a href="about.html">About</a></div></div>
+  </div>
+</header>
+<main class="wrap">
+  <div id="pre-note" class="frozen-banner" hidden></div>
+  <section class="cards" id="cards"></section>
+  <section class="card table-card">
+    <div class="card-head"><h2>By state</h2>
+      <input id="filter" class="filter" type="search" placeholder="Filter states…" aria-label="Filter" /></div>
+    <div class="table-scroll"><table class="rt" id="tbl"><thead></thead><tbody></tbody></table></div>
+    <p class="fineprint">“Reg” = share of registered voters by party. “Cast” = share of ballots cast so far by registered party. “Gap” = cast share − registration share (positive = that party is casting a larger share of ballots than its registration; i.e., over-performing its registration in turnout). Only party-registration states with both figures are compared.</p>
+  </section>
+  <footer class="site-foot"><p class="dim">Registration from each state's official statistics; early-vote composition is registered party of ballots cast (not vote choice). Independent, non-partisan.</p></footer>
+</main>
+<script src="registration.js"></script>
+</body>
+</html>

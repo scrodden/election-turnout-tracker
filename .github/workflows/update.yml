@@ -310,6 +310,10 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/build_status.py || echo "status build failed (non-fatal)"
 
+      - name: Update voter registration by party
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/registration_update.py || echo "registration update failed (non-fatal)"
+
       - name: Build daily summary
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/build_summary.py || echo "summary build failed (non-fatal)"
