@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Feed Status</title>
+<meta name="description" content="Live status of every state's turnout feed and the results feeds for the 2026 election tracker — which are live, pending, or frozen." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  .stat-pills { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0; }
+  .stat-pills .pill { background:var(--card); border:1px solid var(--line); border-radius:999px; padding:6px 12px; font-size:13px; font-weight:600; box-shadow:var(--shadow); }
+  table.st { width:100%; border-collapse:collapse; font-size:13px; }
+  table.st th, table.st td { text-align:left; padding:7px 9px; border-bottom:1px solid var(--line); }
+  table.st th { position:sticky; top:0; background:var(--card); cursor:pointer; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
+  .live .dot { background:#2f9e44; } .pending .dot { background:#adb5bd; } .frozen .dot { background:#c9a227; }
+  .tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; }
+  .tag.p { background:rgba(52,80,107,.14); color:var(--accent); } .tag.t { background:rgba(49,163,84,.15); color:#2f9e44; }
+</style>
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles">
+      <div class="title-row"><h1 id="site-title">Feed Status</h1></div>
+      <p class="sub">Which state turnout feeds &amp; results feeds are live, pending, or frozen</p>
+    </div>
+    <div class="status">
+      <div id="updated" class="updated"></div>
+      <div class="refresh-note"><a href="index.html">← Turnout</a> · <a href="results.html">Results</a> · <a href="about.html">About</a></div>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="stat-pills" id="pills"></section>
+  <section class="card" aria-label="Results feeds" style="padding:12px 16px;margin-bottom:14px;">
+    <h2 style="margin:0 0 8px">Results feeds</h2>
+    <div id="results-status" class="dim"></div>
+  </section>
+  <section class="card table-card">
+    <div class="card-head"><h2>State turnout feeds</h2>
+      <input id="filter" class="filter" type="search" placeholder="Filter states…" aria-label="Filter states" /></div>
+    <div class="table-scroll"><table class="st" id="tbl"><thead></thead><tbody></tbody></table></div>
+    <p class="fineprint">“Pending” = the state is wired but its 2026 feed hasn’t started reporting yet (it appears on the site automatically once it does). “Frozen” = results certified and archived.</p>
+  </section>
+  <footer class="site-foot"><p id="src" class="dim"></p></footer>
+</main>
+<script src="status.js"></script>
+</body>
+</html>

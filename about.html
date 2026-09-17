@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>About &amp; Methodology</title>
+<meta name="description" content="How this 2026 election turnout &amp; results tracker works — data sources, definitions, methodology, and disclaimers." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css" />
+<style>
+  .prose { max-width: 760px; }
+  .prose h2 { margin: 22px 0 6px; font-size: 19px; }
+  .prose p, .prose li { color: var(--ink); font-size: 14.5px; line-height: 1.55; }
+  .prose .muted { color: var(--muted); }
+  .prose code { background: rgba(127,127,127,.12); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+  .srcs { columns: 2; font-size: 13px; } @media (max-width:640px){ .srcs{ columns:1; } }
+  .srcs div { break-inside: avoid; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles">
+      <div class="title-row"><h1 id="site-title">About &amp; Methodology</h1></div>
+      <p class="sub">How this tracker works, what it measures, and where the data comes from</p>
+    </div>
+    <div class="status"><div class="refresh-note"><a href="index.html">← Turnout</a> · <a href="results.html">Results</a> · <a href="status.html">Status</a></div></div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="card prose" style="padding:18px 20px;">
+    <h2>What this is</h2>
+    <p>An independent, non-partisan project tracking the <b>partisan composition of election turnout</b> during the 2026 U.S. elections, plus <b>live results</b> for the U.S. House, Senate, and Governor races. It runs as a static site that refreshes from official sources every ~10 minutes (every ~2 minutes on Election Day for results).</p>
+
+    <h2>What “partisan composition of turnout” means</h2>
+    <p>For states with <b>party registration</b>, we show the <b>registered party of voters who have already cast a ballot</b> (by mail, early in person, or on Election Day) — <span class="muted">not how they voted</span>. A county shown as “R+10” means registered Republicans make up 10 points more of the ballots cast there than registered Democrats. It says nothing about which candidate those voters chose.</p>
+    <p>States <b>without party registration</b> (e.g., Georgia, Michigan, Wisconsin, Texas) are shown in <b>turnout-only</b> mode: total ballots cast and turnout %, with no partisan breakdown.</p>
+
+    <h2>Voting methods</h2>
+    <p>Where the source distinguishes them, turnout is broken out by <b>mail</b>, <b>early in person</b>, <b>Election Day</b>, and <b>provisional</b> ballots, plus <b>mail ballots outstanding</b> (sent but not yet returned) where available.</p>
+
+    <h2>How it updates &amp; freezes</h2>
+    <p>Each state has its own connector that reads the official feed and writes a standard data file; a scheduler refreshes them. States are added as their 2026 feeds go live through October. When a state’s results are <b>certified</b>, its data is <b>archived</b> (a permanent final snapshot) and updates stop — see the <a href="status.html">feed-status page</a> for what’s live vs. pending.</p>
+
+    <h2>Comparisons</h2>
+    <p>Florida includes a <b>2022 vs 2026</b> partisan-lean comparison. After the election, a <b>turnout-vs-result</b> comparison overlays each county’s partisan turnout against the actual Governor/Senate result margin, to show which counties over- or under-performed their registration.</p>
+
+    <h2>Results &amp; balance of power</h2>
+    <p>The <a href="results.html">results page</a> shows a national map and scorecard for the Senate, Governor, and House, colored by the current margin, with a live <b>balance-of-power</b> bar (seats needed for control, including the seats not up in 2026). Results are wired from official state election-night feeds.</p>
+
+    <h2>Sources</h2>
+    <p class="muted">Primary source for each state (full notes on each state’s page):</p>
+    <div class="srcs" id="srcs"><p class="muted">Loading…</p></div>
+
+    <h2>Disclaimers</h2>
+    <ul>
+      <li>Party <b>registration</b> is not a vote choice or a projection; independents/unaffiliated voters are shown separately where reported.</li>
+      <li>Figures are <b>unofficial</b> and preliminary until certified; feeds can revise or lag.</li>
+      <li>Some states report by municipality or precinct and are aggregated to counties; a few use estimates where noted.</li>
+      <li>This is not affiliated with any state, campaign, or party.</li>
+    </ul>
+  </section>
+  <footer class="site-foot"><p class="dim">Independent, non-partisan data project. Built on official, publicly available election data.</p></footer>
+</main>
+<script>
+  fetch("assets/states.json?t=" + Date.now()).then(function (r) { return r.json(); }).then(function (reg) {
+    var el = document.getElementById("srcs");
+    el.innerHTML = (reg.states || []).map(function (s) {
+      var m = (s.source_note || "").match(/href='([^']+)'[^>]*>([^<]+)<\/a>/);
+      var link = m ? "<a href='" + m[1] + "' target='_blank' rel='noopener'>" + m[2] + "</a>" : "official state feed";
+      return "<div><b>" + s.name + "</b> — " + link + (s.partisan === false ? " <span class='muted'>(turnout-only)</span>" : "") + "</div>";
+    }).join("");
+  }).catch(function () { document.getElementById("srcs").innerHTML = "<p class='muted'>Source list unavailable.</p>"; });
+</script>
+</body>
+</html>
