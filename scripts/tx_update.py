@@ -79,6 +79,7 @@ def main():
         "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
+    snap = C.merge_eday(snap, os.path.join(DATA_DIR, "eday.json"))  # Election-Day county turnout, if scraped
     snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
     snap["generated_at"] = C.utc_now_iso()
 

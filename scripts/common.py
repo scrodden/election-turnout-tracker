@@ -183,3 +183,37 @@ def aggregate_towns(rows, crosswalk):
         else:
             c["total"] += int(val or 0)
     return out, unmatched
+
+
+def _total_block(t):
+    return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": int(t or 0),
+            "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
+
+
+def merge_eday(snap, eday_path):
+    """Merge a scraped Election-Day turnout file (data/<st>/eday.json, written by
+    scripts/eday_scrape.py) into a TURNOUT-ONLY snapshot as an `election_day`
+    method of party-less totals, recomputing each county's `cast` and the
+    statewide totals. Idempotent; a missing/empty file leaves snap unchanged.
+    Used by GA/TX (county/hub Election-Day feeds are totals, not by party)."""
+    try:
+        with open(eday_path, encoding="utf-8") as f:
+            ed = json.load(f)
+    except (OSError, ValueError):
+        return snap
+    counties = ed.get("counties", {})
+    if not counties:
+        return snap
+    dst = snap.setdefault("counties", {})
+    for name, rec in counties.items():
+        c = dst.setdefault(name, {"fips": rec.get("fips", "")})
+        c["election_day"] = _total_block(rec.get("total", 0))
+        cast_total = sum(int((c.get(m) or {}).get("total", 0)) for m in ("mail_voted", "early_voted", "election_day"))
+        c["cast"] = _total_block(cast_total)
+    mp = set(snap.get("methods_present", []))
+    mp.add("election_day")
+    snap["methods_present"] = sorted(mp)
+    sw = snap.setdefault("statewide", {})
+    sw["election_day"] = _total_block(sum(int((dst[n].get("election_day") or {}).get("total", 0)) for n in dst))
+    sw["cast"] = _total_block(sum(int((dst[n].get("cast") or {}).get("total", 0)) for n in dst))
+    return snap

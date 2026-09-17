@@ -44,6 +44,10 @@ jobs:
             echo "frozen=0" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Scrape Election-Day county turnout (GA/TX)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/eday_scrape.py || echo "eday scrape failed (non-fatal)"
+
       - name: Fetch and process Florida turnout
         if: steps.gate.outputs.frozen != '1'
         run: |

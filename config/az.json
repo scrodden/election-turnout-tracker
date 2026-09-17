@@ -7,14 +7,105 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-10-07",
   "source": {
-    "_comment": "STAGED SKELETON. County-fragmented (Maricopa daily + 14 others) \u2014 needs a multi-county aggregator; the hardest to wire. Source pointer: https://azsos.gov/elections . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://azsos.gov/elections"
+    "_comment": "Arizona has party registration but NO single statewide by-party early-vote feed: each of the 15 county recorders publishes separately (Maricopa daily ballot-return stats + others), in different formats. az_update.py is a MULTI-COUNTY AGGREGATOR: it iterates `counties`, runs a registered per-county parser (scripts/az_update.py PARSERS[fips]) where one exists, and merges results into the statewide by-party schema. Per-county parsers are added as each county's live feed is confirmed (the routine wires them, biggest-first: Maricopa 04013, Pima 04019, Pinal 04021, Maricopa covers ~60% of AZ voters). Reads 0 for counties without a wired parser.",
+    "counties": [
+      {
+        "name": "Apache",
+        "fips": "04001",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Cochise",
+        "fips": "04003",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Coconino",
+        "fips": "04005",
+        "source": "https://www.coconino.az.gov/126/Elections",
+        "wired": false
+      },
+      {
+        "name": "Gila",
+        "fips": "04007",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Graham",
+        "fips": "04009",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Greenlee",
+        "fips": "04011",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "La Paz",
+        "fips": "04012",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Maricopa",
+        "fips": "04013",
+        "source": "https://recorder.maricopa.gov/early-voting-ballot-statistics/",
+        "wired": false
+      },
+      {
+        "name": "Mohave",
+        "fips": "04015",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Navajo",
+        "fips": "04017",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Pima",
+        "fips": "04019",
+        "source": "https://www.recorder.pima.gov/",
+        "wired": false
+      },
+      {
+        "name": "Pinal",
+        "fips": "04021",
+        "source": "https://www.pinalcountyaz.gov/Recorder/",
+        "wired": false
+      },
+      {
+        "name": "Santa Cruz",
+        "fips": "04023",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      },
+      {
+        "name": "Yavapai",
+        "fips": "04025",
+        "source": "https://www.yavapaiaz.gov/Departments/Elections",
+        "wired": false
+      },
+      {
+        "name": "Yuma",
+        "fips": "04027",
+        "source": "county recorder (to be identified)",
+        "wired": false
+      }
+    ]
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
+    "cast": "Ballots returned",
+    "mail_voted": "Mail ballots returned",
+    "early_voted": "Early in person"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "_comment": "Election-Day county turnout scraping targets (live ONLY on Nov 3 2026). scripts/eday_scrape.py runs on Election Day, and for each target with a wired parser fetches election-day ballots-cast, writing data/<state>/eday.json = {County Name: {fips, total}}. The state connector then merges eday.json as an `election_day` turnout total (via common.merge_eday). Turnout totals only (no party split — these county/hub feeds are not by party). Parsers are wired near the election since URLs/formats are live-only. Extend the tx list with more counties as needed.",
+  "targets": [
+    { "state": "ga", "name": "__hub", "fips": "", "kind": "state_hub", "url": "https://sos.ga.gov/page/election-data-hub-turnout", "parser": "ga_hub", "note": "GA SoS data hub election-day voter credit (statewide, per county)." },
+    { "state": "tx", "name": "Harris", "fips": "48201", "kind": "county", "url": "https://www.harrisvotes.com/", "parser": "tx_harris" },
+    { "state": "tx", "name": "Dallas", "fips": "48113", "kind": "county", "url": "https://www.dallascountyvotes.org/", "parser": "tx_generic" },
+    { "state": "tx", "name": "Tarrant", "fips": "48439", "kind": "county", "url": "https://www.tarrantcountytx.gov/en/elections.html", "parser": "tx_generic" },
+    { "state": "tx", "name": "Bexar", "fips": "48029", "kind": "county", "url": "https://www.bexar.org/1568/Elections-Department", "parser": "tx_generic" },
+    { "state": "tx", "name": "Travis", "fips": "48453", "kind": "county", "url": "https://countyclerk.traviscountytx.gov/elections.html", "parser": "tx_generic" },
+    { "state": "tx", "name": "Collin", "fips": "48085", "kind": "county", "url": "https://www.collincountytx.gov/elections", "parser": "tx_generic" },
+    { "state": "tx", "name": "Denton", "fips": "48121", "kind": "county", "url": "https://www.votedenton.gov/", "parser": "tx_generic" },
+    { "state": "tx", "name": "Fort Bend", "fips": "48157", "kind": "county", "url": "https://www.fortbendcountytx.gov/government/departments/elections", "parser": "tx_generic" },
+    { "state": "tx", "name": "El Paso", "fips": "48141", "kind": "county", "url": "https://epcountyvotes.com/", "parser": "tx_generic" },
+    { "state": "tx", "name": "Hidalgo", "fips": "48215", "kind": "county", "url": "https://www.hidalgocounty.us/154/Elections-Voter-Registration", "parser": "tx_generic" }
+  ]
+}
