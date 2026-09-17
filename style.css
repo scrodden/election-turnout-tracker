@@ -171,5 +171,8 @@ tbody tr.sel { background: rgba(52,80,107,.12); }
 .loading { text-align: center; padding: 40px; color: var(--muted); }
 .error { background: #fdecea; color: #8a1c15; border: 1px solid #f5c6c0; padding: 14px; border-radius: var(--radius); }
 @media (prefers-color-scheme: dark) { .error { background: #3a1512; color: #ffb4ab; border-color: #5c211c; } }
+.ctytable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ctytable th, .ctytable td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); }
+.ctytable th { color: var(--muted); font-weight: 600; }
 .frozen-banner { background: #fff8e6; border: 1px solid #e6d38a; color: #5a4a1a; border-radius: var(--radius); padding: 10px 14px; margin: 0 0 14px; font-size: 13.5px; box-shadow: var(--shadow); }
 @media (prefers-color-scheme: dark) { .frozen-banner { background: #2a2410; border-color: #5c4f22; color: #e8d9a6; } }

@@ -651,10 +651,44 @@
       var row = $("#table tbody tr[data-name='" + cssEscape(selected) + "']");
       if (row) row.scrollIntoView({ block: "nearest" });
     }
-    if (selected) openPrecincts(selected); else closePrecincts();
+    if (selected) renderCountyPanel(selected); else { closeCountyPanel(); closePrecincts(); }
     updateHash();
   }
   function cssEscape(s) { return s.replace(/'/g, "\\'"); }
+
+  function methodLabel(k) { var m = METHODS.filter(function (x) { return x.key === k; })[0]; return m ? m.label : k; }
+  function closeCountyPanel() { $("#county-panel").hidden = true; }
+  function renderCountyPanel(name) {
+    var cty = data.counties[name];
+    if (!cty) { closeCountyPanel(); return; }
+    $("#county-panel").hidden = false;
+    $("#county-title").textContent = name + " — " + (data.state_name || "");
+    var mlist = METHODS.filter(function (m) { return m.key === "cast" || (data.methods_present || []).indexOf(m.key) >= 0; });
+    var rows = [];
+    if (partisan) {
+      rows.push("<tr><th>Method</th><th>Rep</th><th>Dem</th><th>NPA</th><th>Other</th><th>Total</th><th>Lean</th></tr>");
+      mlist.forEach(function (m) {
+        if (m.key !== "cast" && !cty[m.key]) return;
+        var b = block(cty, m.key);
+        rows.push("<tr><td>" + m.label + "</td><td>" + fmt(b.rep) + "</td><td>" + fmt(b.dem) + "</td><td>" + fmt(b.npa) +
+          "</td><td>" + fmt(b.oth) + "</td><td>" + fmt(b.total) + "</td><td>" + marginText(b.margin) + "</td></tr>");
+      });
+    } else {
+      rows.push("<tr><th>Method</th><th>Ballots</th></tr>");
+      mlist.forEach(function (m) { if (m.key !== "cast" && !cty[m.key]) return; rows.push("<tr><td>" + m.label + "</td><td>" + fmt(block(cty, m.key).total) + "</td></tr>"); });
+    }
+    var extra = "";
+    if (cty.registered) extra += "<p class='dim'>Registered: " + fmt(cty.registered) + " · Turnout: " + pctText(cty.turnout_pct) + "</p>";
+    if (cty.mail && cty.mail.return_rate != null) extra += "<p class='dim'>Mail returned: " + pctText(cty.mail.return_rate) + "</p>";
+    var b0 = block(cty, method);
+    if (compareActive()) { var m22 = b22(name); var sh = (b0.margin != null && m22 && m22.margin != null) ? Math.round((b0.margin - m22.margin) * 10) / 10 : null; extra += "<p class='dim'>2022 (" + methodLabel(method) + "): " + marginText(m22 ? m22.margin : null) + " · shift " + shiftText(sh) + "</p>"; }
+    if (rcActive()) { var rm = rcMarginOf(name); var g = (b0.margin != null && rm != null) ? Math.round((b0.margin - rm) * 10) / 10 : null; extra += "<p class='dim'>" + rcRaceLabel() + " result: " + marginText(rm) + " · turnout vs result " + shiftText(g) + "</p>"; }
+    var links = "";
+    if (cty.tqv_url) links += "<a class='tqv-link' href='" + cty.tqv_url + "' target='_blank' rel='noopener'>Live TQV feed &#8599;</a> ";
+    if (PRECINCT_GEO_URL) links += "<button id='county-precincts' class='mini-btn'>Precinct detail &#9662;</button>";
+    $("#county-body").innerHTML = "<div class='table-scroll'><table class='ctytable'>" + rows.join("") + "</table></div>" + extra + (links ? "<p>" + links + "</p>" : "");
+    var pb = $("#county-precincts"); if (pb) pb.addEventListener("click", function () { openPrecincts(name); });
+  }
 
   // ---- precinct drill-down -------------------------------------------------
   var precinctCache = {};
@@ -923,7 +957,7 @@
     // feature visibility
     $("#map-mode").style.display = st.precincts ? "" : "none";
     var row = $("#cmp-2022").closest(".controls-row"); if (row) row.style.display = st.baseline ? "" : "none";
-    $("#trends").hidden = true; $("#mail-panel").hidden = true; $("#precinct-panel").hidden = true;
+    $("#trends").hidden = true; $("#mail-panel").hidden = true; $("#precinct-panel").hidden = true; $("#county-panel").hidden = true;
 
     Promise.all([getJSON(GEO_URL), getJSON(DATA_URL)]).then(function (res) {
       geo = res[0]; data = res[1]; proj = buildProjection(geo); method = pickDefaultMethod();
@@ -1036,7 +1070,8 @@
       setupPanZoom();
       $("#dl-csv").addEventListener("click", exportCSV);
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTableBody(); });
-      $("#precinct-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
+      $("#precinct-close").addEventListener("click", function () { closePrecincts(); });
+      $("#county-close").addEventListener("click", function () { if (selected) selectCounty(selected, true); });
       $("#cmp-2022").addEventListener("change", function (e) {
         compare = e.target.checked;
         if (compare && rcmp) { rcmp = false; var rb = $("#cmp-result"); if (rb) rb.checked = false; }
