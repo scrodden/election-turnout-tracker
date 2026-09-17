@@ -6,9 +6,10 @@
   "election": { "date": "2026-11-03", "name": "2026 General" },
   "general_start": "2026-10-01",
   "source": {
-    "_comment": "Iowa SoS publishes 'Absentee Ballot Statistics' as a persistent PDF by county AND party (requested / issued / received, plus receipt method): https://sos.iowa.gov/elections/pdf/<YEAR>/general/AbsenteeCounty<YEAR>.pdf . 'Received' (returned) by party = ballots cast. This is a VALIDATABLE persistent file (the 2024 file is still up) that can be upgraded to a real pypdf parser like LA/MD. Staged as a skeleton for now (reads 0 until the 2026 file posts); requires pypdf when wired.",
+    "_comment": "Iowa SoS 'Absentee Ballot Statistics' PDF. Hierarchical: a county line (name + Requested Issued Received), then per-party lines (Democrat/Republican/No Party/Libertarian/Other + Req Issued Received), then receipt-method sub-lines. We take each party's RECEIVED (returned) as ballots cast; a county's Received equals the sum of its parties' Received. Iowa early voting IS absentee (in-person at the office/satellite + mail), so this is the whole early-vote electorate by party. No registration totals in the file -> no turnout%. The 2026 file publishes under /elections/pdf/2026/general/; validation_url is the persisted 2024 file used by --validate. Requires pypdf (IA workflow step installs it).",
     "url": "https://sos.iowa.gov/elections/pdf/2026/general/AbsenteeCounty2026.pdf",
-    "validation_url": "https://sos.iowa.gov/elections/pdf/2024/general/AbsenteeCounty2024.pdf"
+    "validation_url": "https://sos.iowa.gov/elections/pdf/2024/general/AbsenteeCounty2024.pdf",
+    "party_map": { "Democrat": "dem", "Republican": "rep", "No Party": "npa", "Libertarian": "oth", "Other": "oth", "Green": "oth" }
   },
-  "method_labels": { "cast": "Absentee ballots returned", "mail_voted": "Absentee returned" }
+  "method_labels": { "cast": "Absentee ballots returned" }
 }
