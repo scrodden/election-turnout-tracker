@@ -310,6 +310,16 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/build_status.py || echo "status build failed (non-fatal)"
 
+      - name: Build daily summary
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/build_summary.py || echo "summary build failed (non-fatal)"
+
+      - name: Post alerts (only if ALERT_WEBHOOK secret is set)
+        if: steps.gate.outputs.frozen != '1'
+        env:
+          ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+        run: python scripts/post_alerts.py || echo "alerts failed (non-fatal)"
+
       - name: Freeze & archive states whose results are certified
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/freeze.py || echo "freeze step failed (non-fatal)"

@@ -86,12 +86,22 @@
   }
 
   function render() { renderCards(); renderMap(); renderTable(); $("#updated").innerHTML = "Updated: <b>" + (mf.generated_at ? new Date(mf.generated_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—") + "</b>"; }
+  function renderBrief() {
+    getJSON("data/summary.json").then(function (s) {
+      var host = $("#brief"); if (!host || !s.headline) return;
+      host.hidden = false;
+      host.innerHTML = "<div class='card-head'><h2 style='margin:0'>Daily brief</h2></div>" +
+        "<p style='font-weight:600;margin:6px 0'>" + s.headline + "</p>" +
+        "<ul style='margin:4px 0 0;padding-left:18px'>" + (s.bullets || []).map(function (b) { return "<li style='font-size:13.5px;margin:2px 0'>" + b + "</li>"; }).join("") + "</ul>";
+    }).catch(function () {});
+  }
   function boot() {
     Promise.all([getJSON("assets/us-states.geojson"), getJSON("data/status.json")]).then(function (res) {
       geo = res[0]; mf = res[1];
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTable(); });
       render();
-      setInterval(function () { getJSON("data/status.json").then(function (m) { mf = m; render(); }).catch(function () {}); }, 10 * 60 * 1000);
+      renderBrief();
+      setInterval(function () { getJSON("data/status.json").then(function (m) { mf = m; render(); }).catch(function () {}); renderBrief(); }, 10 * 60 * 1000);
     }).catch(function (e) { $("#cards").innerHTML = "<div class='ncard'>Could not load: " + e.message + "</div>"; });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();
