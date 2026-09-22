@@ -185,6 +185,39 @@ def aggregate_towns(rows, crosswalk):
     return out, unmatched
 
 
+def read_xlsx(raw):
+    """Minimal stdlib .xlsx reader -> {sheet_name: [[cell, ...] rows]}. No deps."""
+    import io
+    import zipfile
+    import xml.etree.ElementTree as ET
+    NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    RNS = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
+    z = zipfile.ZipFile(io.BytesIO(raw))
+    shared = []
+    if "xl/sharedStrings.xml" in z.namelist():
+        for si in ET.fromstring(z.read("xl/sharedStrings.xml")).iter(NS + "si"):
+            shared.append("".join(t.text or "" for t in si.iter(NS + "t")))
+    rid = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))}
+    out = {}
+    for s in ET.fromstring(z.read("xl/workbook.xml")).iter(NS + "sheet"):
+        tgt = rid.get(s.get(RNS + "id"), "")
+        path = tgt if tgt.startswith("xl/") else "xl/" + tgt.lstrip("/")
+        if path not in z.namelist():
+            continue
+        rows = []
+        for row in ET.fromstring(z.read(path)).iter(NS + "row"):
+            cells = []
+            for c in row.iter(NS + "c"):
+                v = c.find(NS + "v")
+                val = ""
+                if v is not None and v.text is not None:
+                    val = shared[int(v.text)] if c.get("t") == "s" else v.text
+                cells.append(val)
+            rows.append(cells)
+        out[s.get("name")] = rows
+    return out
+
+
 def _total_block(t):
     return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": int(t or 0),
             "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
