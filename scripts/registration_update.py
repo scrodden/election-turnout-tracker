@@ -283,6 +283,39 @@ def parse_md():
     return {"rep": rep, "dem": dem, "npa": una, "oth": grn + wcp + oth, "as_of": as_of}
 
 
+def parse_ne():
+    """NE SoS monthly statewide VR report (…/2026VR/Statewide-<Month>-2026.pdf).
+    Has a 'Grand Total' row: [Republican, Democratic, Libertarian, <minor…>,
+    Nonpartisan, Grand Total]. Nonpartisan (col before the total) -> npa; the
+    middle minor-party columns -> oth."""
+    names = ["January", "February", "March", "April", "May", "June", "July",
+             "August", "September", "October", "November", "December"]
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    start = now.month if now.year >= 2026 else 12
+    base = "https://sos.nebraska.gov/sites/default/files/doc/elections/vrstats/2026VR/Statewide-%s-2026.pdf"
+    raw = as_of = None
+    for mi in range(start, 0, -1):
+        try:
+            r = C.http_get(base % names[mi - 1], binary=True)
+            if r[:4] == b"%PDF":
+                raw = r; as_of = names[mi - 1] + " 2026"; break
+        except Exception:  # noqa: BLE001
+            continue
+    if not raw:
+        raise RuntimeError("NE: no monthly report")
+    for ln in _pdf_text(raw).splitlines():
+        if not re.search(r"grand total", ln, re.I):
+            continue
+        nums = [int(x.replace(",", "")) for x in re.findall(r"[\d,]+", ln)]
+        if len(nums) >= 4 and sum(nums[:-1]) == nums[-1] and nums[-1] > 500000:
+            rep, dem = nums[0], nums[1]
+            npa = nums[-2]
+            oth = sum(nums[2:-2])
+            return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of}
+    raise RuntimeError("NE: grand total row not found")
+
+
 def parse_ky():
     """KY SBE monthly Voter Registration Statistics Report (voterstatscounty-<Month> 2026.pdf).
     Has a 'Statewide totals' row: [precincts, Dem, Rep, Other, Ind, Libert, Green,
@@ -321,7 +354,7 @@ def parse_ky():
 
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
 SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co,
-           "md": parse_md, "ky": parse_ky}
+           "md": parse_md, "ky": parse_ky, "ne": parse_ne}
 
 
 def main():
