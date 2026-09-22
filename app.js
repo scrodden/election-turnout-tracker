@@ -198,7 +198,8 @@
 
     // Post-certification: the state is archived and live updates have stopped.
     var fb = $("#frozen-banner");
-    var rn = document.querySelector(".refresh-note");
+    // Update only the status span, NOT the whole .refresh-note (which also holds the nav links).
+    var rn = $("#refresh-status") || document.querySelector(".refresh-note");
     if (data.frozen) {
       var fdate = data.frozen_at
         ? new Date(data.frozen_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
