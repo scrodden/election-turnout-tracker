@@ -25,6 +25,7 @@ sys.path.insert(0, HERE)
 import common as C  # noqa: E402
 STATES_PATH = os.path.join(ROOT, "assets", "states.json")
 SRC_PATH = os.path.join(ROOT, "config", "registration_sources.json")
+MANUAL_PATH = os.path.join(ROOT, "config", "registration_manual.json")
 OUT_PATH = os.path.join(ROOT, "data", "registration.json")
 
 
@@ -263,6 +264,22 @@ def main():
             continue
         out[code] = {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "total": tot,
                      "as_of": r.get("as_of", ""), "source": srcmap.get(code, "")}
+
+    # Manual snapshots for states whose official source can't be auto-fetched
+    # (e.g. Cloudflare/JS dashboards like Idaho's VoteIdaho). These are read by
+    # hand from the site and refreshed periodically; an auto parser in SOURCES
+    # always takes precedence over a manual entry for the same state.
+    manual = (load(MANUAL_PATH, {}) or {}).get("states", {})
+    for code, m in manual.items():
+        if code in out:
+            continue
+        rep = int(m.get("rep", 0)); dem = int(m.get("dem", 0)); npa = int(m.get("npa", 0)); oth = int(m.get("oth", 0))
+        tot = rep + dem + npa + oth
+        if tot <= 0:
+            continue
+        out[code] = {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "total": tot,
+                     "as_of": m.get("as_of", ""), "source": m.get("source", srcmap.get(code, "")),
+                     "manual": True, "note": m.get("note", "")}
     doc = {"generated_at": now(), "note": "Statewide voter registration by party; the denominator for the Registration-vs-Turnout comparison. Wired per state from official registration-statistics sources.", "states": out}
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(doc, f, separators=(",", ":"))
