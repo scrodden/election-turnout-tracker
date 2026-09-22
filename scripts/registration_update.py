@@ -283,6 +283,45 @@ def parse_md():
     return {"rep": rep, "dem": dem, "npa": una, "oth": grn + wcp + oth, "as_of": as_of}
 
 
+def parse_ak():
+    """AK Division of Elections monthly 'Voters by Party and Precinct' HTML report
+    (…/statistics/2026/<MON>/VOTERS BY PARTY AND PRECINCT.htm). The statewide row
+    is a grand total followed by 16 party/group columns in the fixed order
+    D L R C G I J M Q S V W Y Z N U (they sum to the grand total). D->dem, R->rep,
+    N (Nonpartisan) + U (Undeclared) -> npa, the 12 minor groups -> oth."""
+    abbr = {1: "JAN", 2: "FEB", 3: "MAR", 4: "APR", 5: "MAY", 6: "JUN",
+            7: "JUL", 8: "AUG", 9: "SEP", 10: "OCT", 11: "NOV", 12: "DEC"}
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    start = now.month if now.year >= 2026 else 12
+    base = "https://www.elections.alaska.gov/statistics/2026/%s/VOTERS%%20BY%%20PARTY%%20AND%%20PRECINCT.htm"
+    html = as_of = None
+    for mi in range(start, 0, -1):
+        try:
+            h = C.http_get(base % abbr[mi], accept="text/html,*/*;q=0.8")
+            if "TOTAL" in h and re.search(r"\bD\b\s*</?", h) is not None or "PARTY" in h:
+                html = h; as_of = abbr[mi] + " 2026"; break
+        except Exception:  # noqa: BLE001
+            continue
+    if not html:
+        raise RuntimeError("AK: no monthly report")
+    txt = re.sub(r"<[^>]+>", " ", html)
+    nums = [int(x.replace(",", "")) for x in re.findall(r"\d[\d,]*", txt)]
+    best = None
+    for i in range(len(nums) - 16):
+        w = nums[i + 1:i + 17]
+        if nums[i] > 400000 and sum(w) == nums[i]:      # grand total then 16 party cols
+            if best is None or nums[i] > best[0]:
+                best = [nums[i]] + w
+    if not best:
+        raise RuntimeError("AK: statewide totals row not found")
+    tot, w = best[0], best[1:]
+    dem, rep = w[0], w[2]
+    npa = w[14] + w[15]           # Nonpartisan + Undeclared
+    oth = tot - rep - dem - npa
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of}
+
+
 def parse_ne():
     """NE SoS monthly statewide VR report (…/2026VR/Statewide-<Month>-2026.pdf).
     Has a 'Grand Total' row: [Republican, Democratic, Libertarian, <minor…>,
@@ -354,7 +393,7 @@ def parse_ky():
 
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
 SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co,
-           "md": parse_md, "ky": parse_ky, "ne": parse_ne}
+           "md": parse_md, "ky": parse_ky, "ne": parse_ne, "ak": parse_ak}
 
 
 def main():
