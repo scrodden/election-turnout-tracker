@@ -810,7 +810,9 @@
       stat("Still outstanding", fmt(m.outstanding));
     var order = [["rep", "Republican", "var(--rep)"], ["dem", "Democratic", "var(--dem)"],
                  ["npa", "No party", "var(--npa)"], ["oth", "Other", "var(--npa)"]];
-    $("#mail-parties").innerHTML = order.map(function (o) {
+    $("#mail-parties").innerHTML = order.filter(function (o) {
+      var p = m.parties[o[0]]; return p && p.req;   // skip buckets with no ballots (e.g. PA has no NPA)
+    }).map(function (o) {
       var p = m.parties[o[0]] || { rate: null, ret: 0, req: 0 };
       var w = p.rate == null ? 0 : Math.min(100, p.rate);
       return "<div class='mail-row' title='" + fmt(p.ret) + " of " + fmt(p.req) + " returned'>" +

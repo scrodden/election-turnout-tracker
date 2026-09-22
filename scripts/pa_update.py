@@ -68,6 +68,9 @@ def main():
         for mkey, s in methods.items():
             ent[mkey] = C.party_block(s["rep"], s["dem"], s["oth"], s["npa"])
         ent["cast"] = ent.get("mail_voted") or C.party_block(0, 0, 0, 0)
+        m = C.compute_mail(ent)          # mail-ballot 'chase' metrics (sent/returned by party)
+        if m:
+            ent["mail"] = m
         counties_out[c["name"]] = ent
 
     statewide = {}
@@ -76,6 +79,9 @@ def main():
         if blocks:
             statewide[mkey] = C.add_blocks(*blocks)
     statewide["cast"] = statewide.get("mail_voted") or C.party_block(0, 0, 0, 0)
+    sw_mail = C.compute_mail(statewide)
+    if sw_mail:
+        statewide["mail"] = sw_mail
 
     methods_present = sorted({m for c in counties_out.values() for m in ["mail_voted", "mail_provided"] if c.get(m)})
     snap = {

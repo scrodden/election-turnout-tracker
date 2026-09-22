@@ -122,6 +122,28 @@ def party_block(rep, dem, oth, npa, compiled="", compiled_iso=""):
     }
 
 
+def compute_mail(ent):
+    """Mail-ballot return ('ballot chase') metrics from an entity that carries
+    mail_provided (approved/sent, not yet returned = outstanding) + mail_voted
+    (returned & counted). requested = outstanding + returned. Returns overall
+    and per-party return rates, or None if neither block is present. Shared by
+    the FL and PA connectors -> the front-end #mail-panel (renderMail)."""
+    prov, voted = ent.get("mail_provided"), ent.get("mail_voted")
+    if not prov and not voted:
+        return None
+
+    def g(b, k):
+        return (b or {}).get(k, 0)
+    parties = {}
+    for p in ("rep", "dem", "oth", "npa"):
+        req = g(prov, p) + g(voted, p)
+        parties[p] = {"req": req, "ret": g(voted, p), "rate": pct(g(voted, p), req)}
+    req = g(prov, "total") + g(voted, "total")
+    ret = g(voted, "total")
+    return {"requested": req, "returned": ret, "outstanding": g(prov, "total"),
+            "return_rate": pct(ret, req), "parties": parties}
+
+
 def add_blocks(*blocks):
     """Sum several party_blocks (ignoring None/empty) into one, keeping the
     latest compile stamp (compared via the sortable ISO form)."""
