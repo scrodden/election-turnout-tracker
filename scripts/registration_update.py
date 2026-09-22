@@ -80,8 +80,61 @@ def parse_fl():
     return {"rep": rep, "dem": dem, "npa": npa, "oth": minor, "as_of": _as_of(html)}
 
 
+def parse_pa():
+    """PA DOS 'currentvotestats.xlsx' (stable URL) — 'Reg Voter' sheet, county rows
+    with columns Dem / Rep / No Aff / Other / Total. Sum to statewide."""
+    url = ("https://www.pa.gov/content/dam/copapwp-pagov/en/dos/resources/voting-and-elections/"
+           "voting-and-election-statistics/currentvotestats.xlsx")
+    sheets = C.read_xlsx(C.http_get(url, binary=True, no_cache=True))
+    rows = sheets.get("Reg Voter") or (list(sheets.values())[0] if sheets else [])
+    as_of, hdr = "", None
+    for r in rows[:6]:
+        joined = " ".join(str(x) for x in r)
+        m = re.search(r"as of (\d{1,2}/\d{1,2}/\d{4})", joined, re.I)
+        if m:
+            from datetime import datetime
+            try:
+                as_of = datetime.strptime(m.group(1), "%m/%d/%Y").strftime("%Y-%m-%d")
+            except ValueError:
+                as_of = m.group(1)
+        if any(str(x).strip() == "CountyName" for x in r):
+            hdr = r
+    if not hdr:
+        raise RuntimeError("PA: header row not found")
+
+    def ci(name):
+        for i, x in enumerate(hdr):
+            if str(x).strip().lower() == name.lower():
+                return i
+        return None
+    i_name, i_d, i_r, i_n, i_o = ci("CountyName"), ci("Dem"), ci("Rep"), ci("No Aff"), ci("Other")
+    dem = rep = npa = oth = 0
+    for r in rows:
+        if i_name is None or i_name >= len(r):
+            continue
+        nm = str(r[i_name]).strip()
+        if not nm or nm == "CountyName" or nm.lower().startswith("total"):
+            continue
+
+        def num(i):
+            if i is None or i >= len(r):
+                return 0
+            s = str(r[i]).replace(",", "").strip()
+            try:
+                return int(float(s)) if s else 0
+            except ValueError:
+                return 0
+        d, rp = num(i_d), num(i_r)
+        if d == 0 and rp == 0:
+            continue
+        dem += d; rep += rp; npa += num(i_n); oth += num(i_o)
+    if dem + rep <= 0:
+        raise RuntimeError("PA: no county rows parsed")
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of}
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
-SOURCES = {"fl": parse_fl}
+SOURCES = {"fl": parse_fl, "pa": parse_pa}
 
 
 def main():
