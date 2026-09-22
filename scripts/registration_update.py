@@ -16,6 +16,8 @@ import os
 import re
 import sys
 import json
+import urllib.request
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -133,8 +135,48 @@ def parse_pa():
     return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of}
 
 
+def parse_nc():
+    """NCSBE RegStat dashboard (vt.ncsbe.gov/RegStat/). ASP.NET form: GET the page
+    for the anti-forgery token + cookie and the latest weekly date, then POST to get
+    an inline Kendo grid whose rows include a 'Totals' object with statewide party
+    counts (Democrats / Republicans / Unaffiliated + minor parties)."""
+    import http.cookiejar
+    cj = http.cookiejar.CookieJar()
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj),
+                                     urllib.request.HTTPSHandler(context=C._SSL_CTX))
+    op.addheaders = [("User-Agent", C.USER_AGENT), ("Accept-Language", "en-US,en;q=0.9")]
+    base = "https://vt.ncsbe.gov/RegStat/"
+    g = op.open(base, timeout=60).read().decode("utf-8", "replace")
+    tok = re.search(r'name="__RequestVerificationToken"[^>]*value="([^"]+)"', g)
+    dates = re.findall(r'<option[^>]*value="(\d{2}/\d{2}/\d{4})"', g)
+    if not tok or not dates:
+        raise RuntimeError("NC: token/date not found")
+    date = dates[0]
+    body = urllib.parse.urlencode({
+        "RegistrationStatisticsSearchFilter.SelectedYear": date.split("/")[-1],
+        "RegistrationStatisticsSearchFilter.SelectedDate": date,
+        "btnSearch": "Search",
+        "__RequestVerificationToken": tok.group(1),
+    }).encode()
+    resp = op.open(urllib.request.Request(base, data=body, method="POST"), timeout=90).read().decode("utf-8", "replace")
+    tm = re.search(r'\{"CountyName":"Totals"[^}]*\}', resp)
+    if not tm:
+        raise RuntimeError("NC: totals row not found")
+    row = json.loads(tm.group(0))
+    dem = int(row.get("Democrats", 0)); rep = int(row.get("Republicans", 0)); npa = int(row.get("Unaffiliated", 0))
+    oth = sum(int(row.get(k, 0)) for k in ("Libertarians", "Green", "NoLabels", "Constitution", "JusticeForAll", "WeThePeople"))
+    if dem + rep <= 0:
+        raise RuntimeError("NC: empty totals")
+    from datetime import datetime
+    try:
+        as_of = datetime.strptime(date, "%m/%d/%Y").strftime("%Y-%m-%d")
+    except ValueError:
+        as_of = date
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of}
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
-SOURCES = {"fl": parse_fl, "pa": parse_pa}
+SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc}
 
 
 def main():
