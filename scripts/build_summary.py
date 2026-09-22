@@ -38,9 +38,11 @@ def main():
     states = st.get("states", [])
     counts = st.get("counts", {})
     tot = sum(s.get("cast", 0) for s in states)
-    R = sum(s.get("rep", 0) for s in states if s.get("partisan") and s.get("has_data"))
-    D = sum(s.get("dem", 0) for s in states if s.get("partisan") and s.get("has_data"))
-    lean = round(100.0 * (R - D) / (R + D), 1) if (R + D) else None
+    _pstates = [s for s in states if s.get("partisan") and s.get("has_data")]
+    R = sum(s.get("rep", 0) for s in _pstates)
+    D = sum(s.get("dem", 0) for s in _pstates)
+    _ptot = sum(s.get("rep", 0) + s.get("dem", 0) + s.get("npa", 0) + s.get("oth", 0) for s in _pstates)
+    lean = round(100.0 * (R - D) / _ptot, 1) if _ptot else None   # total-based, matching per-state margins
     live = [s for s in states if s.get("has_data")]
 
     bullets = []
@@ -70,7 +72,7 @@ def main():
     when = st.get("generated_at", now())[:10]
     headline = ("As of %s: %s early/mail ballots cast nationally across %d of %d states%s." %
                 (when, fmt(tot), len(live), counts.get("total", len(states)),
-                 (", " + margin_text(lean) + " registration lean" if lean is not None else ""))) if tot else \
+                 (", " + margin_text(lean) + " cast-ballot lean" if lean is not None else ""))) if tot else \
         ("As of %s: the 2026 tracker is live; state feeds begin reporting through October." % when)
 
     out = {"generated_at": now(), "headline": headline, "bullets": bullets,

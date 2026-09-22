@@ -39,14 +39,14 @@
   <section class="rgrid">
     <div class="card map-card">
       <div class="card-head">
-        <h2 id="map-title">Early-vote partisan lean by state</h2>
+        <h2 id="map-title">Relative turnout by state</h2>
         <div class="legend" id="legend" aria-hidden="true"></div>
       </div>
       <div id="map-holder" class="map-holder">
-        <svg id="nmap" role="img" aria-label="National early-vote map"></svg>
+        <svg id="nmap" role="img" aria-label="National turnout map"></svg>
         <div id="tooltip" class="tooltip" hidden></div>
       </div>
-      <p class="fineprint">Party-registration states: red = Republican-registration lean of ballots cast, blue = Democratic. Turnout-only states (no party registration): shades of green by turnout. Gray = no ballots yet.</p>
+      <p class="fineprint">Shaded green by ballots cast relative to the busiest state (darker = more ballots). Gray = no ballots yet. Partisan detail is in the tables below.</p>
     </div>
     <div class="card table-card">
       <div class="card-head"><h2>By state</h2>
@@ -55,7 +55,20 @@
       <p class="fineprint">Sortable. “Lean” is by party registration of ballots cast (party-registration states only).</p>
     </div>
   </section>
-  <footer class="site-foot"><p class="dim">National aggregate is a sum of the states currently reporting; it grows through October. Partisan lean aggregates party-registration states only. Independent, non-partisan.</p></footer>
+
+  <section class="rgrid">
+    <div class="card table-card">
+      <div class="card-head"><h2>National partisan turnout</h2><span class="dim" id="pt-note"></span></div>
+      <div class="score-scroll"><table class="lead" id="ptbl"><thead></thead><tbody></tbody></table></div>
+      <p class="fineprint">Party <em>registration</em> of voters who have already cast a ballot, for states that register voters by party. The <b>National</b> row sums those states.</p>
+    </div>
+    <div class="card table-card">
+      <div class="card-head"><h2>National partisan registration</h2><span class="dim" id="pr-note"></span></div>
+      <div class="score-scroll"><table class="lead" id="prtbl"><thead></thead><tbody></tbody></table></div>
+      <p class="fineprint">Statewide voter registration by party, for states that publish it (the denominator behind turnout share). The <b>National</b> row sums those states. See <a href="registration.html">Reg vs Turnout</a>.</p>
+    </div>
+  </section>
+  <footer class="site-foot"><p class="dim">National aggregates sum only the states currently reporting; they grow through October. Partisan tables include only states that register voters by party. Independent, non-partisan.</p></footer>
 </main>
 <script src="national.js"></script>
 </body>

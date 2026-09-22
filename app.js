@@ -956,6 +956,14 @@
     if (!show && rcmp) { rcmp = false; var rb = $("#cmp-result"); if (rb) rb.checked = false; }
   }
 
+  function sortStateOptions() {
+    var sel = $("#state-select"); if (!sel) return;
+    var v = sel.value;
+    [].slice.call(sel.options).sort(function (a, b) { return a.textContent.localeCompare(b.textContent); })
+      .forEach(function (o) { sel.appendChild(o); });   // re-append in sorted order
+    sel.value = v;
+  }
+
   function showError(msg) {
     var m = document.querySelector("main");
     var ex = document.querySelector(".error"); if (ex) ex.remove();
@@ -972,7 +980,7 @@
       // a deep-link to a just-revealed hidden state may load before boot() adds
       // its <option>; add it here so the dropdown label always matches.
       if (!sel.querySelector('option[value="' + st.code + '"]')) {
-        var o = el("option"); o.value = st.code; o.textContent = st.name; sel.appendChild(o);
+        var o = el("option"); o.value = st.code; o.textContent = st.name; sel.appendChild(o); sortStateOptions();
       }
       sel.value = st.code;
     }
@@ -1161,13 +1169,16 @@
       STATES = reg.states || [];
       var sel = $("#state-select");
       function addOption(s) { var o = el("option"); o.value = s.code; o.textContent = s.name; sel.appendChild(o); }
+      var sortOptions = sortStateOptions;
       STATES.forEach(function (s) { if (!s.hidden) addOption(s); });
+      sortOptions();
       // Staged states (hidden:true) are wired but empty until their feed opens;
       // reveal each once its data reports ballots. One manifest fetch (data/status.json)
       // instead of probing every hidden state; falls back to per-state probing.
       getJSON("data/status.json").then(function (mf) {
         var liveSet = {}; (mf.states || []).forEach(function (x) { if (x.has_data) liveSet[x.code] = 1; });
         STATES.forEach(function (s) { if (s.hidden && liveSet[s.code] && !sel.querySelector('option[value="' + s.code + '"]')) addOption(s); });
+        sortOptions();
         if (st) sel.value = st.code;   // re-sync label if the loaded state was just revealed
       }).catch(function () {
         STATES.forEach(function (s) {
@@ -1175,7 +1186,7 @@
           getJSON(s.data).then(function (d) {
             var has = d && ((d.methods_present && d.methods_present.length) ||
               (d.statewide && d.statewide.cast && d.statewide.cast.total > 0));
-            if (has && !sel.querySelector('option[value="' + s.code + '"]')) { addOption(s); if (st) sel.value = st.code; }
+            if (has && !sel.querySelector('option[value="' + s.code + '"]')) { addOption(s); sortOptions(); if (st) sel.value = st.code; }
           }).catch(function () {});
         });
       });
