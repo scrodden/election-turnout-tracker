@@ -6,7 +6,7 @@
   function getJSON(u) { return fetch(u + "?t=" + Date.now(), { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(u); return r.json(); }); }
   function fmt(n) { return n == null ? "—" : n.toLocaleString("en-US"); }
   function when(s) { return s ? new Date(s).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—"; }
-  function stateOf(s) { return s.frozen ? "frozen" : s.has_data ? "live" : "pending"; }
+  function stateOf(s) { return s.feed_status === "error" ? "error" : s.frozen ? "frozen" : s.has_data ? "live" : "pending"; }
 
   function render() {
     var f = rows.filter(function (r) { return !filter || r.name.toLowerCase().indexOf(filter) >= 0; });
@@ -18,17 +18,19 @@
       else { A = a[sort.key] || 0; B = b[sort.key] || 0; }
       return A < B ? -sort.dir : A > B ? sort.dir : 0;
     });
-    var cols = [["name", "State"], ["mode", "Mode"], ["status", "Status"], ["cast", "Ballots cast"], ["turnout_pct", "Turnout"], ["updated", "Last updated"]];
+    var cols = [["name", "State"], ["mode", "Mode"], ["status", "Status"], ["cast", "Ballots cast"], ["turnout_pct", "Turnout"], ["updated", "Source updated"], ["checked_at", "Checked"]];
     $("#tbl thead").innerHTML = "<tr>" + cols.map(function (c) { return "<th data-k='" + c[0] + "'>" + c[1] + (sort.key === c[0] ? (sort.dir > 0 ? " ▲" : " ▼") : "") + "</th>"; }).join("") + "</tr>";
     $("#tbl thead").querySelectorAll("th").forEach(function (th) { th.onclick = function () { var k = th.getAttribute("data-k"); if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = 1; } render(); }; });
     $("#tbl tbody").innerHTML = f.map(function (r) {
       var st = stateOf(r);
-      var src = notes[r.code] ? (" · " + notes[r.code]) : "";
+      var statusCell = "<span class='dot'></span>" + st.charAt(0).toUpperCase() + st.slice(1);
+      if (st === "error" && r.feed_error) statusCell = "<span class='dot' title='" + String(r.feed_error).replace(/'/g, "") + "'></span>Error";
       return "<tr class='" + st + "'><td><b>" + r.name + "</b></td>" +
         "<td><span class='tag " + (r.partisan ? "p'>partisan" : "t'>turnout-only") + "</span></td>" +
-        "<td><span class='dot'></span>" + st.charAt(0).toUpperCase() + st.slice(1) + "</td>" +
+        "<td>" + statusCell + "</td>" +
         "<td>" + fmt(r.cast) + "</td><td>" + (r.turnout_pct == null ? "—" : r.turnout_pct + "%") + "</td>" +
-        "<td>" + (r.has_data ? when(r.updated) : "—") + "</td></tr>";
+        "<td>" + (r.has_data ? when(r.updated) : "—") + "</td>" +
+        "<td>" + (r.checked_at ? when(r.checked_at) : "—") + "</td></tr>";
     }).join("");
   }
 
@@ -44,8 +46,9 @@
         $("#pills").innerHTML =
           "<span class='pill'>Total: <b>" + (c.total || rows.length) + "</b></span>" +
           "<span class='pill'>🟢 Live: <b>" + (c.live || 0) + "</b></span>" +
-          "<span class='pill'>⚪ Pending: <b>" + (c.pending || 0) + "</b></span>";
-        $("#updated").innerHTML = "Updated: <b>" + when(mf.generated_at) + "</b>";
+          "<span class='pill'>⚪ Pending: <b>" + (c.pending || 0) + "</b></span>" +
+          (c.errors ? "<span class='pill' style='color:#e03131'>🔴 Feed errors: <b>" + c.errors + "</b></span>" : "");
+        $("#updated").innerHTML = "All feeds polled every 10&nbsp;min · last poll: <b>" + when(mf.checked_at || mf.generated_at) + "</b>";
         var rs = mf.results || {};
         $("#results-status").innerHTML = ["senate", "governor", "house"].map(function (o) {
           var r = rs[o] || {}, s = r.summary || {};

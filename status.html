@@ -14,7 +14,7 @@
   table.st th, table.st td { text-align:left; padding:7px 9px; border-bottom:1px solid var(--line); }
   table.st th { position:sticky; top:0; background:var(--card); cursor:pointer; }
   .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; }
-  .live .dot { background:#2f9e44; } .pending .dot { background:#adb5bd; } .frozen .dot { background:#c9a227; }
+  .live .dot { background:#2f9e44; } .pending .dot { background:#adb5bd; } .frozen .dot { background:#c9a227; } .error .dot { background:#e03131; }
   .tag { font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; }
   .tag.p { background:rgba(52,80,107,.14); color:var(--accent); } .tag.t { background:rgba(49,163,84,.15); color:#2f9e44; }
 </style>
@@ -42,7 +42,7 @@
     <div class="card-head"><h2>State turnout feeds</h2>
       <input id="filter" class="filter" type="search" placeholder="Filter states…" aria-label="Filter states" /></div>
     <div class="table-scroll"><table class="st" id="tbl"><thead></thead><tbody></tbody></table></div>
-    <p class="fineprint">“Pending” = the state is wired but its 2026 feed hasn’t started reporting yet (it appears on the site automatically once it does). “Frozen” = results certified and archived.</p>
+    <p class="fineprint">Every state is polled every ~10 minutes. <b>“Checked”</b> = last poll; <b>“Source updated”</b> = when that state last published new data — they differ because each state publishes on its own cadence (Florida many times a day; others ~daily). <b>“Pending”</b> = wired but its 2026 feed hasn’t started reporting (appears automatically once it does). <b>“Frozen”</b> = certified and archived. <span style="color:#e03131">Red</span> = the connector errored on the last run (needs attention).</p>
   </section>
   <footer class="site-foot"><p id="src" class="dim"></p></footer>
 </main>

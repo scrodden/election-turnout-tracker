@@ -28,6 +28,7 @@ def now():
 
 def main():
     reg = load(STATES_PATH, {}) or {}
+    health = (load(os.path.join(ROOT, "data", "_health.json"), {}) or {}).get("states", {})
     out_states = []
     live = 0
     for s in reg.get("states", []):
@@ -50,6 +51,9 @@ def main():
             "margin": castb.get("margin"),
             "turnout_pct": sw.get("turnout_pct"), "methods": methods,
             "updated": d.get("generated_at", ""), "source_compiled": d.get("source_compiled", ""),
+            "checked_at": health.get(code, {}).get("checked_at", ""),
+            "feed_status": health.get(code, {}).get("status", ""),
+            "feed_error": health.get(code, {}).get("error", ""),
         })
 
     results = {}
@@ -58,8 +62,11 @@ def main():
         results[office] = {"updated": r.get("updated", ""), "summary": r.get("summary", {}),
                            "balance": r.get("balance")}
 
-    status = {"generated_at": now(), "election": {"date": "2026-11-03", "name": "2026 General"},
-              "counts": {"total": len(out_states), "live": live, "pending": len(out_states) - live},
+    hgen = (load(os.path.join(ROOT, "data", "_health.json"), {}) or {}).get("generated_at", "")
+    errs = sum(1 for s in out_states if s.get("feed_status") == "error")
+    status = {"generated_at": now(), "checked_at": hgen or now(),
+              "election": {"date": "2026-11-03", "name": "2026 General"},
+              "counts": {"total": len(out_states), "live": live, "pending": len(out_states) - live, "errors": errs},
               "states": out_states, "results": results}
     with open(os.path.join(ROOT, "data", "status.json"), "w", encoding="utf-8") as f:
         json.dump(status, f, separators=(",", ":"))
