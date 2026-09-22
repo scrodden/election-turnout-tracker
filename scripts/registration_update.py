@@ -230,8 +230,98 @@ def _cell(row, i):
     return row[i] if (i is not None and i < len(row)) else 0
 
 
+def _pdf_text(raw):
+    import io
+    import pypdf
+    return "\n".join(p.extract_text() or "" for p in pypdf.PdfReader(io.BytesIO(raw)).pages)
+
+
+def _months_back(pattern, fmt):
+    """Yield (url, label) walking back from the current month through Jan 2026.
+    pattern is a format string taking the value produced by fmt(month_index)."""
+    from datetime import datetime, timezone
+    names = ["January", "February", "March", "April", "May", "June", "July",
+             "August", "September", "October", "November", "December"]
+    now = datetime.now(timezone.utc)
+    start = now.month if now.year >= 2026 else 12
+    for mi in range(start, 0, -1):
+        yield pattern % fmt(mi), names[mi - 1] + " 2026"
+
+
+def parse_md():
+    """MD SBE monthly Voter Registration Activity Report (pdf/vrar/2026/MSR-2026_MM.pdf).
+    Each jurisdiction row's 'TOTAL ACTIVE REGISTRATION' block is the 6 party
+    integers (DEM REP GRN WCP UNA OTH) right before that row's comma-formatted
+    active total. Sum the 24 jurisdictions. UNA->npa, GRN+WCP+OTH->oth."""
+    raw = as_of = None
+    for url, label in _months_back("https://elections.maryland.gov/pdf/vrar/2026/MSR-2026_%s.pdf",
+                                   lambda m: "%02d" % m):
+        try:
+            r = C.http_get(url, binary=True)
+            if r[:4] == b"%PDF":
+                raw = r; as_of = label; break
+        except Exception:  # noqa: BLE001
+            continue
+    if not raw:
+        raise RuntimeError("MD: no monthly report")
+    # Use the statewide TOTAL row. Its 'TOTAL ACTIVE REGISTRATION' block is the 6
+    # party counts (DEM REP GRN WCP UNA OTH) that sum to the active total; find it
+    # by that invariant (comma formatting in the PDF is inconsistent), picking the
+    # largest matching total (the active-registration block, ~4.3M).
+    best = None
+    for ln in _pdf_text(raw).splitlines():
+        if not ln.strip().upper().startswith("TOTAL"):
+            continue
+        nums = [int(x.replace(",", "")) for x in re.findall(r"[\d,]+", ln)]
+        for i in range(6, len(nums)):
+            if nums[i] and sum(nums[i - 6:i]) == nums[i]:
+                if best is None or nums[i] > best[6]:
+                    best = nums[i - 6:i] + [nums[i]]
+    if not best or best[6] < 1000000:
+        raise RuntimeError("MD: statewide TOTAL row not found")
+    dem, rep, grn, wcp, una, oth = best[:6]
+    return {"rep": rep, "dem": dem, "npa": una, "oth": grn + wcp + oth, "as_of": as_of}
+
+
+def parse_ky():
+    """KY SBE monthly Voter Registration Statistics Report (voterstatscounty-<Month> 2026.pdf).
+    Has a 'Statewide totals' row: [precincts, Dem, Rep, Other, Ind, Libert, Green,
+    Const, Reform, SocWk, KYPrty, Male, Female, Registered]. Ind->npa;
+    Other+minor parties->oth."""
+    raw = as_of = None
+    names = ["January", "February", "March", "April", "May", "June", "July",
+             "August", "September", "October", "November", "December"]
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    start = now.month if now.year >= 2026 else 12
+    base = "https://elect.ky.gov/Resources/Documents/"
+    for mi in range(start, 0, -1):
+        for fn in ("voterstatscounty-%s%%202026.pdf" % names[mi - 1],
+                   "voterstatscounty-%%20%s%%202026.pdf" % names[mi - 1]):
+            try:
+                r = C.http_get(base + fn, binary=True)
+                if r[:4] == b"%PDF":
+                    raw = r; as_of = names[mi - 1] + " 2026"; break
+            except Exception:  # noqa: BLE001
+                continue
+        if raw:
+            break
+    if not raw:
+        raise RuntimeError("KY: no monthly report")
+    m = re.search(r"Statewide totals\s+([\d\s,]+)", _pdf_text(raw))
+    if not m:
+        raise RuntimeError("KY: no statewide totals row")
+    nums = [int(x.replace(",", "")) for x in re.findall(r"[\d,]+", m.group(1))]
+    if len(nums) < 14:
+        raise RuntimeError("KY: unexpected totals row (%d cols)" % len(nums))
+    dem, rep, other, ind = nums[1], nums[2], nums[3], nums[4]
+    minor = sum(nums[5:11])          # Libert, Green, Const, Reform, SocWk, KY Prty
+    return {"rep": rep, "dem": dem, "npa": ind, "oth": other + minor, "as_of": as_of}
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
-SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co}
+SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co,
+           "md": parse_md, "ky": parse_ky}
 
 
 def main():

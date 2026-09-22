@@ -68,7 +68,9 @@ jobs:
 
       - name: Update voter registration by party
         if: steps.gate.outputs.frozen != '1'
-        run: python scripts/registration_update.py || echo "registration update failed (non-fatal)"
+        run: |
+          pip install --quiet pypdf || true
+          python scripts/registration_update.py || echo "registration update failed (non-fatal)"
 
       - name: Build daily summary
         if: steps.gate.outputs.frozen != '1'
