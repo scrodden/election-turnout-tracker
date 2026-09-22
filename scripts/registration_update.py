@@ -175,8 +175,62 @@ def parse_nc():
     return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of}
 
 
+def parse_co():
+    """CO SoS monthly 'Party & Status' registration workbook. The county table's
+    ACTIVE block (columns up to 'Active Total') has a 'Total' row with statewide
+    counts by CO party code: DEM, REP, UAF (unaffiliated) + minor parties. Files
+    are per-month (…/2026/<Month>Statistics2026.xlsx); walk back from the current
+    month to the newest posted file."""
+    from datetime import datetime, timezone
+    months = ["January", "February", "March", "April", "May", "June", "July",
+              "August", "September", "October", "November", "December"]
+    base = "https://www.coloradosos.gov/pubs/elections/VoterRegNumbers/2026/%sStatistics2026.xlsx"
+    now = datetime.now(timezone.utc)
+    start = now.month if now.year == 2026 else 12
+    raw = as_of = None
+    for mi in range(start, 0, -1):
+        try:
+            raw = C.http_get(base % months[mi - 1], binary=True, no_cache=True)
+            as_of = "%s 2026" % months[mi - 1]
+            break
+        except Exception:  # noqa: BLE001
+            continue
+    if not raw:
+        raise RuntimeError("CO: no monthly file")
+    rows = (C.read_xlsx(raw).get("Party & Status")) or []
+    hdr = hidx = None
+    for i, r in enumerate(rows[:8]):
+        cells = [str(x).strip() for x in r]
+        if "DEM" in cells and "REP" in cells:
+            hdr, hidx = cells, i
+            break
+    if not hdr:
+        raise RuntimeError("CO: header not found")
+    act_end = hdr.index("Active Total") if "Active Total" in hdr else len(hdr)
+    ahdr = hdr[:act_end]
+
+    def col(name):
+        return ahdr.index(name) if name in ahdr else None
+    total = None
+    for r in rows[hidx + 1:]:
+        if str(r[0]).strip().lower() == "total":
+            total = r
+            break
+    if not total:
+        raise RuntimeError("CO: total row not found")
+    rep, dem, npa = _num(_cell(total, col("REP"))), _num(_cell(total, col("DEM"))), _num(_cell(total, col("UAF")))
+    oth = sum(_num(_cell(total, col(m))) for m in ("ACN", "APV", "CTR", "FWD", "GRN", "LBR", "NOL", "UNI"))
+    if rep + dem <= 0:
+        raise RuntimeError("CO: empty totals")
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of}
+
+
+def _cell(row, i):
+    return row[i] if (i is not None and i < len(row)) else 0
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
-SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc}
+SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co}
 
 
 def main():
