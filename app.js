@@ -965,7 +965,15 @@
     st = null;
     for (var i = 0; i < STATES.length; i++) if (STATES[i].code === code) st = STATES[i];
     if (!st) st = STATES[0];
-    var sel = $("#state-select"); if (sel) sel.value = st.code;
+    var sel = $("#state-select");
+    if (sel) {
+      // a deep-link to a just-revealed hidden state may load before boot() adds
+      // its <option>; add it here so the dropdown label always matches.
+      if (!sel.querySelector('option[value="' + st.code + '"]')) {
+        var o = el("option"); o.value = st.code; o.textContent = st.name; sel.appendChild(o);
+      }
+      sel.value = st.code;
+    }
     // reset per-state state
     data = geo = precinctGeo = precinctData = baseline = trendData = null;
     precinctLoading = false; selected = null; filter = ""; cur = null;
@@ -1158,13 +1166,14 @@
       getJSON("data/status.json").then(function (mf) {
         var liveSet = {}; (mf.states || []).forEach(function (x) { if (x.has_data) liveSet[x.code] = 1; });
         STATES.forEach(function (s) { if (s.hidden && liveSet[s.code] && !sel.querySelector('option[value="' + s.code + '"]')) addOption(s); });
+        if (st) sel.value = st.code;   // re-sync label if the loaded state was just revealed
       }).catch(function () {
         STATES.forEach(function (s) {
           if (!s.hidden) return;
           getJSON(s.data).then(function (d) {
             var has = d && ((d.methods_present && d.methods_present.length) ||
               (d.statewide && d.statewide.cast && d.statewide.cast.total > 0));
-            if (has && !sel.querySelector('option[value="' + s.code + '"]')) addOption(s);
+            if (has && !sel.querySelector('option[value="' + s.code + '"]')) { addOption(s); if (st) sel.value = st.code; }
           }).catch(function () {});
         });
       });

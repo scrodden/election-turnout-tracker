@@ -7,13 +7,16 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-09-19",
   "source": {
-    "_comment": "STAGED SKELETON. Absentee/early by county (no party registration). Source pointer: https://sosmt.gov/elections/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://sosmt.gov/elections/"
+    "_comment": "LIVE. Montana SoS 'Montana Absentee Ballots By County' Tableau dashboard (sosmt.gov/elections/absentee-ballot-count/). MT has no party registration -> turnout-only; the dashboard tracks absentee ballots SENT vs RECEIVED by county (cast = received). Fetched via the Tableau bootstrapSession flow (startSession -> bootstrapSession -> parse the 'Absentee Map' worksheet: County, SUM(Ballots Received), SUM(Ballots Sent), AGG(% Received)). tableau-ext.mt.gov is NOT bot-blocked, so this works from CI.",
+    "tableau_host": "https://tableau-ext.mt.gov",
+    "tableau_view": "/t/SOS/views/AbsenteeBallots/AbsenteeDash",
+    "tableau_vizql_root": "/vizql/t/SOS/w/AbsenteeBallots/v/AbsenteeDash",
+    "worksheet": "Absentee Map"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Absentee ballots returned",
+    "early_voted": "Absentee / early ballots"
   }
 }
