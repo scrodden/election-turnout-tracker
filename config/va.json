@@ -3,19 +3,14 @@
   "state_name": "Virginia",
   "state_fips": "51",
   "partisan": false,
+  "unit_label": "District",
+  "unit_label_plural": "Districts",
   "election": { "number": "2026_11_03", "date": "2026-11-03", "name": "2026 General" },
   "source": {
-    "_comment": "Virginia has no party registration -> turnout-only. VPAP hosts per-election early-vote-by-locality TopoJSON on S3 (properties: locality, early_votes, perc_early_voters). The 2026 general file appears when early voting opens ~Sept 18; we auto-discover it from the candidates. validation_file is used only by --validate to prove the locality matcher (all 133).",
-    "referer": "https://www.vpap.org/",
-    "base": "https://vpap-production.s3.amazonaws.com/media/visuals/custom/datasets/",
-    "general_candidates": [
-      "locality_earlyvotes_2026nov.json",
-      "locality_earlyvotes_2026oct.json",
-      "locality_earlyvotes_2026general.json",
-      "locality_earlyvotes_2026gen.json",
-      "locality_earlyvotes_2026sep.json"
-    ],
-    "validation_file": "locality_earlyvotes_2026apr.json"
+    "_comment": "Virginia has no party registration -> turnout-only. VPAP publishes a Nov-2026-general early-vote-by-US-House-district TopoJSON on S3 (objects[].properties: district, ballots, mail_ballots, in_person, vpap_index[_description], candidates). We discover the dataset URL from the visual page at runtime (VPAP bumps the dated S3 path when it re-cuts the file) and fall back to dataset_url. This is per-CD turnout, split into by-mail (mail_voted) and in-person (early_voted); no partisan breakdown of the ballots (VA doesn't tag ballots by party).",
+    "visual_url": "https://www.vpap.org/visuals/visual/early-voting-by-district-2026-nov-general/",
+    "dataset_pattern": "https://vpap-production\\.s3[^\"'<> ]*?cd_earlyvotingballots[^\"'<> ]*?\\.json",
+    "dataset_url": "https://vpap-production.s3.us-east-1.amazonaws.com/media/visuals/custom/static/2026/09/early-voting-by-ushouse-district/assets/cd_earlyvotingballots_nov2026.json"
   },
-  "method_labels": { "cast": "Ballots cast early", "early_voted": "Early / absentee ballots" }
+  "method_labels": { "cast": "All early ballots", "mail_voted": "By mail", "early_voted": "In person" }
 }

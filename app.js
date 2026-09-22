@@ -28,6 +28,13 @@
     mail_provided: "Party registration of voters SENT a mail ballot who have not yet returned it (outstanding). From the state file; TQV does not report this."
   };
 
+  var TURNOUT_HINTS = {
+    cast: "Total ballots already cast (by mail + in person). This state does not register voters by party, so no partisan breakdown is available.",
+    mail_voted: "Ballots returned by mail.",
+    early_voted: "Ballots cast in person during early voting.",
+    election_day: "Ballots cast on election day."
+  };
+
   var geo = null, data = null;
   var method = "cast";
   var sort = { key: "total", dir: -1 };
@@ -41,6 +48,7 @@
   var rcmp = false, rcData = null, RCMP_URL = null, rcRace = "gov";
   var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
   var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
+  var unitLabel = "County", unitLabelPlural = "Counties";  // per-state map/table unit noun (VA = "District")
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -218,7 +226,7 @@
       b.addEventListener("click", function () { if (!avail) return; method = m.key; updateHash(); renderAll(); });
       host.appendChild(b);
     });
-    $("#method-hint").textContent = HINTS[method] || "";
+    $("#method-hint").textContent = partisan ? (HINTS[method] || "") : (TURNOUT_HINTS[method] || TURNOUT_HINTS.cast);
   }
 
   function statCard(cls, k, v, d, barParts) {
@@ -388,8 +396,20 @@
   }
 
   function renderMap() {
+    updateMapCaption();
     if (mapMode === "precinct") return renderPrecinctMap();
     return renderCountyMap();
+  }
+
+  function updateMapCaption() {
+    var unitLc = unitLabel.toLowerCase();
+    $("#map-title").textContent = mapMode === "precinct" ? "Turnout by precinct"
+      : (partisan ? "Partisan lean by " + unitLc : "Early ballots by " + unitLc);
+    $("#map-note").textContent = mapMode === "precinct"
+      ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
+      : (partisan
+        ? "Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet."
+        : "Shaded by early-ballot volume in the selected category (darker = more ballots). This state does not register voters by party, so no partisan breakdown is available. Gray = no ballots yet.");
   }
 
   function renderCountyMap() {
@@ -494,10 +514,6 @@
     for (var i = 0; i < btns.length; i++) {
       btns[i].setAttribute("aria-selected", String(btns[i].getAttribute("data-mode") === mode));
     }
-    $("#map-title").textContent = mode === "precinct" ? "Turnout by precinct" : "Partisan lean by county";
-    $("#map-note").textContent = mode === "precinct"
-      ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
-      : "Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet.";
     if (mode === "precinct" && !precinctGeo && !precinctLoading) {
       precinctLoading = true;
       Promise.all([getJSON(PRECINCT_GEO_URL), getJSON(PRECINCT_DATA_URL).catch(function () { return { counties: {} }; })])
@@ -552,9 +568,17 @@
     { key: "total", label: "Total" }, { key: "turnout", label: "Turnout" },
     { key: "margin", label: "Lean" }
   ];
+  function anyTurnout() {
+    var c = data && data.counties; if (!c) return false;
+    for (var n in c) if (c[n] && c[n].turnout_pct != null) return true;
+    return false;
+  }
   function activeCols() {
-    if (!partisan) return [{ key: "county", label: "County", cls: "county" },
-                           { key: "total", label: "Ballots" }, { key: "turnout", label: "Turnout" }];
+    if (!partisan) {
+      var cols0 = [{ key: "county", label: unitLabel, cls: "county" }, { key: "total", label: "Ballots" }];
+      if (anyTurnout()) cols0.push({ key: "turnout", label: "Turnout" });
+      return cols0;
+    }
     var cols = COLS.slice();
     if (compareActive()) { cols.push({ key: "m22", label: "2022" }); cols.push({ key: "shift", label: "Δ vs '22" }); }
     if (rcActive()) { cols.push({ key: "res", label: "Result" }); cols.push({ key: "gap", label: "T−Result" }); }
@@ -961,6 +985,7 @@
 
     Promise.all([getJSON(GEO_URL), getJSON(DATA_URL)]).then(function (res) {
       geo = res[0]; data = res[1]; proj = buildProjection(geo); method = pickDefaultMethod();
+      unitLabel = data.unit_label || "County"; unitLabelPlural = data.unit_label_plural || (unitLabel === "County" ? "Counties" : unitLabel + "s");
       if (applyHash) {
         var h = parseHash();
         if (h.m && methodAvailable(h.m)) method = h.m;

@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
-"""Fetch Virginia early-vote turnout by locality (turnout-only; VA has no party
-registration). Source: VPAP's per-election early-vote-by-locality TopoJSON
-(properties: locality, early_votes, perc_early_voters). We only read the
-properties (own geometry is used for the map).
+"""Fetch Virginia early-vote turnout by U.S. House district (turnout-only; VA has
+no party registration). Source: VPAP's 2026-general "Early Voting by Congressional
+District" TopoJSON on S3. Each district geometry carries properties:
+  district ("CD1"), district_number, ballots, mail_ballots, in_person,
+  vpap_index (+ _description), candidates[].
+We read only the properties; assets/va-cd.geojson supplies the map geometry.
 
-The 2026 general file publishes when VA early voting opens (~Sept 18); until then
-this reads empty. Locality matching handles VA's county / independent-city name
-collisions using FIPS-derived type (independent cities are FIPS >= 51510).
+VPAP bumps the dated S3 path when it re-cuts the file, so we discover the dataset
+URL from the public visual page (config source.visual_url + dataset_pattern) and
+fall back to source.dataset_url. Ballots split into by-mail (mail_voted) and
+in-person (early_voted); no partisan breakdown exists (VA doesn't tag ballots by
+party), so every party field is 0 and only totals are populated.
 
 Run:  python scripts/va_update.py [--force]
-      python scripts/va_update.py --validate   (prove the matcher on the sample file)
+      python scripts/va_update.py --validate   (print per-district numbers only)
 """
 import os
 import re
@@ -23,7 +27,6 @@ import common as C  # noqa: E402
 
 STATE = "va"
 CONFIG_PATH = os.path.join(ROOT, "config", "va.json")
-GEO_PATH = os.path.join(ROOT, "assets", "va-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
@@ -34,95 +37,97 @@ def load(p):
         return json.load(f)
 
 
-def base_key(name):
-    n = name.lower().replace("&", "and")
-    return re.sub(r"[^a-z0-9]", "", n)
-
-
-def geo_index():
-    """(base, type) -> {name, fips} from VA geometry; type by FIPS (city>=51510)."""
-    geo = load(GEO_PATH)
-    idx = {}
-    for ft in geo["features"]:
-        name = ft["properties"]["name"]; fips = ft["properties"]["fips"]
-        typ = "city" if int(fips) >= 51510 else "county"
-        b = name.lower()
-        if typ == "city":
-            b = re.sub(r"\s+city$", "", b)      # Census names cities "X city"
-        idx[(base_key(b), typ)] = {"name": name, "fips": fips}
-    return idx
-
-
-def match_locality(vpap_name, idx):
-    n = vpap_name.strip().lower()
-    if n.endswith(" county"):
-        return idx.get((base_key(n[:-7]), "county"))
-    if n.endswith(" city"):
-        return idx.get((base_key(n[:-5]), "city"))
-    b = base_key(n)   # bare -> prefer county, else city
-    return idx.get((b, "county")) or idx.get((b, "city"))
-
-
-def fetch_dataset(cfg, validate):
-    base = cfg["source"]["base"]; ref = cfg["source"]["referer"]
-    names = [cfg["source"]["validation_file"]] if validate else cfg["source"]["general_candidates"]
-    for fn in names:
+def discover_url(cfg):
+    """Return the current dataset URL: scrape it from the visual page, else the
+    configured fallback. VPAP re-cuts the file under new dated S3 paths."""
+    src = cfg["source"]
+    pat = src.get("dataset_pattern")
+    vis = src.get("visual_url")
+    if pat and vis:
         try:
-            d = json.loads(C.http_get(base + fn, referer=ref, no_cache=True, retries=2))
-            return fn, d
-        except Exception:  # noqa: BLE001
-            continue
-    return None, None
+            html = C.http_get(vis, no_cache=True, referer="https://www.vpap.org/")
+            m = re.search(pat, html)
+            if m:
+                return m.group(0)
+        except Exception as e:  # noqa: BLE001
+            print("  (visual-page discovery failed: %s)" % str(e)[:80], file=sys.stderr)
+    return src.get("dataset_url", "")
+
+
+def fetch_topo(cfg):
+    url = discover_url(cfg)
+    if not url:
+        return None, None
+    try:
+        return url, json.loads(C.http_get(url, no_cache=True, referer="https://www.vpap.org/"))
+    except Exception as e:  # noqa: BLE001
+        print("  (dataset fetch failed: %s)" % str(e)[:80], file=sys.stderr)
+        return url, None
+
+
+def _block(total):
+    return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": int(total),
+            "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
 
 
 def main():
     force = "--force" in sys.argv
     validate = "--validate" in sys.argv
     cfg = load(CONFIG_PATH)
-    idx = geo_index()
 
-    fn, d = fetch_dataset(cfg, validate)
-    rows = (d.get("objects", {}).get("fipses", {}).get("geometries", []) if d else [])
+    url, topo = fetch_topo(cfg)
+    geoms = []
+    if topo and isinstance(topo.get("objects"), dict) and topo["objects"]:
+        okey = list(topo["objects"].keys())[0]
+        geoms = topo["objects"][okey].get("geometries", []) or []
+
     counties_out = {}
-    reg_total = cast_total = 0
-    unmatched = []
-    for g in rows:
+    cast_total = mail_total = inperson_total = 0
+    for g in geoms:
         p = g.get("properties", {})
-        loc = p.get("locality")
-        m = match_locality(loc, idx) if loc else None
-        if not m:
-            if loc:
-                unmatched.append(loc)
+        d = p.get("district")
+        if not d:
             continue
-        ev = int(p.get("early_votes") or 0)
-        perc = p.get("perc_early_voters")
-        reg = int(round(ev / perc)) if perc else 0
-        blk = C.party_block(0, 0, 0, ev)   # turnout-only: total only (stored in npa slot? no)
-        blk = {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": ev,
-               "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None,
-               "margin": None, "compiled": "", "compiled_iso": ""}
-        counties_out[m["name"]] = {"fips": m["fips"], "cast": blk, "early_voted": dict(blk),
-                                   "registered": reg, "turnout_pct": (round(perc * 100, 2) if perc else None)}
-        reg_total += reg; cast_total += ev
+        ballots = int(p.get("ballots") or 0)
+        mail = int(p.get("mail_ballots") or 0)
+        inp = int(p.get("in_person") or 0)
+        entry = {"fips": "51-%02d" % int(p.get("district_number") or 0),
+                 "cast": _block(ballots), "mail_voted": _block(mail), "early_voted": _block(inp),
+                 "turnout_pct": None, "lean": p.get("vpap_index"),
+                 "lean_desc": p.get("vpap_index_description")}
+        cands = p.get("candidates")
+        if cands:
+            entry["candidates"] = [{"name": c.get("name"), "party": c.get("party")} for c in cands]
+        counties_out[d] = entry
+        cast_total += ballots; mail_total += mail; inperson_total += inp
 
     if validate:
-        print("Matcher validation on %s: matched %d/%d, unmatched=%s"
-              % (fn, len(counties_out), len(rows), unmatched[:20]))
+        print("VA by-district validation on %s (updated %s):" % (url, topo.get("updated") if topo else "n/a"))
+        for d in sorted(counties_out, key=lambda k: int(re.sub(r"\D", "", k) or 0)):
+            e = counties_out[d]
+            print("  %-5s ballots=%6d  mail=%5d  in_person=%6d  %s"
+                  % (d, e["cast"]["total"], e["mail_voted"]["total"], e["early_voted"]["total"], e.get("lean_desc")))
+        print("  TOTAL ballots=%d  mail=%d  in_person=%d  districts=%d"
+              % (cast_total, mail_total, inperson_total, len(counties_out)))
         return 0
 
-    def sw_block(t):
-        return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": t, "rep_pct": None,
-                "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
-    statewide = {"cast": sw_block(cast_total), "early_voted": sw_block(cast_total),
-                 "registered": reg_total,
-                 "turnout_pct": (round(100.0 * cast_total / reg_total, 2) if reg_total else None)}
+    methods_present = []
+    if mail_total:
+        methods_present.append("mail_voted")
+    if inperson_total:
+        methods_present.append("early_voted")
+
+    statewide = {"cast": _block(cast_total), "mail_voted": _block(mail_total),
+                 "early_voted": _block(inperson_total), "registered": 0, "turnout_pct": None}
     snap = {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
         "partisan": False,
-        "source": {"primary": "VPAP early-vote-by-locality (turnout-only; VA has no party registration)"},
-        "source_compiled": (d.get("updated") if d else "") or "",
-        "source_compiled_iso": C.utc_now_iso() if d else "",
-        "methods_present": (["early_voted"] if cast_total else []),
+        "unit_label": cfg.get("unit_label", "District"),
+        "unit_label_plural": cfg.get("unit_label_plural", "Districts"),
+        "source": {"primary": "VPAP early voting by U.S. House district (2026 general; turnout-only, VA has no party registration)"},
+        "source_compiled": (topo.get("updated") if topo else "") or "",
+        "source_compiled_iso": C.utc_now_iso() if topo else "",
+        "methods_present": methods_present,
         "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
@@ -143,14 +148,13 @@ def main():
         if cast_total:
             with open(HISTORY_PATH, "a", encoding="utf-8") as f:
                 f.write(json.dumps({"generated_at": snap["generated_at"], "compiled": snap["source_compiled"],
-                                    "data_hash": snap["data_hash"], "cast": cast_total, "registered": reg_total},
+                                    "data_hash": snap["data_hash"], "cast": cast_total,
+                                    "mail": mail_total, "in_person": inperson_total},
                                    separators=(",", ":")) + "\n")
-        print("CHANGED  file=%s  localities=%d  early_cast=%s  turnout=%s%%"
-              % (fn or "(none yet)", len(counties_out), cast_total, statewide["turnout_pct"]))
+        print("CHANGED  districts=%d  early_ballots=%d  (mail=%d, in_person=%d)  updated=%s"
+              % (len(counties_out), cast_total, mail_total, inperson_total, snap["source_compiled"]))
     else:
         print("NOCHANGE  (hash %s)" % (prev or "")[:12])
-    if unmatched:
-        print("  unmatched localities:", unmatched[:10])
     return 0
 
 

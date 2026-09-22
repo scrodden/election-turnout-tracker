@@ -42,9 +42,9 @@
       "name": "Virginia",
       "partisan": false,
       "data": "data/va/latest.json",
-      "geojson": "assets/va-counties.geojson",
+      "geojson": "assets/va-cd.geojson",
       "history": "data/va/history.jsonl",
-      "source_note": "Source: <a href='https://www.vpap.org/visuals/visual/early-voting-by-locality/' target='_blank' rel='noopener'>VPAP</a> early-vote-by-locality. Virginia has no party registration, so this is turnout-only — total early/absentee ballots &amp; turnout% by locality, no partisan breakdown. General-election early voting begins Sept 18, so figures read zero until then."
+      "source_note": "Source: <a href='https://www.vpap.org/visuals/visual/early-voting-by-district-2026-nov-general/' target='_blank' rel='noopener'>VPAP</a> early voting by U.S. House district (2026 general). Virginia has no party registration, so this is turnout-only — total early ballots split into by-mail and in-person, by congressional district. Each district also shows VPAP's partisan lean. No partisan breakdown of the ballots themselves is available."
     },
     {
       "code": "co",
