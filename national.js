@@ -2,6 +2,7 @@
 (function () {
   "use strict";
   var geo = null, mf = null, reg = null, proj = null, sort = { key: "cast", dir: -1 }, filter = "", maxCast = 0;
+  var ptSort = { key: "total", dir: -1 }, prSort = { key: "total", dir: -1 };
   function $(s) { return document.querySelector(s); }
   function getJSON(u) { return fetch(u + "?t=" + Date.now(), { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(u); return r.json(); }); }
   function fmt(n) { return n == null ? "—" : Math.round(n).toLocaleString("en-US"); }
@@ -92,58 +93,88 @@
   function pctOf(n, d) { return d ? 100 * n / d : null; }
   function nameOf(code) { var s = (mf.states || []).filter(function (x) { return x.code === code; })[0]; return s ? s.name : code.toUpperCase(); }
 
-  // National partisan TURNOUT: party registration of ballots already cast, for
-  // party-registration states, + a National sum row.
+  // shared: render a sortable partisan table (rows + pinned National total row).
+  function sortableTable(sel, cols, sortState, rows, total, renderCell) {
+    var k = sortState.key, dir = sortState.dir;
+    rows.sort(function (a, b) {
+      if (k === "name") return a.name.localeCompare(b.name) * dir;
+      var A = a[k], B = b[k]; A = (A == null ? -Infinity : A); B = (B == null ? -Infinity : B);
+      return (A < B ? -1 : A > B ? 1 : 0) * dir;
+    });
+    var thead = sel.querySelector("thead"), tbody = sel.querySelector("tbody");
+    thead.innerHTML = "<tr>" + cols.map(function (c) {
+      var arrow = sortState.key === c.key ? (dir > 0 ? " ▲" : " ▼") : "";
+      return "<th data-k='" + c.key + "'>" + c.label + arrow + "</th>";
+    }).join("") + "</tr>";
+    thead.querySelectorAll("th").forEach(function (th) {
+      th.onclick = function () {
+        var key = th.getAttribute("data-k");
+        if (sortState.key === key) sortState.dir *= -1; else { sortState.key = key; sortState.dir = key === "name" ? 1 : -1; }
+        render();
+      };
+    });
+    tbody.innerHTML = rows.map(function (r) { return renderCell(r, false); }).join("") + renderCell(total, true);
+  }
+
+  // National partisan TURNOUT: party registration of ballots already cast.
   function renderPartisanTurnout() {
     var states = (mf.states || []).filter(function (s) { return s.partisan && s.has_data && (s.rep + s.dem + s.npa + s.oth) > 0; });
     $("#pt-note").textContent = states.length + " state" + (states.length === 1 ? "" : "s");
-    var cols = ["State", "Ballots", "Rep", "Dem", "NPA / Oth", "Lean"];
-    $("#ptbl thead").innerHTML = "<tr>" + cols.map(function (c) { return "<th>" + c + "</th>"; }).join("") + "</tr>";
-    if (!states.length) { $("#ptbl tbody").innerHTML = "<tr><td colspan='6' class='dim'>No party-registration state is reporting cast ballots yet.</td></tr>"; return; }
-    var R = 0, D = 0, N = 0, O = 0;
-    function row(name, rep, dem, npa, oth, bold) {
-      var tot = rep + dem + npa + oth, m = tot ? Math.round((100 * rep / tot - 100 * dem / tot) * 10) / 10 : null;
-      var b0 = bold ? "<b>" : "", b1 = bold ? "</b>" : "";
-      return "<tr" + (bold ? " style='border-top:2px solid var(--line)'" : "") + "><td>" + b0 + name + b1 + "</td>" +
-        "<td>" + fmt(tot) + "</td>" +
-        "<td>" + fmt(rep) + " <span class='dim'>" + pctText(pctOf(rep, tot)) + "</span></td>" +
-        "<td>" + fmt(dem) + " <span class='dim'>" + pctText(pctOf(dem, tot)) + "</span></td>" +
-        "<td>" + fmt(npa + oth) + " <span class='dim'>" + pctText(pctOf(npa + oth, tot)) + "</span></td>" +
-        "<td><span class='lean' style='background:" + colorM(m) + "'></span>" + marginText(m) + "</td></tr>";
-    }
-    var body = states.sort(function (a, b) { return (b.cast || 0) - (a.cast || 0); }).map(function (s) {
-      R += s.rep; D += s.dem; N += s.npa; O += s.oth;
-      return row(s.name, s.rep, s.dem, s.npa, s.oth, false);
+    var cols = [{ key: "name", label: "State" }, { key: "total", label: "Ballots" }, { key: "rep", label: "Rep" },
+                { key: "dem", label: "Dem" }, { key: "npaoth", label: "NPA / Oth" }, { key: "margin", label: "Lean" }];
+    if (!states.length) { $("#ptbl thead").innerHTML = "<tr><th>State</th></tr>"; $("#ptbl tbody").innerHTML = "<tr><td class='dim'>No party-registration state is reporting cast ballots yet.</td></tr>"; return; }
+    var tot = { name: "National (these states)", rep: 0, dem: 0, npa: 0, oth: 0 };
+    var rows = states.map(function (s) {
+      tot.rep += s.rep; tot.dem += s.dem; tot.npa += s.npa; tot.oth += s.oth;
+      return mkTurnoutRow(s.name, s.rep, s.dem, s.npa, s.oth);
     });
-    body.push(row("National (these states)", R, D, N, O, true));
-    $("#ptbl tbody").innerHTML = body.join("");
+    var totRow = mkTurnoutRow(tot.name, tot.rep, tot.dem, tot.npa, tot.oth);
+    sortableTable($("#ptbl"), cols, ptSort, rows, totRow, function (r, bold) {
+      var b0 = bold ? "<b>" : "", b1 = bold ? "</b>" : "";
+      return "<tr" + (bold ? " style='border-top:2px solid var(--line)'" : "") + "><td>" + b0 + r.name + b1 + "</td>" +
+        "<td>" + fmt(r.total) + "</td>" +
+        "<td>" + fmt(r.rep) + " <span class='dim'>" + pctText(r.reppct) + "</span></td>" +
+        "<td>" + fmt(r.dem) + " <span class='dim'>" + pctText(r.dempct) + "</span></td>" +
+        "<td>" + fmt(r.npaoth) + " <span class='dim'>" + pctText(r.nopct) + "</span></td>" +
+        "<td><span class='lean' style='background:" + colorM(r.margin) + "'></span>" + marginText(r.margin) + "</td></tr>";
+    });
+  }
+  function mkTurnoutRow(name, rep, dem, npa, oth) {
+    var t = rep + dem + npa + oth;
+    return { name: name, total: t, rep: rep, dem: dem, npaoth: npa + oth,
+      reppct: pctOf(rep, t), dempct: pctOf(dem, t), nopct: pctOf(npa + oth, t),
+      margin: t ? Math.round((100 * rep / t - 100 * dem / t) * 10) / 10 : null };
   }
 
-  // National partisan REGISTRATION from data/registration.json, + a National sum row.
+  // National partisan REGISTRATION from data/registration.json.
   function renderPartisanReg() {
     var host = $("#prtbl");
-    var states = reg && reg.states ? Object.keys(reg.states) : [];
-    $("#pr-note").textContent = states.length + " state" + (states.length === 1 ? "" : "s");
-    var cols = ["State", "Registered", "Rep", "Dem", "NPA", "Oth", "As of"];
-    host.querySelector("thead").innerHTML = "<tr>" + cols.map(function (c) { return "<th>" + c + "</th>"; }).join("") + "</tr>";
-    if (!states.length) { host.querySelector("tbody").innerHTML = "<tr><td colspan='7' class='dim'>Registration data coming online.</td></tr>"; return; }
-    var R = 0, D = 0, N = 0, O = 0;
-    function row(name, rep, dem, npa, oth, asof, bold) {
-      var tot = rep + dem + npa + oth, b0 = bold ? "<b>" : "", b1 = bold ? "</b>" : "";
-      return "<tr" + (bold ? " style='border-top:2px solid var(--line)'" : "") + "><td>" + b0 + name + b1 + "</td>" +
-        "<td>" + fmt(tot) + "</td>" +
-        "<td>" + fmt(rep) + " <span class='dim'>" + pctText(pctOf(rep, tot)) + "</span></td>" +
-        "<td>" + fmt(dem) + " <span class='dim'>" + pctText(pctOf(dem, tot)) + "</span></td>" +
-        "<td>" + fmt(npa) + " <span class='dim'>" + pctText(pctOf(npa, tot)) + "</span></td>" +
-        "<td>" + fmt(oth) + " <span class='dim'>" + pctText(pctOf(oth, tot)) + "</span></td>" +
-        "<td class='dim'>" + (asof || "—") + "</td></tr>";
-    }
-    var body = states.map(function (code) { return { code: code, v: reg.states[code] }; })
-      .sort(function (a, b) { return (b.v.total || 0) - (a.v.total || 0); })
-      .map(function (o) { var v = o.v; R += v.rep || 0; D += v.dem || 0; N += v.npa || 0; O += v.oth || 0;
-        return row(nameOf(o.code), v.rep || 0, v.dem || 0, v.npa || 0, v.oth || 0, v.as_of, false); });
-    body.push(row("National (these states)", R, D, N, O, "", true));
-    host.querySelector("tbody").innerHTML = body.join("");
+    var codes = reg && reg.states ? Object.keys(reg.states) : [];
+    $("#pr-note").textContent = codes.length + " state" + (codes.length === 1 ? "" : "s");
+    var cols = [{ key: "name", label: "State" }, { key: "total", label: "Registered" }, { key: "rep", label: "Rep" },
+                { key: "dem", label: "Dem" }, { key: "npa", label: "NPA" }, { key: "oth", label: "Oth" }, { key: "asof", label: "As of" }];
+    if (!codes.length) { host.querySelector("thead").innerHTML = "<tr><th>State</th></tr>"; host.querySelector("tbody").innerHTML = "<tr><td class='dim'>Registration data coming online.</td></tr>"; return; }
+    var tot = { name: "National (these states)", rep: 0, dem: 0, npa: 0, oth: 0, asof: "" };
+    var rows = codes.map(function (code) {
+      var v = reg.states[code]; tot.rep += v.rep || 0; tot.dem += v.dem || 0; tot.npa += v.npa || 0; tot.oth += v.oth || 0;
+      return mkRegRow(nameOf(code), v.rep || 0, v.dem || 0, v.npa || 0, v.oth || 0, v.as_of || "");
+    });
+    var totRow = mkRegRow(tot.name, tot.rep, tot.dem, tot.npa, tot.oth, "");
+    sortableTable(host, cols, prSort, rows, totRow, function (r, bold) {
+      var b0 = bold ? "<b>" : "", b1 = bold ? "</b>" : "";
+      return "<tr" + (bold ? " style='border-top:2px solid var(--line)'" : "") + "><td>" + b0 + r.name + b1 + "</td>" +
+        "<td>" + fmt(r.total) + "</td>" +
+        "<td>" + fmt(r.rep) + " <span class='dim'>" + pctText(r.reppct) + "</span></td>" +
+        "<td>" + fmt(r.dem) + " <span class='dim'>" + pctText(r.dempct) + "</span></td>" +
+        "<td>" + fmt(r.npa) + " <span class='dim'>" + pctText(r.npapct) + "</span></td>" +
+        "<td>" + fmt(r.oth) + " <span class='dim'>" + pctText(r.othpct) + "</span></td>" +
+        "<td class='dim'>" + (r.asof || "—") + "</td></tr>";
+    });
+  }
+  function mkRegRow(name, rep, dem, npa, oth, asof) {
+    var t = rep + dem + npa + oth;
+    return { name: name, total: t, rep: rep, dem: dem, npa: npa, oth: oth, asof: asof,
+      reppct: pctOf(rep, t), dempct: pctOf(dem, t), npapct: pctOf(npa, t), othpct: pctOf(oth, t) };
   }
 
   function render() { renderCards(); renderMap(); renderTable(); renderPartisanTurnout(); renderPartisanReg(); $("#updated").innerHTML = "Updated: <b>" + (mf.generated_at ? new Date(mf.generated_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—") + "</b>"; }
