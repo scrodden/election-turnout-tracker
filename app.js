@@ -49,6 +49,7 @@
   var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
   var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
   var unitLabel = "County", unitLabelPlural = "Counties";  // per-state map/table unit noun (VA = "District")
+  var localityLinks = null, localityData = null, localityFilter = "";  // outbound per-locality directory (VA -> VPAP)
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -982,6 +983,7 @@
     $("#map-mode").style.display = st.precincts ? "" : "none";
     var row = $("#cmp-2022").closest(".controls-row"); if (row) row.style.display = st.baseline ? "" : "none";
     $("#trends").hidden = true; $("#mail-panel").hidden = true; $("#precinct-panel").hidden = true; $("#county-panel").hidden = true;
+    resetLocality();
 
     Promise.all([getJSON(GEO_URL), getJSON(DATA_URL)]).then(function (res) {
       geo = res[0]; data = res[1]; proj = buildProjection(geo); method = pickDefaultMethod();
@@ -998,6 +1000,7 @@
         if (h2.c && data.counties[h2.c]) selectCounty(h2.c, true);
       }
       loadTrends();
+      loadLocalityLookup();
       if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
       if (RCMP_URL) getJSON(RCMP_URL).then(function (rc) {
         rcData = rc; rcRace = (rc.race_types && rc.race_types.indexOf("gov") >= 0) ? "gov" : "sen";
@@ -1010,6 +1013,72 @@
       }).catch(function () { rcData = null; updateResultToggle(); });
       updateHash();
     }).catch(function (err) { showError(err.message); });
+  }
+
+  // ---- per-locality outbound directory (e.g. VA localities hosted on VPAP) --
+  // Some states publish locality detail only on a source we can't ingest live
+  // (VPAP's Cloudflare-protected pages). We link out per locality, and fill in
+  // numbers opportunistically from a best-effort daily scrape when available.
+  function resetLocality() {
+    localityLinks = null; localityData = null; localityFilter = "";
+    var s = $("#locality-lookup"); if (s) s.hidden = true;
+    var fi = $("#locality-filter"); if (fi) fi.value = "";
+  }
+  function loadLocalityLookup() {
+    if (!st || !st.locality_links) { resetLocality(); return; }
+    var dataUrl = st.locality_data || null;
+    Promise.all([
+      getJSON(st.locality_links),
+      dataUrl ? getJSON(dataUrl).catch(function () { return null; }) : Promise.resolve(null)
+    ]).then(function (r) {
+      localityLinks = r[0]; localityData = r[1];
+      var sec = $("#locality-lookup"); if (sec) sec.hidden = false;
+      var fi = $("#locality-filter");
+      if (fi && !fi._wired) { fi._wired = true; fi.addEventListener("input", function (e) { localityFilter = e.target.value.trim().toLowerCase(); renderLocalityLookup(); }); }
+      renderLocalityLookup();
+    }).catch(function () { resetLocality(); });
+  }
+  function renderLocalityLookup() {
+    if (!localityLinks) return;
+    var host = $("#locality-links"); if (!host) return;
+    var d = localityData, cov = d && d.coverage;
+    var note = $("#locality-lookup-note");
+    if (note) {
+      var parts = [];
+      if (d && d.as_of) parts.push("As of " + d.as_of);
+      if (cov && cov.ok != null) parts.push(cov.ok + " of " + cov.total + " localities with live counts");
+      parts.push("detail hosted by <a href='https://www.vpap.org/elections/early-voting/2026-november-general-election/' target='_blank' rel='noopener'>VPAP</a> — click a locality to open its live page (updates daily)");
+      note.innerHTML = parts.join(" &middot; ");
+    }
+    var byFips = {};
+    if (d && d.counties) { for (var k in d.counties) { var c = d.counties[k]; if (c && c.fips) byFips[c.fips] = c; } }
+    var rows = (localityLinks.localities || []).map(function (L) {
+      var c = byFips[L.fips];
+      return { name: L.name, url: L.url,
+        total: c ? ((c.cast && c.cast.total) || 0) : null,
+        inperson: c ? ((c.early_voted && c.early_voted.total) || 0) : null,
+        mail: c ? ((c.mail_voted && c.mail_voted.total) || 0) : null,
+        turnout: c ? c.turnout_pct : null };
+    });
+    if (localityFilter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(localityFilter) >= 0; });
+    var hasData = rows.some(function (r) { return r.total != null; });
+    rows.sort(function (a, b) {
+      if (hasData && (a.total || 0) !== (b.total || 0)) return (b.total || 0) - (a.total || 0);
+      return a.name.localeCompare(b.name);
+    });
+    var num = function (n) { return n == null ? "—" : n.toLocaleString("en-US"); };
+    var html = "<table class='loc-table'><thead><tr><th>Locality</th>" +
+      (hasData ? "<th>Early ballots</th><th>In person</th><th>By mail</th><th>Turnout</th>" : "") +
+      "<th></th></tr></thead><tbody>";
+    rows.forEach(function (r) {
+      html += "<tr><td class='county'>" + r.name + "</td>" +
+        (hasData ? ("<td>" + num(r.total) + "</td><td>" + num(r.inperson) + "</td><td>" + num(r.mail) +
+                    "</td><td>" + (r.turnout == null ? "—" : r.turnout + "%") + "</td>") : "") +
+        "<td><a href='" + r.url + "' target='_blank' rel='noopener'>VPAP&nbsp;↗</a></td></tr>";
+    });
+    html += "</tbody></table>";
+    if (!rows.length) html = "<p class='dim'>No locality matches “" + localityFilter + "”.</p>";
+    host.innerHTML = html;
   }
 
   function renderDemographics() {
@@ -1066,7 +1135,15 @@
     host.hidden = false;
   }
 
-  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); renderDemographics(); renderProjection(); }
+  function renderTableNote() {
+    var tt = $("#table-title"); if (tt) tt.textContent = unitLabel + " detail";
+    var flt = $("#filter"); if (flt) flt.placeholder = "Filter " + unitLabelPlural.toLowerCase() + "…";
+    var n = $("#table-note"); if (!n) return;
+    var u = unitLabel.toLowerCase();
+    if (st && st.precincts) n.innerHTML = "Click a " + u + " for precinct-level detail. Each " + u + " links to its live TQV feed&nbsp;↗.";
+    else n.textContent = "Click a " + u + " for its detail.";
+  }
+  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {

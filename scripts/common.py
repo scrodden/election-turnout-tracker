@@ -22,7 +22,7 @@ USER_AGENT = (
 _SSL_CTX = ssl.create_default_context()
 
 
-def http_get(url, retries=3, timeout=45, binary=False, no_cache=False, referer=None):
+def http_get(url, retries=3, timeout=45, binary=False, no_cache=False, referer=None, accept="*/*"):
     """GET a URL with a browser User-Agent, small retry/backoff. Returns text
     (utf-8, replacement on bad bytes) or bytes when binary=True.
 
@@ -39,7 +39,7 @@ def http_get(url, retries=3, timeout=45, binary=False, no_cache=False, referer=N
             fetch_url = url
             headers = {
                 "User-Agent": USER_AGENT,
-                "Accept": "*/*",
+                "Accept": accept,
                 "Accept-Language": "en-US,en;q=0.9",
             }
             if referer:

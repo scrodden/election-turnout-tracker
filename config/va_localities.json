@@ -1,0 +1,808 @@
+{
+ "state": "va",
+ "election": "2026 November General",
+ "source": "Virginia Public Access Project (VPAP) — early voting by locality",
+ "note": "Per-locality early-vote detail is hosted by VPAP and updates daily. These are outbound links to VPAP's live pages (their Cloudflare protection prevents automated ingestion, so we link rather than copy).",
+ "base_url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-{slug}/",
+ "count": 133,
+ "localities": [
+  {
+   "fips": "51001",
+   "name": "Accomack County",
+   "slug": "accomack-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-accomack-county-va/"
+  },
+  {
+   "fips": "51003",
+   "name": "Albemarle County",
+   "slug": "albemarle-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-albemarle-county-va/"
+  },
+  {
+   "fips": "51510",
+   "name": "Alexandria City",
+   "slug": "alexandria-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-alexandria-city-va/"
+  },
+  {
+   "fips": "51005",
+   "name": "Alleghany County",
+   "slug": "alleghany-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-alleghany-county-va/"
+  },
+  {
+   "fips": "51007",
+   "name": "Amelia County",
+   "slug": "amelia-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-amelia-county-va/"
+  },
+  {
+   "fips": "51009",
+   "name": "Amherst County",
+   "slug": "amherst-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-amherst-county-va/"
+  },
+  {
+   "fips": "51011",
+   "name": "Appomattox County",
+   "slug": "appomattox-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-appomattox-county-va/"
+  },
+  {
+   "fips": "51013",
+   "name": "Arlington County",
+   "slug": "arlington-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-arlington-county-va/"
+  },
+  {
+   "fips": "51015",
+   "name": "Augusta County",
+   "slug": "augusta-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-augusta-county-va/"
+  },
+  {
+   "fips": "51017",
+   "name": "Bath County",
+   "slug": "bath-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-bath-county-va/"
+  },
+  {
+   "fips": "51019",
+   "name": "Bedford County",
+   "slug": "bedford-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-bedford-county-va/"
+  },
+  {
+   "fips": "51021",
+   "name": "Bland County",
+   "slug": "bland-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-bland-county-va/"
+  },
+  {
+   "fips": "51023",
+   "name": "Botetourt County",
+   "slug": "botetourt-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-botetourt-county-va/"
+  },
+  {
+   "fips": "51520",
+   "name": "Bristol City",
+   "slug": "bristol-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-bristol-city-va/"
+  },
+  {
+   "fips": "51025",
+   "name": "Brunswick County",
+   "slug": "brunswick-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-brunswick-county-va/"
+  },
+  {
+   "fips": "51027",
+   "name": "Buchanan County",
+   "slug": "buchanan-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-buchanan-county-va/"
+  },
+  {
+   "fips": "51029",
+   "name": "Buckingham County",
+   "slug": "buckingham-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-buckingham-county-va/"
+  },
+  {
+   "fips": "51530",
+   "name": "Buena Vista City",
+   "slug": "buena-vista-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-buena-vista-city-va/"
+  },
+  {
+   "fips": "51031",
+   "name": "Campbell County",
+   "slug": "campbell-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-campbell-county-va/"
+  },
+  {
+   "fips": "51033",
+   "name": "Caroline County",
+   "slug": "caroline-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-caroline-county-va/"
+  },
+  {
+   "fips": "51035",
+   "name": "Carroll County",
+   "slug": "carroll-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-carroll-county-va/"
+  },
+  {
+   "fips": "51036",
+   "name": "Charles City",
+   "slug": "charles-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-charles-city-va/"
+  },
+  {
+   "fips": "51037",
+   "name": "Charlotte County",
+   "slug": "charlotte-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-charlotte-county-va/"
+  },
+  {
+   "fips": "51540",
+   "name": "Charlottesville City",
+   "slug": "charlottesville-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-charlottesville-city-va/"
+  },
+  {
+   "fips": "51550",
+   "name": "Chesapeake City",
+   "slug": "chesapeake-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-chesapeake-city-va/"
+  },
+  {
+   "fips": "51041",
+   "name": "Chesterfield County",
+   "slug": "chesterfield-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-chesterfield-county-va/"
+  },
+  {
+   "fips": "51043",
+   "name": "Clarke County",
+   "slug": "clarke-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-clarke-county-va/"
+  },
+  {
+   "fips": "51570",
+   "name": "Colonial Heights City",
+   "slug": "colonial-heights-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-colonial-heights-city-va/"
+  },
+  {
+   "fips": "51580",
+   "name": "Covington City",
+   "slug": "covington-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-covington-city-va/"
+  },
+  {
+   "fips": "51045",
+   "name": "Craig County",
+   "slug": "craig-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-craig-county-va/"
+  },
+  {
+   "fips": "51047",
+   "name": "Culpeper County",
+   "slug": "culpeper-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-culpeper-county-va/"
+  },
+  {
+   "fips": "51049",
+   "name": "Cumberland County",
+   "slug": "cumberland-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-cumberland-county-va/"
+  },
+  {
+   "fips": "51590",
+   "name": "Danville City",
+   "slug": "danville-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-danville-city-va/"
+  },
+  {
+   "fips": "51051",
+   "name": "Dickenson County",
+   "slug": "dickenson-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-dickenson-county-va/"
+  },
+  {
+   "fips": "51053",
+   "name": "Dinwiddie County",
+   "slug": "dinwiddie-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-dinwiddie-county-va/"
+  },
+  {
+   "fips": "51595",
+   "name": "Emporia City",
+   "slug": "emporia-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-emporia-city-va/"
+  },
+  {
+   "fips": "51057",
+   "name": "Essex County",
+   "slug": "essex-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-essex-county-va/"
+  },
+  {
+   "fips": "51600",
+   "name": "Fairfax City",
+   "slug": "fairfax-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-fairfax-city-va/"
+  },
+  {
+   "fips": "51059",
+   "name": "Fairfax County",
+   "slug": "fairfax-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-fairfax-county-va/"
+  },
+  {
+   "fips": "51610",
+   "name": "Falls Church City",
+   "slug": "falls-church-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-falls-church-city-va/"
+  },
+  {
+   "fips": "51061",
+   "name": "Fauquier County",
+   "slug": "fauquier-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-fauquier-county-va/"
+  },
+  {
+   "fips": "51063",
+   "name": "Floyd County",
+   "slug": "floyd-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-floyd-county-va/"
+  },
+  {
+   "fips": "51065",
+   "name": "Fluvanna County",
+   "slug": "fluvanna-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-fluvanna-county-va/"
+  },
+  {
+   "fips": "51620",
+   "name": "Franklin City",
+   "slug": "franklin-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-franklin-city-va/"
+  },
+  {
+   "fips": "51067",
+   "name": "Franklin County",
+   "slug": "franklin-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-franklin-county-va/"
+  },
+  {
+   "fips": "51069",
+   "name": "Frederick County",
+   "slug": "frederick-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-frederick-county-va/"
+  },
+  {
+   "fips": "51630",
+   "name": "Fredericksburg City",
+   "slug": "fredericksburg-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-fredericksburg-city-va/"
+  },
+  {
+   "fips": "51640",
+   "name": "Galax City",
+   "slug": "galax-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-galax-city-va/"
+  },
+  {
+   "fips": "51071",
+   "name": "Giles County",
+   "slug": "giles-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-giles-county-va/"
+  },
+  {
+   "fips": "51073",
+   "name": "Gloucester County",
+   "slug": "gloucester-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-gloucester-county-va/"
+  },
+  {
+   "fips": "51075",
+   "name": "Goochland County",
+   "slug": "goochland-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-goochland-county-va/"
+  },
+  {
+   "fips": "51077",
+   "name": "Grayson County",
+   "slug": "grayson-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-grayson-county-va/"
+  },
+  {
+   "fips": "51079",
+   "name": "Greene County",
+   "slug": "greene-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-greene-county-va/"
+  },
+  {
+   "fips": "51081",
+   "name": "Greensville County",
+   "slug": "greensville-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-greensville-county-va/"
+  },
+  {
+   "fips": "51083",
+   "name": "Halifax County",
+   "slug": "halifax-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-halifax-county-va/"
+  },
+  {
+   "fips": "51650",
+   "name": "Hampton City",
+   "slug": "hampton-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-hampton-city-va/"
+  },
+  {
+   "fips": "51085",
+   "name": "Hanover County",
+   "slug": "hanover-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-hanover-county-va/"
+  },
+  {
+   "fips": "51660",
+   "name": "Harrisonburg City",
+   "slug": "harrisonburg-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-harrisonburg-city-va/"
+  },
+  {
+   "fips": "51087",
+   "name": "Henrico County",
+   "slug": "henrico-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-henrico-county-va/"
+  },
+  {
+   "fips": "51089",
+   "name": "Henry County",
+   "slug": "henry-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-henry-county-va/"
+  },
+  {
+   "fips": "51091",
+   "name": "Highland County",
+   "slug": "highland-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-highland-county-va/"
+  },
+  {
+   "fips": "51670",
+   "name": "Hopewell City",
+   "slug": "hopewell-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-hopewell-city-va/"
+  },
+  {
+   "fips": "51093",
+   "name": "Isle of Wight County",
+   "slug": "isle-of-wight-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-isle-of-wight-county-va/"
+  },
+  {
+   "fips": "51095",
+   "name": "James City",
+   "slug": "james-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-james-city-va/"
+  },
+  {
+   "fips": "51099",
+   "name": "King George County",
+   "slug": "king-george-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-king-george-county-va/"
+  },
+  {
+   "fips": "51101",
+   "name": "King William County",
+   "slug": "king-william-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-king-william-county-va/"
+  },
+  {
+   "fips": "51097",
+   "name": "King and Queen County",
+   "slug": "king-and-queen-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-king-and-queen-county-va/"
+  },
+  {
+   "fips": "51103",
+   "name": "Lancaster County",
+   "slug": "lancaster-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-lancaster-county-va/"
+  },
+  {
+   "fips": "51105",
+   "name": "Lee County",
+   "slug": "lee-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-lee-county-va/"
+  },
+  {
+   "fips": "51678",
+   "name": "Lexington City",
+   "slug": "lexington-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-lexington-city-va/"
+  },
+  {
+   "fips": "51107",
+   "name": "Loudoun County",
+   "slug": "loudoun-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-loudoun-county-va/"
+  },
+  {
+   "fips": "51109",
+   "name": "Louisa County",
+   "slug": "louisa-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-louisa-county-va/"
+  },
+  {
+   "fips": "51111",
+   "name": "Lunenburg County",
+   "slug": "lunenburg-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-lunenburg-county-va/"
+  },
+  {
+   "fips": "51680",
+   "name": "Lynchburg City",
+   "slug": "lynchburg-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-lynchburg-city-va/"
+  },
+  {
+   "fips": "51113",
+   "name": "Madison County",
+   "slug": "madison-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-madison-county-va/"
+  },
+  {
+   "fips": "51683",
+   "name": "Manassas City",
+   "slug": "manassas-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-manassas-city-va/"
+  },
+  {
+   "fips": "51685",
+   "name": "Manassas Park City",
+   "slug": "manassas-park-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-manassas-park-city-va/"
+  },
+  {
+   "fips": "51690",
+   "name": "Martinsville City",
+   "slug": "martinsville-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-martinsville-city-va/"
+  },
+  {
+   "fips": "51115",
+   "name": "Mathews County",
+   "slug": "mathews-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-mathews-county-va/"
+  },
+  {
+   "fips": "51117",
+   "name": "Mecklenburg County",
+   "slug": "mecklenburg-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-mecklenburg-county-va/"
+  },
+  {
+   "fips": "51119",
+   "name": "Middlesex County",
+   "slug": "middlesex-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-middlesex-county-va/"
+  },
+  {
+   "fips": "51121",
+   "name": "Montgomery County",
+   "slug": "montgomery-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-montgomery-county-va/"
+  },
+  {
+   "fips": "51125",
+   "name": "Nelson County",
+   "slug": "nelson-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-nelson-county-va/"
+  },
+  {
+   "fips": "51127",
+   "name": "New Kent County",
+   "slug": "new-kent-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-new-kent-county-va/"
+  },
+  {
+   "fips": "51700",
+   "name": "Newport News City",
+   "slug": "newport-news-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-newport-news-city-va/"
+  },
+  {
+   "fips": "51710",
+   "name": "Norfolk City",
+   "slug": "norfolk-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-norfolk-city-va/"
+  },
+  {
+   "fips": "51131",
+   "name": "Northampton County",
+   "slug": "northampton-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-northampton-county-va/"
+  },
+  {
+   "fips": "51133",
+   "name": "Northumberland County",
+   "slug": "northumberland-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-northumberland-county-va/"
+  },
+  {
+   "fips": "51720",
+   "name": "Norton City",
+   "slug": "norton-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-norton-city-va/"
+  },
+  {
+   "fips": "51135",
+   "name": "Nottoway County",
+   "slug": "nottoway-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-nottoway-county-va/"
+  },
+  {
+   "fips": "51137",
+   "name": "Orange County",
+   "slug": "orange-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-orange-county-va/"
+  },
+  {
+   "fips": "51139",
+   "name": "Page County",
+   "slug": "page-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-page-county-va/"
+  },
+  {
+   "fips": "51141",
+   "name": "Patrick County",
+   "slug": "patrick-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-patrick-county-va/"
+  },
+  {
+   "fips": "51730",
+   "name": "Petersburg City",
+   "slug": "petersburg-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-petersburg-city-va/"
+  },
+  {
+   "fips": "51143",
+   "name": "Pittsylvania County",
+   "slug": "pittsylvania-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-pittsylvania-county-va/"
+  },
+  {
+   "fips": "51735",
+   "name": "Poquoson City",
+   "slug": "poquoson-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-poquoson-city-va/"
+  },
+  {
+   "fips": "51740",
+   "name": "Portsmouth City",
+   "slug": "portsmouth-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-portsmouth-city-va/"
+  },
+  {
+   "fips": "51145",
+   "name": "Powhatan County",
+   "slug": "powhatan-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-powhatan-county-va/"
+  },
+  {
+   "fips": "51147",
+   "name": "Prince Edward County",
+   "slug": "prince-edward-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-prince-edward-county-va/"
+  },
+  {
+   "fips": "51149",
+   "name": "Prince George County",
+   "slug": "prince-george-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-prince-george-county-va/"
+  },
+  {
+   "fips": "51153",
+   "name": "Prince William County",
+   "slug": "prince-william-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-prince-william-county-va/"
+  },
+  {
+   "fips": "51155",
+   "name": "Pulaski County",
+   "slug": "pulaski-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-pulaski-county-va/"
+  },
+  {
+   "fips": "51750",
+   "name": "Radford City",
+   "slug": "radford-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-radford-city-va/"
+  },
+  {
+   "fips": "51157",
+   "name": "Rappahannock County",
+   "slug": "rappahannock-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-rappahannock-county-va/"
+  },
+  {
+   "fips": "51760",
+   "name": "Richmond City",
+   "slug": "richmond-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-richmond-city-va/"
+  },
+  {
+   "fips": "51159",
+   "name": "Richmond County",
+   "slug": "richmond-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-richmond-county-va/"
+  },
+  {
+   "fips": "51770",
+   "name": "Roanoke City",
+   "slug": "roanoke-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-roanoke-city-va/"
+  },
+  {
+   "fips": "51161",
+   "name": "Roanoke County",
+   "slug": "roanoke-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-roanoke-county-va/"
+  },
+  {
+   "fips": "51163",
+   "name": "Rockbridge County",
+   "slug": "rockbridge-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-rockbridge-county-va/"
+  },
+  {
+   "fips": "51165",
+   "name": "Rockingham County",
+   "slug": "rockingham-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-rockingham-county-va/"
+  },
+  {
+   "fips": "51167",
+   "name": "Russell County",
+   "slug": "russell-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-russell-county-va/"
+  },
+  {
+   "fips": "51775",
+   "name": "Salem City",
+   "slug": "salem-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-salem-city-va/"
+  },
+  {
+   "fips": "51169",
+   "name": "Scott County",
+   "slug": "scott-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-scott-county-va/"
+  },
+  {
+   "fips": "51171",
+   "name": "Shenandoah County",
+   "slug": "shenandoah-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-shenandoah-county-va/"
+  },
+  {
+   "fips": "51173",
+   "name": "Smyth County",
+   "slug": "smyth-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-smyth-county-va/"
+  },
+  {
+   "fips": "51175",
+   "name": "Southampton County",
+   "slug": "southampton-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-southampton-county-va/"
+  },
+  {
+   "fips": "51177",
+   "name": "Spotsylvania County",
+   "slug": "spotsylvania-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-spotsylvania-county-va/"
+  },
+  {
+   "fips": "51179",
+   "name": "Stafford County",
+   "slug": "stafford-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-stafford-county-va/"
+  },
+  {
+   "fips": "51790",
+   "name": "Staunton City",
+   "slug": "staunton-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-staunton-city-va/"
+  },
+  {
+   "fips": "51800",
+   "name": "Suffolk City",
+   "slug": "suffolk-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-suffolk-city-va/"
+  },
+  {
+   "fips": "51181",
+   "name": "Surry County",
+   "slug": "surry-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-surry-county-va/"
+  },
+  {
+   "fips": "51183",
+   "name": "Sussex County",
+   "slug": "sussex-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-sussex-county-va/"
+  },
+  {
+   "fips": "51185",
+   "name": "Tazewell County",
+   "slug": "tazewell-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-tazewell-county-va/"
+  },
+  {
+   "fips": "51810",
+   "name": "Virginia Beach City",
+   "slug": "virginia-beach-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-virginia-beach-city-va/"
+  },
+  {
+   "fips": "51187",
+   "name": "Warren County",
+   "slug": "warren-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-warren-county-va/"
+  },
+  {
+   "fips": "51191",
+   "name": "Washington County",
+   "slug": "washington-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-washington-county-va/"
+  },
+  {
+   "fips": "51820",
+   "name": "Waynesboro City",
+   "slug": "waynesboro-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-waynesboro-city-va/"
+  },
+  {
+   "fips": "51193",
+   "name": "Westmoreland County",
+   "slug": "westmoreland-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-westmoreland-county-va/"
+  },
+  {
+   "fips": "51830",
+   "name": "Williamsburg City",
+   "slug": "williamsburg-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-williamsburg-city-va/"
+  },
+  {
+   "fips": "51840",
+   "name": "Winchester City",
+   "slug": "winchester-city-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-winchester-city-va/"
+  },
+  {
+   "fips": "51195",
+   "name": "Wise County",
+   "slug": "wise-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-wise-county-va/"
+  },
+  {
+   "fips": "51197",
+   "name": "Wythe County",
+   "slug": "wythe-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-wythe-county-va/"
+  },
+  {
+   "fips": "51199",
+   "name": "York County",
+   "slug": "york-county-va",
+   "url": "https://www.vpap.org/elections/early-voting/2026-november-general-election/locality-york-county-va/"
+  }
+ ]
+}

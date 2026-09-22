@@ -75,7 +75,7 @@
 
     <div class="card table-card">
       <div class="card-head">
-        <h2>County detail</h2>
+        <h2 id="table-title">County detail</h2>
         <div class="table-actions">
           <input id="filter" class="filter" type="search" placeholder="Filter counties&hellip;" aria-label="Filter counties" />
           <button id="dl-csv" class="mini-btn" title="Download the county table as CSV">CSV</button>
@@ -88,8 +88,17 @@
           <tbody></tbody>
         </table>
       </div>
-      <p class="fineprint">Click a county for precinct-level detail. Each county links to its live TQV feed&nbsp;&#8599;.</p>
+      <p class="fineprint" id="table-note">Click a county for precinct-level detail. Each county links to its live TQV feed&nbsp;&#8599;.</p>
     </div>
+  </section>
+
+  <section id="locality-lookup" class="card" hidden aria-label="Per-locality early-vote detail" style="padding:14px 16px;">
+    <div class="card-head">
+      <h2 id="locality-lookup-title">Per-locality detail</h2>
+      <input id="locality-filter" class="filter" type="search" placeholder="Find a city or county&hellip;" aria-label="Filter localities" />
+    </div>
+    <p class="dim" id="locality-lookup-note"></p>
+    <div id="locality-links" class="locality-links"></div>
   </section>
 
   <section id="county-panel" class="card" hidden aria-label="County detail" style="padding:14px 16px;">

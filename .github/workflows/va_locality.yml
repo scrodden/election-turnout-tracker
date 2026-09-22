@@ -1,0 +1,69 @@
+name: VA locality early-vote (daily)
+
+# Virginia's per-locality early-vote numbers exist only on VPAP's per-locality
+# pages (VA ELECT's locality file is a paid, voter-level list; VPAP's only bulk
+# feed is the by-CD file used by the 10-minute turnout job). VPAP sits behind
+# Cloudflare and only refreshes ~once a day, so we scrape gently, once a day, in
+# small paced groups. Anything challenged is skipped and the prior value kept
+# (never fabricated); config/va_localities.json still powers the outbound-link
+# directory so locality detail is always reachable even if a run is blocked.
+#
+# Runs in its own workflow (not the every-10-min turnout loop) because a paced
+# 133-page pass takes ~15 minutes and must not block turnout updates.
+
+on:
+  schedule:
+    - cron: "0 11 * * *"    # 11:00 UTC daily (~after VPAP's early-morning refresh)
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force a scrape even if data is fresh (<20h)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: va-locality
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Stop if all states are frozen/archived
+        id: gate
+        run: |
+          if [ -f data/_frozen_all.json ]; then echo "frozen=1" >> "$GITHUB_OUTPUT"; else echo "frozen=0" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Scrape VA per-locality early voting (paced)
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          FORCE=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then FORCE="--force"; fi
+          python scripts/va_locality_update.py $FORCE || echo "va locality scrape failed (non-fatal)"
+
+      - name: Commit if locality data changed
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          git config user.name  "turnout-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/va/locality.json
+          if git diff --cached --quiet; then
+            echo "No VA locality change; nothing to commit."
+          else
+            ts=$(date -u '+%Y-%m-%d %H:%M UTC')
+            git commit -m "VA locality early-vote update $ts"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
+            git push
+          fi
