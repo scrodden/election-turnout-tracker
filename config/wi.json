@@ -7,13 +7,15 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-09-19",
   "source": {
-    "_comment": "STAGED SKELETON. Battleground; absentee by municipality (town->county), no party registration. Source pointer: https://elections.wi.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://elections.wi.gov/"
+    "_comment": "LIVE. Wisconsin Elections Commission daily 'Absentee Ballot Report' county CSV. The dynamic report page is WAF-blocked to non-browsers, but the static CSV under /sites/default/files/documents/ is not. Columns: Election,HINDI(county code),Jurisdiction,AbsenteeApplications,BallotsSent,BallotsReturned,InPersonAbsentee. WI has no party registration -> turnout-only; cast = BallotsReturned + InPersonAbsentee. The filename carries an as-of date, so walk back a few days to the newest posted file.",
+    "county_csv_pattern": "https://elections.wi.gov/sites/default/files/documents/AbsenteeCounts_County_2026 General Election_as-of_{date}.csv",
+    "date_walkback_days": 7
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Absentee ballots cast",
+    "mail_voted": "Returned by mail",
+    "early_voted": "In-person absentee"
   }
 }
