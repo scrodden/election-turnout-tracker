@@ -391,9 +391,62 @@ def parse_ky():
     return {"rep": rep, "dem": dem, "npa": ind, "oth": other + minor, "as_of": as_of}
 
 
-# SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"} (wired per state)
+def _latest_pdf(pattern, fmt):
+    """Walk back from the current month to the newest posted monthly PDF.
+    Returns (raw, as_of_label, url) or raises."""
+    for url, label in _months_back(pattern, fmt):
+        try:
+            r = C.http_get(url, binary=True)
+            if r[:4] == b"%PDF":
+                return r, label, url
+        except Exception:  # noqa: BLE001
+            continue
+    raise RuntimeError("no monthly report found for %s" % pattern)
+
+
+def parse_ia():
+    """IA SoS monthly county 'Voter Registration Totals' PDF
+    (elections/pdf/VRStatsArchive/2026/Co<Mon>26.pdf). The statewide 'Totals' row is
+    [Dem, Rep, No Party, Other, Total] ACTIVE, the same five INACTIVE, then the grand
+    total. Uses active registration, as CO and MD do. No Party -> npa."""
+    abbr = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    raw, as_of, url = _latest_pdf(
+        "https://sos.iowa.gov/elections/pdf/VRStatsArchive/2026/Co%s26.pdf", lambda m: abbr[m - 1])
+    m = re.search(r"^Totals\s+([\d,]+(?:\s+[\d,]+){10})\s*$", _pdf_text(raw), re.M)
+    if not m:
+        raise RuntimeError("IA: Totals row not found")
+    n = [int(x.replace(",", "")) for x in m.group(1).split()]
+    dem, rep, npa, oth, active = n[0], n[1], n[2], n[3], n[4]
+    if dem + rep + npa + oth != active:
+        raise RuntimeError("IA: active party columns don't sum to the active total")
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": as_of, "source": url}
+
+
+def parse_or():
+    """OR SoS monthly 'Voter Registration by County' PDF
+    (elections/Documents/Registration/2026-<month>.pdf). The party table's 'Total' row
+    is [Democrat, Republican, Non Affiliated, Constitution, Independent, Libertarian,
+    No Labels, Pacific Green, Progressive, We the People, Working Families, Other,
+    Total]. Non Affiliated -> npa; every minor party (including the Independent Party
+    of Oregon, a real party) -> oth."""
+    names = ["january", "february", "march", "april", "may", "june", "july",
+             "august", "september", "october", "november", "december"]
+    raw, as_of, url = _latest_pdf(
+        "https://sos.oregon.gov/elections/Documents/Registration/2026-%s.pdf", lambda m: names[m - 1])
+    m = re.search(r"^Total\s+([\d,]+(?:\s+[\d,]+){12})\s*$", _pdf_text(raw), re.M)
+    if not m:
+        raise RuntimeError("OR: Total row not found")
+    n = [int(x.replace(",", "")) for x in m.group(1).split()]
+    if sum(n[:12]) != n[12]:
+        raise RuntimeError("OR: party columns don't sum to the total")
+    dem, rep, npa = n[0], n[1], n[2]
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": sum(n[3:12]), "as_of": as_of, "source": url}
+
+
+# SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"[,"source"]} (wired per state)
 SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co,
-           "md": parse_md, "ky": parse_ky, "ne": parse_ne, "ak": parse_ak}
+           "md": parse_md, "ky": parse_ky, "ne": parse_ne, "ak": parse_ak,
+           "ia": parse_ia, "or": parse_or}
 
 
 def main():
@@ -407,6 +460,10 @@ def main():
         return 0
     reg = load(STATES_PATH, {}) or {}
     srcmap = (load(SRC_PATH, {}) or {}).get("sources", {})
+    # A state whose source is temporarily unreachable (site down, WAF-blocked from
+    # this runner's IP, format change) keeps its last-known numbers instead of
+    # dropping off the table; its original as_of date shows how old they are.
+    prev_states = (existing or {}).get("states", {}) or {}
     out = {}
     for s in reg.get("states", []):
         code = s.get("code")
@@ -419,13 +476,17 @@ def main():
             r = fn() or {}
         except Exception as e:  # noqa: BLE001
             print("  ! %s registration failed: %s" % (code, str(e)[:60]), file=sys.stderr)
-            continue
+            r = {}
         rep = int(r.get("rep", 0)); dem = int(r.get("dem", 0)); npa = int(r.get("npa", 0)); oth = int(r.get("oth", 0))
         tot = rep + dem + npa + oth
         if tot <= 0:
+            prev = prev_states.get(code)
+            if prev and not prev.get("manual"):
+                out[code] = dict(prev, stale=True)
+                print("  ! %s: keeping last-known values (as_of %s)" % (code, prev.get("as_of", "")), file=sys.stderr)
             continue
         out[code] = {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "total": tot,
-                     "as_of": r.get("as_of", ""), "source": srcmap.get(code, "")}
+                     "as_of": r.get("as_of", ""), "source": r.get("source") or srcmap.get(code, "")}
 
     # Manual snapshots for states whose official source can't be auto-fetched
     # (e.g. Cloudflare/JS dashboards like Idaho's VoteIdaho). These are read by
