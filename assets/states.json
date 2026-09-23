@@ -181,12 +181,12 @@
     {
       "code": "oh",
       "name": "Ohio",
-      "partisan": false,
+      "partisan": true,
       "hidden": true,
       "data": "data/oh/latest.json",
       "geojson": "assets/oh-counties.geojson",
       "history": "data/oh/history.jsonl",
-      "source_note": "Source: <a href='https://www.ohiosos.gov/elections/voters/ohio-absentee-data/' target='_blank' rel='noopener'>Ohio Secretary of State</a> daily absentee/early voting report by county. Ohio has no party registration, so this is turnout-only. Early voting begins in October, so figures read zero until then."
+      "source_note": "Source: <a href='https://data.ohiosos.gov/portal/election-dashboards' target='_blank' rel='noopener'>Ohio Secretary of State Absentee and Early Voting dashboard</a>, refreshed daily around noon ET. Ohio has no party registration; party here is the SoS's voter-affiliated party, based on which party's primary ballot a voter last chose (never voted in a partisan primary = Unaffiliated, shown as NPA). Early in-person voting starts October 6."
     },
     {
       "code": "tx",
@@ -242,7 +242,7 @@
       "data": "data/id/latest.json",
       "geojson": "assets/id-counties.geojson",
       "history": "data/id/history.jsonl",
-      "source_note": "Source: <a href='https://sos.idaho.gov/elections-division/' target='_blank' rel='noopener'>Idaho Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://voteidaho.gov/data-and-dashboards/absentee-tracker/' target='_blank' rel='noopener'>Idaho Secretary of State VoteIdaho absentee tracker</a> — absentee ballots returned by county &amp; registered party."
     },
     {
       "code": "ky",

@@ -2,18 +2,24 @@
   "state": "oh",
   "state_name": "Ohio",
   "state_fips": "39",
-  "partisan": false,
+  "partisan": true,
   "election": {
     "date": "2026-11-03",
     "name": "2026 General"
   },
   "general_start": "2026-10-06",
   "source": {
-    "_comment": "Ohio has NO party registration for the general -> turnout-only. OH SoS posts a daily 'Absentee Report Count' XLSX by county (all 88 boards) during early voting, plus a dashboard. UPGRADEABLE to a real stdlib-xlsx parser like CO; STAGED SKELETON for now (routine wires + validates the live XLSX in Oct, ~Oct 6 start).",
-    "portal": "https://www.ohiosos.gov/elections/voters/ohio-absentee-data/"
+    "_comment": "LIVE. Ohio SoS 'Absentee and Early Voting Data' dashboard (data.ohiosos.gov/portal/election-dashboards -> Power BI publish-to-web). The portal page and the SoS text export (publicfiles.ohiosos.gov) sit behind a Cloudflare browser challenge, but the report's public query API does not, so oh_update.py queries it directly (same aggregates the dashboard shows). Ohio has no party registration; Voter_Party_Bucketed is the SoS's voter-affiliated party from partisan-primary history: Republican->rep, Democratic->dem, Unaffiliated->npa, Minor Party + blank->oth. NO_EIP = absentee by mail, INCL_EIP = mail + early in person. The report's locked page filters (Election Ballot Return Date Range, VALID_DATE_BOOL_AGG = true) must be applied or sums double count. Refreshes daily ~noon ET; polled only after refresh_after_utc_hour until the day's stamp lands. Switch election_description if the SoS relabels the election.",
+    "dashboard": "https://data.ohiosos.gov/portal/election-dashboards",
+    "pbi_api": "https://wabi-us-gov-iowa-api.analysis.usgovcloudapi.net/public/reports/",
+    "pbi_resource_key": "77b7dd4e-7c38-4f79-9992-fdb5502cd2e9",
+    "pbi_entity": "absentee v_detailed_grouped",
+    "election_description": "2026 NOV GENERAL",
+    "refresh_after_utc_hour": 15
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Ballots returned (mail + early in person)",
+    "mail_voted": "Returned by mail",
+    "early_voted": "Early in person"
   }
 }

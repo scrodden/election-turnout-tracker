@@ -193,8 +193,9 @@
       ? new Date(data.source_compiled_iso).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" })
       : (data.source_compiled || "—");
     $("#updated").innerHTML = "Data updated: <b>" + upd + "</b>";
-    $("#updated").title = "Newest county TQV timestamp; page fetched " + fetched;
-    $("#hash").textContent = "snapshot " + (data.data_hash || "").slice(0, 10) + " · primary: VR Systems TQV · fetched " + fetched;
+    var primary = (data.source && data.source.primary) || "VR Systems TQV";   // FL's snapshot carries no label
+    $("#updated").title = "Newest source timestamp; page fetched " + fetched;
+    $("#hash").textContent = "snapshot " + (data.data_hash || "").slice(0, 10) + " · source: " + primary + " · fetched " + fetched;
 
     // Post-certification: the state is archived and live updates have stopped.
     var fb = $("#frozen-banner");
