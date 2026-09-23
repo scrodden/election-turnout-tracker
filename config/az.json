@@ -56,8 +56,16 @@
       {
         "name": "Maricopa",
         "fips": "04013",
-        "source": "https://recorder.maricopa.gov/early-voting-ballot-statistics/",
-        "wired": false
+        "source": "https://data-maricopa.opendata.arcgis.com/ (Maricopa County Elections GIS: 'Early Voting Returns' feature services)",
+        "_comment": "recorder.maricopa.gov / elections.maricopa.gov sit behind a Cloudflare browser challenge; these public ArcGIS feature services (owner MaricopaElectionsGIS) are not. Per precinct: Requests, Returns (signature-verified), ElectionDescription, for 'the currently active election'; all voters + Republican + Democratic layers (rest -> npa). Still held the JULY 21 2026 PRIMARY as of 2026-09-23 — the parser waits until ElectionDescription contains every election_token. Also available (unused): Maricopa_County_Early_Voting_Returns_In_Hand (received, not yet verified) and Maricopa_County_Voter_Totals_By_Voting_Precinct (registration by party; empty on 2026-09-23).",
+        "arcgis_base": "https://services.arcgis.com/ykpntM6e3tHvzKRJ/arcgis/rest/services/",
+        "layers": {
+          "all": "Maricopa_County_EV_Return_Statistics",
+          "rep": "Maricopa_County_Early_Voting_Return_Statistics_(Republican)",
+          "dem": "Maricopa_County_Early_Voting_Returns_Statistics_(Democratic)"
+        },
+        "election_tokens": ["2026", "GENERAL"],
+        "wired": true
       },
       {
         "name": "Mohave",
@@ -105,7 +113,7 @@
   },
   "method_labels": {
     "cast": "Ballots returned",
-    "mail_voted": "Mail ballots returned",
+    "mail_voted": "Early ballots returned (signature-verified)",
     "early_voted": "Early in person"
   }
 }

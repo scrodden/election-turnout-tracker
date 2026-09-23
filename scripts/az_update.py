@@ -18,6 +18,7 @@ Run:  python scripts/az_update.py [--force]
 import os
 import sys
 import json
+import urllib.parse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -30,7 +31,7 @@ GEO_PATH = os.path.join(ROOT, "assets", "az-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
-METHODS = ["mail_voted", "early_voted", "election_day"]
+METHODS = ["mail_voted", "early_voted", "election_day", "mail_provided"]
 VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]
 
 
@@ -42,14 +43,55 @@ def load(p):
 # --- per-county parsers -------------------------------------------------------
 # Each takes the county's config entry and returns {method_key: {rep,dem,oth,npa}}
 # or None if unavailable. Wire these as each county's live feed is confirmed.
-# (None registered yet -> every county reads 0, valid empty snapshot.)
 
 def _stub(_county):
     return None
 
 
+def _arcgis_sums_by_election(base, service):
+    """Sum Requests/Returns of an ArcGIS feature layer, grouped by
+    ElectionDescription -> {description: (requests, returns)}."""
+    stats = json.dumps([{"statisticType": "sum", "onStatisticField": f, "outStatisticFieldName": f.lower()}
+                        for f in ("Requests", "Returns")])
+    url = ("%s%s/FeatureServer/0/query?where=1%%3D1&groupByFieldsForStatistics=ElectionDescription"
+           "&outStatistics=%s&f=json" % (base, urllib.parse.quote(service), urllib.parse.quote(stats)))
+    j = json.loads(C.http_get(url, no_cache=True))
+    if "error" in j:
+        raise RuntimeError("ArcGIS: %s" % j["error"].get("message"))
+    out = {}
+    for ft in j.get("features", []):
+        a = ft["attributes"]
+        if a.get("ElectionDescription"):
+            out[a["ElectionDescription"].strip()] = (int(a.get("requests") or 0), int(a.get("returns") or 0))
+    return out
+
+
+def parse_maricopa(county):
+    """Maricopa County Elections GIS publishes early-ballot requests & returns
+    (signature-verified) by precinct for 'the currently active election' as
+    public ArcGIS feature services: all voters + a Republican and a Democratic
+    layer. Not behind the recorder site's Cloudflare challenge. Rest of the
+    electorate (independents/PND + minor parties) = all - R - D -> npa.
+    Only returns data once a layer's ElectionDescription matches the general
+    (county['election_tokens']), so the July primary never leaks in."""
+    base, layers = county["arcgis_base"], county["layers"]
+    tokens = [t.upper() for t in county.get("election_tokens", [])]
+    sums = {}
+    for key in ("all", "rep", "dem"):
+        by_elec = _arcgis_sums_by_election(base, layers[key])
+        hit = [v for d, v in by_elec.items() if all(t in d.upper() for t in tokens)]
+        if not hit:
+            print("  maricopa: %s layer holds %s — waiting for the general" % (key, sorted(by_elec) or "nothing"))
+            return None
+        sums[key] = hit[0]
+    (areq, aret), (rreq, rret), (dreq, dret) = sums["all"], sums["rep"], sums["dem"]
+    ret = {"rep": rret, "dem": dret, "oth": 0, "npa": max(0, aret - rret - dret)}
+    req = {"rep": rreq, "dem": dreq, "oth": 0, "npa": max(0, areq - rreq - dreq)}
+    return {"mail_voted": ret, "mail_provided": {p: max(0, req[p] - ret[p]) for p in req}}
+
+
 PARSERS = {
-    # "04013": parse_maricopa,   # ~60% of AZ voters — wire first
+    "04013": parse_maricopa,   # ~60% of AZ voters
     # "04019": parse_pima,
     # "04021": parse_pinal,
 }
@@ -62,6 +104,9 @@ def county_entity(fips, methods):
             ent[mkey] = C.party_block(s.get("rep", 0), s.get("dem", 0), s.get("oth", 0), s.get("npa", 0))
     voted = [ent[m] for m in VOTED_METHODS if ent.get(m)]
     ent["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
+    m = C.compute_mail(ent)
+    if m:
+        ent["mail"] = m
     return ent
 
 
@@ -89,16 +134,20 @@ def main():
             statewide[mkey] = C.add_blocks(*blocks)
     voted = [statewide[m] for m in VOTED_METHODS if statewide.get(m)]
     statewide["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
+    m = C.compute_mail(statewide)
+    if m:
+        statewide["mail"] = m
     methods_present = sorted({m for c in counties_out.values() for m in METHODS if c.get(m)})
 
     snap = {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
-        "source": {"primary": "Arizona county recorders (aggregated), by registered party"},
+        "partisan": True,
+        "source": {"primary": "Arizona county recorders (aggregated), by registered party; Maricopa via its Elections GIS early-ballot feature services"},
         "source_compiled": "", "source_compiled_iso": (C.utc_now_iso() if counties_out else ""),
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
-    snap["data_hash"] = C.data_hash(snap)
+    snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
     snap["generated_at"] = C.utc_now_iso()
 
     prev = None

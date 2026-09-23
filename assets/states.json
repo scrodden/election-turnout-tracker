@@ -205,7 +205,7 @@
       "data": "data/az/latest.json",
       "geojson": "assets/az-counties.geojson",
       "history": "data/az/history.jsonl",
-      "source_note": "Source: <a href='https://azsos.gov/elections' target='_blank' rel='noopener'>Arizona Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: Arizona has no statewide early-vote feed, so counties are added one at a time. <a href='https://data-maricopa.opendata.arcgis.com/' target='_blank' rel='noopener'>Maricopa County Elections</a> (about 60% of Arizona voters): early ballots requested and returned (signature-verified) by registered party; NPA here means everyone not registered Republican or Democratic. Other counties show no data until wired. Ballots mail October 7."
     },
     {
       "code": "ca",
