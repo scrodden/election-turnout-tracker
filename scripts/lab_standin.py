@@ -95,7 +95,7 @@ def _demographics(row):
     return groups or None
 
 
-def build(code, cfg, geo_path, partisan):
+def build(code, cfg, geo_path, partisan, role="stand-in until the official source is wired"):
     """-> snapshot dict (without generated_at) or None if the Lab has nothing."""
     st = code.upper()
     try:
@@ -138,8 +138,8 @@ def build(code, cfg, geo_path, partisan):
     if demo:
         body["demographics"] = demo
     snap = dict(body)
-    snap["source"] = {"primary": "UF Election Lab early-vote tracker (M. McDonald), %s; CC BY-NC-ND 4.0 -- stand-in until "
-                                 "the official source is wired" % (row.get("data_source") or "state election office"),
+    snap["source"] = {"primary": "UF Election Lab early-vote tracker (M. McDonald), %s; CC BY-NC-ND 4.0 -- %s"
+                                 % (row.get("data_source") or "state election office", role),
                       "url": PAGE, "as_of": row.get("last_update", ""), "county_detail": bool(counties), "note": note}
     snap["source_compiled"] = row.get("last_update", "")
     snap["source_compiled_iso"] = C.utc_now_iso()
@@ -162,7 +162,7 @@ def due(prev, force=False):
     return now.minute < 12 or not prev.get("lab_standin")
 
 
-def run(code, cfg, geo_path, latest_path, history_path, partisan, force=False):
+def run(code, cfg, geo_path, latest_path, history_path, partisan, force=False, role=None):
     """Build + write the stand-in. Returns True if the state has Lab data
     (including when an existing stand-in is kept because no check is due)."""
     prev0 = _load(latest_path, {}) or {}
@@ -171,7 +171,7 @@ def run(code, cfg, geo_path, latest_path, history_path, partisan, force=False):
             print("%s: holding the Election Lab's %s update (stand-in) — next check not due."
                   % (code, (prev0.get("source") or {}).get("as_of")))
         return bool(prev0.get("lab_standin"))
-    snap = build(code, cfg, geo_path, partisan)
+    snap = build(code, cfg, geo_path, partisan, **({"role": role} if role else {}))
     if not snap:
         return bool(prev0.get("lab_standin"))   # Lab unreachable: keep the last stand-in
     prev = prev0

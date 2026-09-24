@@ -100,6 +100,14 @@ def main():
     cfg = load(CONFIG_PATH, {}) or {}
     src = cfg.get("source", {})
     section = sys.argv[sys.argv.index("--section") + 1] if "--section" in sys.argv else src.get("section_match", "General")
+    # South Dakota's own page is statewide only, so the Election Lab's county-level
+    # file (built from the Secretary of State's data) is the primary source here
+    # (Sam, 2026-09-24). The official weekly page is the fallback if the Lab has
+    # nothing for SD.
+    if "--section" not in sys.argv and LAB.run(
+            STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force,
+            role="primary source for South Dakota (county detail; the SoS page is statewide only)"):
+        return 0
     try:
         res = parse(C.http_get(src["page"], retries=2), section)
     except Exception as e:  # noqa: BLE001
@@ -107,8 +115,6 @@ def main():
         res = None
     if not res or not res["parties"]:
         print("sd: waiting — no '%s' section on the weekly absentee page yet." % section)
-        if "--section" not in sys.argv:   # stand-in until the official page posts the general
-            LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force)
         return 0
 
     voted = {p: v[1] for p, v in res["parties"].items()}

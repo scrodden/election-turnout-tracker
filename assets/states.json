@@ -315,7 +315,7 @@
       "data": "data/sd/latest.json",
       "geojson": "assets/sd-counties.geojson",
       "history": "data/sd/history.jsonl",
-      "source_note": "Source: Until the <a href='https://sdsos.gov/elections-voting/upcoming-elections/general-information/2026%20Election%20Information/2026-Election-Absentee-Data.aspx' target='_blank' rel='noopener'>South Dakota Secretary of State</a> posts its weekly general-election absentee numbers (statewide, by party), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Secretary of State. Independents and no-party voters are shown as NPA."
+      "source_note": "Source: absentee ballots by county and registered party from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), which gets them from the South Dakota Secretary of State; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. The Secretary of State's own <a href='https://sdsos.gov/elections-voting/upcoming-elections/general-information/2026%20Election%20Information/2026-Election-Absentee-Data.aspx' target='_blank' rel='noopener'>weekly page</a> has statewide totals only, so it is used just as a backup. Independents and no-party voters are shown as NPA."
     },
     {
       "code": "ut",
