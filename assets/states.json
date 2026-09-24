@@ -56,7 +56,7 @@
       "data": "data/co/latest.json",
       "geojson": "assets/co-counties.geojson",
       "history": "data/co/history.jsonl",
-      "source_note": "Source: <a href='https://www.coloradosos.gov/pubs/newsRoom/' target='_blank' rel='noopener'>Colorado Secretary of State</a> daily &ldquo;General Election Activity&rdquo; report — ballots returned by county &amp; registered party. Colorado is all-mail; the daily file publishes once ballots mail in mid-October, so figures read zero until then."
+      "source_note": "Source: Until the <a href='https://www.coloradosos.gov/' target='_blank' rel='noopener'>Colorado Secretary of State</a> posts its daily ballot-return file (once ballots mail in mid-October), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Secretary of State. Unaffiliated voters are shown as NPA; &ldquo;sent&rdquo; counts every active voter, since Colorado mails everyone a ballot."
     },
     {
       "code": "la",
@@ -288,7 +288,7 @@
       "data": "data/ok/latest.json",
       "geojson": "assets/ok-counties.geojson",
       "history": "data/ok/history.jsonl",
-      "source_note": "Source: <a href='https://oklahoma.gov/elections/voters/absentee-voting-statistics/absentee-voting-statistics.html' target='_blank' rel='noopener'>Oklahoma State Election Board</a> absentee statistics by county &amp; registered party (mail ballots received and in-person absentee voting). The board posts these only in the final weeks before Election Day, so figures appear then."
+      "source_note": "Source: Until the <a href='https://oklahoma.gov/elections/voters/absentee-voting-statistics/absentee-voting-statistics.html' target='_blank' rel='noopener'>Oklahoma State Election Board</a> posts its county-by-party absentee reports (it does so only in the final weeks), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, drawn from the Election Board's data warehouse. Independents are shown as NPA."
     },
     {
       "code": "or",
@@ -315,7 +315,7 @@
       "data": "data/sd/latest.json",
       "geojson": "assets/sd-counties.geojson",
       "history": "data/sd/history.jsonl",
-      "source_note": "Source: <a href='https://sdsos.gov/elections-voting/upcoming-elections/general-information/2026%20Election%20Information/2026-Election-Absentee-Data.aspx' target='_blank' rel='noopener'>South Dakota Secretary of State</a> weekly absentee statistics (updated Fridays), by registered party. South Dakota publishes statewide totals only, so there is no county map. Independents and no-party voters are shown as NPA."
+      "source_note": "Source: Until the <a href='https://sdsos.gov/elections-voting/upcoming-elections/general-information/2026%20Election%20Information/2026-Election-Absentee-Data.aspx' target='_blank' rel='noopener'>South Dakota Secretary of State</a> posts its weekly general-election absentee numbers (statewide, by party), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Secretary of State. Independents and no-party voters are shown as NPA."
     },
     {
       "code": "ut",
@@ -392,7 +392,7 @@
       "data": "data/in/latest.json",
       "geojson": "assets/in-counties.geojson",
       "history": "data/in/history.jsonl",
-      "source_note": "Source: <a href='https://www.in.gov/sos/elections/' target='_blank' rel='noopener'>Indiana Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: Figures by county come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Indiana Secretary of State; Indiana posts no public early-vote file. Indiana has no party registration, so this is turnout only: absentee ballots requested and returned, plus in-person early votes once early voting starts."
     },
     {
       "code": "ms",
@@ -462,7 +462,7 @@
       "data": "data/vt/latest.json",
       "geojson": "assets/vt-counties.geojson",
       "history": "data/vt/history.jsonl",
-      "source_note": "Source: <a href='https://sos.vermont.gov/elections/' target='_blank' rel='noopener'>Vermont Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: Statewide figures come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, from Vermont Secretary of State data; Vermont posts no public early-vote file. Vermont mails a ballot to every active voter and has no party registration, so this is turnout only: ballots sent and returned. No county map."
     },
     {
       "code": "wi",

@@ -26,11 +26,13 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import common as C  # noqa: E402
+import lab_standin as LAB  # noqa: E402
 
 STATE = "sd"
 CONFIG_PATH = os.path.join(ROOT, "config", "sd.json")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
+GEO_PATH = os.path.join(ROOT, "assets", "sd-counties.geojson")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 
 PARTY = {"REP": "rep", "DEM": "dem", "IND": "npa", "NPA": "npa", "LIB": "oth", "OTH": "oth"}
@@ -102,9 +104,11 @@ def main():
         res = parse(C.http_get(src["page"], retries=2), section)
     except Exception as e:  # noqa: BLE001
         print("SD fetch failed: %s" % str(e)[:140], file=sys.stderr)
-        return 0
+        res = None
     if not res or not res["parties"]:
         print("sd: waiting — no '%s' section on the weekly absentee page yet." % section)
+        if "--section" not in sys.argv:   # stand-in until the official page posts the general
+            LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force)
         return 0
 
     voted = {p: v[1] for p, v in res["parties"].items()}

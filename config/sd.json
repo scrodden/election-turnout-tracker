@@ -11,7 +11,8 @@
   "source": {
     "_comment": "SD SoS posts weekly (Fridays) statewide absentee statistics with a party breakout on its '2026 Weekly Absentee Numbers' page, one section per election. No county breakdown is published, so SD is statewide-only (counties empty). sd_update.py reads the section whose heading contains section_match. As of 2026-09-24 only the Primary and Run-off sections were posted.",
     "page": "https://sdsos.gov/elections-voting/upcoming-elections/general-information/2026%20Election%20Information/2026-Election-Absentee-Data.aspx",
-    "section_match": "General"
+    "section_match": "General",
+    "_standin": "Until the official source posts (or is wired), the connector writes a UF Election Lab stand-in via scripts/lab_standin.py (US.csv + SD_county.csv when available; unaltered, attributed, CC BY-NC-ND 4.0). Official data replaces it automatically."
   },
   "method_labels": {
     "cast": "Absentee ballots received",

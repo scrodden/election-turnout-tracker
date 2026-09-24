@@ -10,10 +10,12 @@
   "general_start": "2026-10-15",
   "source": {
     "_comment": "STAGED SKELETON. Early voting by county (no party registration). Source pointer: https://www.in.gov/sos/elections/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.in.gov/sos/elections/"
+    "portal": "https://www.in.gov/sos/elections/",
+    "_standin": "Until the official source posts (or is wired), the connector writes a UF Election Lab stand-in via scripts/lab_standin.py (US.csv + IN_county.csv when available; unaltered, attributed, CC BY-NC-ND 4.0). Official data replaces it automatically."
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Ballots returned",
+    "mail_voted": "Absentee/mail ballots returned",
+    "early_voted": "Early in person"
   }
 }

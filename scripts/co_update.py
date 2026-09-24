@@ -165,6 +165,11 @@ def main():
         except Exception as e:  # noqa: BLE001 - unverified layout -> fail safe to empty
             print("parse failed (layout PENDING verification): %s" % str(e)[:80])
 
+    if not counties_out:   # stand-in until the SoS posts its daily General Election Activity file
+        import lab_standin as LAB
+        if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force):
+            return 0
+
     statewide = {"cast": C.add_blocks(*[c["cast"] for c in counties_out.values()]) if counties_out
                  else C.party_block(0, 0, 0, 0)}
     snap = {

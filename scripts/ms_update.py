@@ -24,7 +24,7 @@ sys.path.insert(0, HERE)
 import common as C  # noqa: E402
 
 STATE = "ms"
-CONFIG_PATH = os.path.join(ROOT, "config", "wa.json")
+CONFIG_PATH = os.path.join(ROOT, "config", "ms.json")
 GEO_PATH = os.path.join(ROOT, "assets", "ms-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")

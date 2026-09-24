@@ -12,7 +12,8 @@
     "_comment": "Oklahoma State Election Board posts county x party absentee PDFs on its Absentee Voting Statistics page only in an election's final stretch (for the 2024 general: from Oct 29). ok_update.py takes the newest 2026 'ballot-totals-by-affiliation' (mail: sent/undeliverable/received) and 'absentee-inperson-totals' (in-person early) files and uses them only if the election date printed in the file is election_date, so primary/runoff files are ignored. Parser verified against the 2024 general mail report and the Aug 2026 runoff in-person report.",
     "stats_page": "https://oklahoma.gov/elections/voters/absentee-voting-statistics/absentee-voting-statistics.html",
     "year": "2026",
-    "election_date": "11/3/2026"
+    "election_date": "11/3/2026",
+    "_standin": "Until the official source posts (or is wired), the connector writes a UF Election Lab stand-in via scripts/lab_standin.py (US.csv + OK_county.csv when available; unaltered, attributed, CC BY-NC-ND 4.0). Official data replaces it automatically."
   },
   "method_labels": {
     "cast": "Absentee ballots (mail + in person)",

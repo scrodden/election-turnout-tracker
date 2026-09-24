@@ -29,6 +29,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import common as C  # noqa: E402
+import lab_standin as LAB  # noqa: E402
 
 STATE = "ok"
 CONFIG_PATH = os.path.join(ROOT, "config", "ok.json")
@@ -195,9 +196,11 @@ def main():
                 inp = rows
     except Exception as e:  # noqa: BLE001
         print("OK fetch/parse failed: %s" % str(e)[:160], file=sys.stderr)
-        return 0
+        mail, inp, seen = {}, {}, {}
     if not mail and not inp:
         print("ok: waiting — newest reports are for %s, not the %s general." % (seen or "nothing", want))
+        if not test:   # stand-in until the Election Board posts general-election reports
+            LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force)
         return 0
 
     statewide, counties, unmatched = build(mail, inp)
