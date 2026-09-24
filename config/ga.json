@@ -27,7 +27,8 @@
     ],
     "lab_csv": "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/US.csv",
     "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/",
-    "_fallback_comment": "Until the hub lists the general, ga_update.py shows the UF Election Lab's statewide Georgia row (built by the Lab from the SoS absentee voter file, whose download is reCAPTCHA Enterprise-gated and so is not scripted here). Used unaltered, attributed, CC BY-NC-ND 4.0 (non-commercial). The hub's county-level data replaces it automatically."
+    "_fallback_comment": "Until the hub lists the general, ga_update.py shows the UF Election Lab's statewide Georgia row (built by the Lab from the SoS absentee voter file, whose download is reCAPTCHA Enterprise-gated and so is not scripted here). Used unaltered, attributed, CC BY-NC-ND 4.0 (non-commercial). The hub's county-level data replaces it automatically.",
+    "lab_county_csv": "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/GA_county.csv"
   },
   "method_labels": {
     "cast": "Ballots cast",

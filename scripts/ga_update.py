@@ -213,21 +213,46 @@ def lab_fallback(cfg, src, now, status):
         return int(float(v)) if v.replace(".", "", 1).isdigit() else 0
     if not row or not n("request_all"):
         return None
+    def ent(req, ret, inp):
+        e = {"mail_voted": _block(ret), "mail_provided": _block(max(0, req - ret)), "early_voted": _block(inp),
+             "cast": _block(ret + inp), "registered": 0, "turnout_pct": None}
+        mm = C.compute_mail(e)
+        if mm:
+            e["mail"] = mm
+        return e
     req, ret, inp = n("request_all"), n("accept_all"), n("inperson_all")
-    statewide = {"mail_voted": _block(ret), "mail_provided": _block(max(0, req - ret)), "early_voted": _block(inp),
-                 "cast": _block(ret + inp), "registered": 0, "turnout_pct": None}
-    m = C.compute_mail(statewide)
-    if m:
-        statewide["mail"] = m
+    statewide = ent(req, ret, inp)
+    m = statewide.get("mail")
+    # county detail from the Lab's GA_county.csv; must add up to the statewide row
+    counties = {}
+    try:
+        crow = list(csv.DictReader(io.StringIO(C.http_get(src["lab_county_csv"], no_cache=True))))
+        geo = load(GEO_PATH, {"features": []})
+        gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}
+
+        def cn(r, k):
+            v = r.get(k, "") or ""
+            return int(float(v)) if v.replace(".", "", 1).isdigit() else 0
+        sums_ok = all(sum(cn(r, k) for r in crow) == n(k) for k in ("request_all", "accept_all", "inperson_all"))
+        for r in crow:
+            g = gidx.get(_norm(r.get("county")))
+            if g:
+                counties[g["name"]] = dict(ent(cn(r, "request_all"), cn(r, "accept_all"), cn(r, "inperson_all")), fips=g["fips"])
+        if not sums_ok or len(counties) != len(crow):
+            print("GA: Lab county file doesn't reconcile with the statewide row — statewide only.", file=sys.stderr)
+            counties = {}
+    except Exception as e:  # noqa: BLE001
+        print("GA: Lab county file unavailable: %s" % str(e)[:100], file=sys.stderr)
+        counties = {}
     demo = {"age": [{"label": lab, "count": n("voted_age_" + k)} for lab, k in LAB_AGE],
             "gender": [{"label": "Female", "count": n("voted_female")}, {"label": "Male", "count": n("voted_male")},
                        {"label": "Unknown", "count": n("voted_gender_unknown")}],
             "race": [{"label": lab, "count": n("voted_" + k)} for lab, k in LAB_RACE]}
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Georgia"), "election": cfg.get("election", {}),
-        "partisan": False, "statewide_only": True,
+        "partisan": False, "statewide_only": not counties,
         "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
-        "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": {},
+        "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
         "demographics": demo if n("voted_all") else None,
     }
     snap = dict(body)

@@ -648,6 +648,7 @@
       return (av - bv) * sort.dir;
     });
     var tb = $("#table tbody"); tb.innerHTML = "";
+    var showT = anyTurnout();   // must match activeCols() for turnout-only states
     rows.forEach(function (r) {
       var tr = el("tr"); tr.setAttribute("data-name", r.name);
       if (r.name === selected) tr.className = "sel";
@@ -655,7 +656,8 @@
         (r.margin == null ? "#333" : "#fff") + "'>" + marginText(r.margin) + "</span>";
       var link = r.tqv ? " <a class='tqv-mini' href='" + r.tqv + "' target='_blank' rel='noopener' title='Live TQV feed for " + r.name + "'>&#8599;</a>" : "";
       if (!partisan) {
-        tr.innerHTML = "<td class='county'>" + r.name + link + "</td><td>" + fmt(r.total) + "</td><td>" + pctText(r.turnout) + "</td>";
+        tr.innerHTML = "<td class='county'>" + r.name + link + "</td><td>" + fmt(r.total) + "</td>" +
+          (showT ? "<td>" + pctText(r.turnout) + "</td>" : "");
         tr.addEventListener("click", function (ev) { if (ev.target.closest("a")) return; selectCounty(r.name, false); });
         tb.appendChild(tr);
         return;
