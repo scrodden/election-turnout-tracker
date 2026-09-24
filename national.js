@@ -150,14 +150,16 @@
   function renderPartisanReg() {
     var host = $("#prtbl");
     var codes = reg && reg.states ? Object.keys(reg.states) : [];
-    $("#pr-note").textContent = codes.length + " state" + (codes.length === 1 ? "" : "s");
+    var hasDC = codes.indexOf("dc") >= 0, nSt = codes.length - (hasDC ? 1 : 0);
+    $("#pr-note").textContent = nSt + " state" + (nSt === 1 ? "" : "s") + (hasDC ? " + DC" : "");
     var cols = [{ key: "name", label: "State" }, { key: "total", label: "Registered" }, { key: "rep", label: "Rep" },
                 { key: "dem", label: "Dem" }, { key: "npa", label: "NPA" }, { key: "oth", label: "Oth" }, { key: "asof", label: "As of" }];
     if (!codes.length) { host.querySelector("thead").innerHTML = "<tr><th>State</th></tr>"; host.querySelector("tbody").innerHTML = "<tr><td class='dim'>Registration data coming online.</td></tr>"; return; }
     var tot = { name: "National (these states)", rep: 0, dem: 0, npa: 0, oth: 0, asof: "" };
     var rows = codes.map(function (code) {
       var v = reg.states[code]; tot.rep += v.rep || 0; tot.dem += v.dem || 0; tot.npa += v.npa || 0; tot.oth += v.oth || 0;
-      return mkRegRow(nameOf(code), v.rep || 0, v.dem || 0, v.npa || 0, v.oth || 0, v.as_of || "");
+      return mkRegRow(v.name || nameOf(code), v.rep || 0, v.dem || 0, v.npa || 0, v.oth || 0,
+                      (v.as_of || "") + (v.manual ? " *" : ""));
     });
     var totRow = mkRegRow(tot.name, tot.rep, tot.dem, tot.npa, tot.oth, "");
     sortableTable(host, cols, prSort, rows, totRow, function (r, bold) {

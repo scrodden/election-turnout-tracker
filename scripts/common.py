@@ -223,7 +223,8 @@ def read_xlsx(raw):
     out = {}
     for s in ET.fromstring(z.read("xl/workbook.xml")).iter(NS + "sheet"):
         tgt = rid.get(s.get(RNS + "id"), "")
-        path = tgt if tgt.startswith("xl/") else "xl/" + tgt.lstrip("/")
+        rel = tgt.lstrip("/")   # targets may be relative ('worksheets/..') or absolute ('/xl/worksheets/..')
+        path = rel if rel.startswith("xl/") else "xl/" + rel
         if path not in z.namelist():
             continue
         rows = []

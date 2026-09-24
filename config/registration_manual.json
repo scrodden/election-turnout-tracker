@@ -1,11 +1,35 @@
 {
-  "_comment": "Manual voter-registration-by-party snapshots for states whose official source can't be auto-fetched from CI (Cloudflare/JS dashboards, etc.). Read by hand from the site and refreshed periodically. registration_update.py merges these for states NOT covered by an auto parser in SOURCES; a real parser always wins. Refresh these in late October 2026.",
+  "_comment": "Manual voter-registration-by-party snapshots for states whose official source can't be auto-fetched from CI (bot protection on the site/files, or figures only in a JS page or press release). Read by hand from the official page and refreshed periodically; registration_update.py merges these for states NOT covered by an auto parser in SOURCES (a real parser always wins). Refresh all of these in late October 2026.",
   "states": {
     "id": {
       "rep": 646820, "dem": 122021, "npa": 246923, "oth": 14758,
       "as_of": "September 1, 2026",
       "source": "https://voteidaho.gov/data-and-dashboards/voter-registration-totals/",
       "note": "Manual snapshot summed from the VoteIdaho county table (Cloudflare/JS; not auto-fetchable). Constitution+Libertarian -> oth, Unaffiliated -> npa. Refresh late Oct 2026."
+    },
+    "az": {
+      "rep": 1523886, "dem": 1210510, "npa": 1490185, "oth": 81973,
+      "as_of": "July 2026",
+      "source": "https://azsos.gov/elections/election-information/voter-registration-statistics",
+      "note": "Manual snapshot of the 'Voter Registration Statistics - July 2026 (Primary)' table on the AZ SoS page (azsos.gov and apps.azsos.gov block automated requests). Total 4,306,554. 'Other' (voters not in a recognized party, mostly party-not-designated) -> npa; Libertarian 30,415 + No Labels 46,246 + Green 5,312 -> oth. Refresh late Oct 2026 (the October/general report)."
+    },
+    "ma": {
+      "rep": 423387, "dem": 1298603, "npa": 3254435, "oth": 49401,
+      "as_of": "February 1, 2025",
+      "source": "https://www.sec.state.ma.us/divisions/elections/research-and-statistics/accessible-table/enrollment-breakdown-2025.htm",
+      "note": "Manual snapshot of the Secretary of the Commonwealth's newest enrollment breakdown published as a web page (as of 02/01/2025; total 5,025,826). Unenrolled -> npa; political designations -> oth. sec.state.ma.us blocks automated requests. A September 2026 state-primary workbook exists on the Election Data Hub (download only). Refresh late Oct 2026 when the state-election enrollment breakdown is posted."
+    },
+    "nv": {
+      "rep": 568665, "dem": 569337, "npa": 796805, "oth": 127329,
+      "as_of": "August 2026",
+      "source": "https://www.nvsos.gov/Home/Components/News/News/3788/23",
+      "note": "Manual snapshot of ACTIVE registered voters from the NV SoS monthly release (Sept 2, 2026; total 2,062,136). Nonpartisan -> npa; Independent American 82,903 + Libertarian 13,620 + other minor 30,806 -> oth. nvsos.gov blocks automated requests (Incapsula). Refresh monthly/late Oct 2026."
+    },
+    "nh": {
+      "rep": 298965, "dem": 255943, "npa": 307254, "oth": 0,
+      "as_of": "September 18, 2026",
+      "source": "https://www.sos.nh.gov/party-registration-history-1970-2026",
+      "note": "Manual snapshot from the NH SoS 'Party Registration History 1970-2026' table (total 862,162). Undeclared -> npa. sos.nh.gov blocks automated requests. Refresh late Oct 2026."
     }
   }
 }

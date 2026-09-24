@@ -655,12 +655,282 @@ def parse_ok():
     return {"rep": rep, "dem": dem, "npa": npa, "oth": lib, "as_of": as_of, "source": url}
 
 
+def parse_ks():
+    """KS SoS monthly 'Voter Registration Numbers by County' xlsx
+    (elections/vr-statistics/<YYYY>/<MM>-<YYYY>-...xlsx, newest linked from the
+    statistics page). 'By County' sheet 'Grand Total' row: [Democratic,
+    Libertarian, No Labels Kansas, Republican, United Kansas, Unaffiliated,
+    Total]. Unaffiliated -> npa; the minor parties -> oth."""
+    page = "https://sos.ks.gov/elections/voter-registration-statistics.html"
+    h = C.http_get(page, no_cache=True)
+    files = re.findall(r'href="([^"]*vr-statistics/(\d{4})/(\d{2})-\d{4}-Voter-Registration-Numbers-by-County\.xlsx)"', h)
+    if not files:
+        raise RuntimeError("KS: no monthly workbook linked")
+    href, y, mo = max(files, key=lambda f: (f[1], f[2]))
+    url = href if href.startswith("http") else "https://sos.ks.gov/elections/" + href.lstrip("/").replace("elections/", "", 1)
+    rows = C.read_xlsx(C.http_get(url, binary=True, timeout=60)).get("By County", [])
+    head = rows[0] if rows else []
+    tot = next((r for r in rows if r and r[0].strip().lower() == "grand total"), None)
+    if not tot:
+        raise RuntimeError("KS: Grand Total row not found")
+    vals = {h.strip().lower(): _num(v) for h, v in zip(head[1:], tot[1:])}
+    rep, dem, npa = vals.get("republican", 0), vals.get("democratic", 0), vals.get("unaffiliated", 0)
+    total = vals.get("total", 0)
+    oth = total - rep - dem - npa
+    if min(rep, dem, npa, oth) < 0 or not total:
+        raise RuntimeError("KS: unexpected columns %s" % head)
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": "%s-%s-01" % (y, mo), "source": url}
+
+
+def parse_dc():
+    """DC Board of Elections 'Monthly Report of Voter Registration Statistics'
+    PDF (Data-Statistics-Report-<M>_<YYYY>.pdf, newest linked from the voter
+    registration statistics page). Citywide 'TOTALS' row: [DEM, REP, STG, N-P,
+    OTH, TOTALS]. N-P -> npa; Statehood Green + other -> oth."""
+    from datetime import datetime
+    page = "https://www.dcboe.org/data,-maps,-forms/voter-registration-statistics"
+    h = C.http_get(page, no_cache=True)
+    files = re.findall(r'href="([^"]*Data-Statistics-Report-(\d{1,2})_(\d{4})\.pdf[^"]*)"', h)
+    if not files:
+        raise RuntimeError("DC: no monthly report linked")
+    href, mo, y = max(files, key=lambda f: (int(f[2]), int(f[1])))
+    url = href if href.startswith("http") else "https://www.dcboe.org" + href
+    txt = _pdf_text(C.http_get(url, binary=True, timeout=60))
+    m = re.search(r"^TOTALS[ \t]+([\d,]+(?:[ \t]+[\d,]+){5})", txt, re.M)   # first = citywide summary
+    if not m:
+        raise RuntimeError("DC: TOTALS row not found")
+    n = [_num(x) for x in m.group(1).split()]
+    if sum(n[:5]) != n[5]:
+        raise RuntimeError("DC: party columns don't sum to the total")
+    dem, rep, stg, npa, other = n[:5]
+    dm = re.search(r"AS OF ([A-Z]+ \d{1,2}, \d{4})", txt)
+    as_of = datetime.strptime(dm.group(1).title(), "%B %d, %Y").strftime("%Y-%m-%d") if dm else ""
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": stg + other, "as_of": as_of, "source": url,
+            "name": "District of Columbia"}
+
+
+def parse_ct():
+    """CT Secretary of the State 'Registration and Party Enrollment Statistics'
+    PDF (published about once a year, before the November election; newest
+    linked from the Statistics and Data page). Statewide 'Totals' row gives
+    active/inactive/total for Republican, Democratic, Minor Parties,
+    Unaffiliated and all voters; we use ACTIVE voters (as for CO and IA)."""
+    from datetime import datetime
+    page = "https://portal.ct.gov/sots/election-services/statistics-and-data/statistics-and-data"
+    h = C.http_get(page, no_cache=True)
+    links = [x.replace("&amp;", "&") for x in re.findall(r'href="([^"]*registration[^"]*enrollment[^"]*\.pdf[^"]*)"', h, re.I)]
+    if not links:
+        raise RuntimeError("CT: no registration & enrollment PDF linked")
+    url = links[0] if links[0].startswith("http") else "https://portal.ct.gov" + links[0]   # page lists newest first
+    txt = _pdf_text(C.http_get(url, binary=True, timeout=60))
+    m = re.search(r"^Totals\s+([\d,]+(?:\s+[\d,]+){14})\s*$", txt, re.M)
+    if not m:
+        raise RuntimeError("CT: statewide Totals row not found")
+    n = [_num(x) for x in m.group(1).split()]
+    rep, dem, minor, una, allv = n[0], n[3], n[6], n[9], n[12]      # active columns
+    if rep + dem + minor + una != allv:
+        raise RuntimeError("CT: active party columns don't sum to active total")
+    dm = re.search(r"as of ([A-Za-z]+ \d{1,2}, \d{4})", txt)
+    as_of = datetime.strptime(dm.group(1), "%B %d, %Y").strftime("%Y-%m-%d") if dm else ""
+    return {"rep": rep, "dem": dem, "npa": una, "oth": minor, "as_of": as_of, "source": url.split("?")[0]}
+
+
+def parse_nm():
+    """NM SoS monthly 'Voter Registration Statistics -- Statewide by County' PDF.
+    The 2026 page embeds one file widget per month (data-folder-id /
+    data-widget-id); a public GetWidgetFiles call lists each month's files and
+    PublicFiles/<account>/<fileId>/<name> serves them. Pick the newest
+    'Statewide <MM-DD-YY>' file. Rows are count/percent pairs for DEMOCRATIC,
+    REPUBLICAN, NO PARTY/DECLINED TO SELECT, OTHER, then TOTAL; the statewide
+    row is the largest group whose four counts sum to its total."""
+    from datetime import datetime
+    api = "https://klvg4oyd4j.execute-api.us-west-2.amazonaws.com/prod/"
+    year = datetime.utcnow().year
+    page = "https://www.sos.nm.gov/voting-and-elections/data-and-maps/voter-registration-statistics/%d-voter-registration-data/" % year
+    h = C.http_get(page, no_cache=True)
+    acct = re.search(r'data-account-guid="([0-9a-f]{32})"', h)
+    widgets = re.findall(r'data-folder-id="([0-9a-f-]{36})" data-widget-id="([0-9a-f-]{36})"', h)
+    if not acct or not widgets:
+        raise RuntimeError("NM: no file widgets on the %d page" % year)
+    best = None
+    for folder, widget in widgets:
+        j = json.loads(C.http_get("%sGetWidgetFiles?widgetId=%s&folderId=%s&rootFolderId=%s&accountGUID=%s&authTokenGUID="
+                                  % (api, widget, folder, folder, acct.group(1))))
+        for f in (j.get("data") or {}).get("files", []):
+            m = re.match(r"Statewide[ _](\d{2})-(\d{2})-(\d{2,4})\.pdf$", f.get("name", ""))
+            if m:
+                y = m.group(3) if len(m.group(3)) == 4 else "20" + m.group(3)
+                key = "%s-%s-%s" % (y, m.group(1), m.group(2))
+                if best is None or key > best[0]:
+                    best = (key, f["fileId"], f["name"])
+    if not best:
+        raise RuntimeError("NM: no Statewide file found")
+    url = "%sPublicFiles/%s/%s/%s" % (api, acct.group(1), best[1], urllib.parse.quote(best[2]))
+    txt = _pdf_text(C.http_get(url, binary=True, timeout=60))
+    toks = re.findall(r"[\d,]+\.\d+%|[\d,]+%?|[\d,]+", txt[txt.find("COUNTY"):])
+    rows = []
+    for i in range(len(toks) - 8):
+        g = toks[i:i + 9]
+        if all(g[k].endswith("%") for k in (1, 3, 5, 7)) and not any(g[k].endswith("%") for k in (0, 2, 4, 6, 8)):
+            n = [_num(g[k]) for k in (0, 2, 4, 6, 8)]
+            if n[4] and sum(n[:4]) == n[4]:
+                rows.append(n)
+    if not rows:
+        raise RuntimeError("NM: statewide TOTAL row not found")
+    dem, rep, npa, oth, _tot = max(rows, key=lambda r: r[4])
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": best[0], "source": url}
+
+
+def parse_me():
+    """ME SoS 'Statewide Registered and Enrolled Data File' -- the ACTIVE-voters
+    workbook linked from the Voter Data page (e.g. 'E&R 3.7.26 ACTIVE ... .xlsx';
+    the date is in the file name). One row per ward/precinct with party columns
+    D, G (Green), L (Libertarian), R, U (unenrolled) and TOTAL; a trailing row
+    carries the grand total, used as a check. U -> npa; G + L -> oth."""
+    page = "https://www.maine.gov/sos/elections-voting/voter-data"
+    h = C.http_get(page, no_cache=True)
+    m = re.search(r'href="([^"]*E%26R%20(\d{1,2})\.(\d{1,2})\.(\d{2})%20ACTIVE[^"]*\.xlsx)"', h)
+    if not m:
+        raise RuntimeError("ME: ACTIVE registered & enrolled workbook not linked")
+    url = m.group(1) if m.group(1).startswith("http") else "https://www.maine.gov" + m.group(1)
+    as_of = "20%s-%02d-%02d" % (m.group(4), int(m.group(2)), int(m.group(3)))
+    rows = next(iter(C.read_xlsx(C.http_get(url, binary=True, timeout=90)).values()), [])
+    head = [c.strip().upper() for c in rows[0]]
+    idx = {k: head.index(k) for k in ("D", "G", "L", "R", "U", "TOTAL")}
+    t = {k: 0 for k in idx}
+    grand = 0
+    for r in rows[1:]:
+        if len(r) > idx["TOTAL"] and r[idx["TOTAL"]].strip():
+            for k, i in idx.items():
+                t[k] += _num(r[i])
+        else:   # footer row: the lone number is the grand total
+            nums = [_num(c) for c in r if c.strip().isdigit()]
+            grand = nums[0] if len(nums) == 1 else grand
+    if t["D"] + t["G"] + t["L"] + t["R"] + t["U"] != t["TOTAL"] or (grand and grand != t["TOTAL"]):
+        raise RuntimeError("ME: party columns don't add up to the total")
+    return {"rep": t["R"], "dem": t["D"], "npa": t["U"], "oth": t["G"] + t["L"], "as_of": as_of, "source": url}
+
+
+def parse_la():
+    """LA SoS monthly 'Statewide Report of Registered Voters' PDF
+    (electionstatistics.sos.la.gov/Data/Registration_Statistics/statewide/
+    2026_MM01_sta_comb.pdf). First row 'STATE' then 20 numbers: registered
+    total/white/black/other, then the same four for Democrats, Republicans,
+    No Party and Other Parties. Uses each block's TOTAL."""
+    raw, _label, url = _latest_pdf(
+        "https://electionstatistics.sos.la.gov/Data/Registration_Statistics/statewide/2026_%s01_sta_comb.pdf",
+        lambda m: "%02d" % m)
+    txt = _pdf_text(raw)
+    m = re.search(r"^STATE\s*\n((?:[\d,]+\s*\n){19}[\d,]+)", txt, re.M)
+    if not m:
+        raise RuntimeError("LA: STATE row not found")
+    n = [_num(x) for x in m.group(1).split()]
+    total, dem, rep, npa, oth = n[0], n[4], n[8], n[12], n[16]
+    if dem + rep + npa + oth != total:
+        raise RuntimeError("LA: party totals don't sum to registered total")
+    mo = re.search(r"2026_(\d{2})01_sta_comb", url).group(1)
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "as_of": "2026-%s-01" % mo, "source": url}
+
+
+def parse_de():
+    """DE Department of Elections monthly 'Voter Registration Report by
+    Political Party' (voter/registrationtotals/pdfs/vrt_PP<YYYYMM01>.html): one
+    row per party with Kent / New Castle / Sussex / Grand Total, plus a Grand
+    Total row. NO PARTY CHOICE + NO PARTY - AVR + NONPARTISAN -> npa; every
+    other minor party (incl. the Independent Party of Delaware) -> oth."""
+    for url, _label in _months_back("https://elections.delaware.gov/voter/registrationtotals/pdfs/vrt_PP2026%s01.html",
+                                    lambda m: "%02d" % m):
+        try:
+            h = C.http_get(url)
+        except Exception:  # noqa: BLE001
+            continue
+        rows = {}
+        for tr in re.findall(r"<tr.*?</tr>", h, re.S | re.I):
+            cells = [re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", c)).strip()
+                     for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.S | re.I)]
+            if len(cells) == 5 and re.fullmatch(r"[\d,]+", cells[4] or "x"):
+                rows[cells[0].upper()] = _num(cells[4])
+        total = rows.pop("GRAND TOTAL", 0)
+        if not rows or not total:
+            continue
+        rep, dem = rows.pop("REPUBLICAN", 0), rows.pop("DEMOCRATIC", 0)
+        npa = sum(rows.pop(k, 0) for k in list(rows) if k.startswith("NO PARTY") or k == "NONPARTISAN")
+        oth = sum(rows.values())
+        if rep + dem + npa + oth != total:
+            raise RuntimeError("DE: party rows don't sum to the grand total")
+        d = re.search(r"vrt_PP(\d{4})(\d{2})(\d{2})", url)
+        return {"rep": rep, "dem": dem, "npa": npa, "oth": oth,
+                "as_of": "%s-%s-%s" % d.groups(), "source": url}
+    raise RuntimeError("DE: no monthly party report found")
+
+
+def parse_ri():
+    """RI Department of State 'Registered Voters' data hub
+    (datahub.sos.ri.gov/RegisteredVoter.aspx) is a Power BI publish-to-web
+    report; query it the way the page does (see oh_update.PowerBI). Entity
+    CumulativeVoterRegistrationData: monthly snapshots ('Date '), PARTY, STATUS,
+    'Voter Registration ' counts. Newest month, STATUS = Active (the report's
+    own page filter). Unaffiliated -> npa."""
+    from datetime import datetime, timezone
+    from oh_update import PowerBI
+    key = "ca3ba28c-538b-4cb2-a312-ec2421293ed6"
+    pbi = PowerBI("https://wabi-us-gov-virginia-api.analysis.usgovcloudapi.net/public/reports/", key)
+    ent = "CumulativeVoterRegistrationData"
+    last = max(r[0] for r in pbi.query(ent, ["Date "], [], {}) if r[0])
+    day = datetime.fromtimestamp(last / 1000, timezone.utc)
+    rows = pbi.query(ent, ["PARTY"], ["Voter Registration "],
+                     {"STATUS": ["'Active'"], "Date ": ["datetime'%s'" % day.strftime("%Y-%m-%dT%H:%M:%S")]})
+    by = {(p or "").strip().lower(): int(n or 0) for p, n in rows}
+    rep, dem, npa = by.pop("republican", 0), by.pop("democrat", 0), by.pop("unaffiliated", 0)
+    if not (rep and dem and npa):
+        raise RuntimeError("RI: unexpected party values %s" % list(by))
+    return {"rep": rep, "dem": dem, "npa": npa, "oth": sum(by.values()), "as_of": day.strftime("%Y-%m-%d"),
+            "source": "https://datahub.sos.ri.gov/RegisteredVoter.aspx"}
+
+
+def parse_ny():
+    """NYS Board of Elections 'Voter Enrollment by County, Party Affiliation and
+    Status' (published each February and November). elections.ny.gov blocks
+    automated requests, but the NYC Board of Elections republishes the same
+    statewide workbook (vote.nyc 'Voter Enrollment Totals': county_<mon><yy>.xlsx).
+    'Statewide Total' Active row: DEM, REP, CON, WOR, OTH, BLANK, TOTAL.
+    BLANK (no party) -> npa; CON + WOR + OTH -> oth."""
+    page = "https://vote.nyc/page/voter-enrollment-totals"
+    h = C.http_get(page, no_cache=True)
+    mons = {"feb": 2, "nov": 11}
+    best = None
+    for href, mon, yy in re.findall(r'href="([^"]*county_(feb|nov)(\d{2})[^"/]*\.xlsx)"', h, re.I):
+        key = (int(yy), mons[mon.lower()])
+        if best is None or key > best[0]:
+            best = (key, href)
+    if not best:
+        raise RuntimeError("NY: no county enrollment workbook linked")
+    url = best[1] if best[1].startswith("http") else "https://www.vote.nyc" + best[1]
+    rows = next(iter(C.read_xlsx(C.http_get(url, binary=True, timeout=60)).values()), [])
+    title = " ".join(" ".join(r) for r in rows[:3])
+    act = next((r for r in rows if r and r[0].strip().lower() == "statewide total" and "active" in [c.strip().lower() for c in r]), None)
+    if not act:
+        raise RuntimeError("NY: Statewide Total Active row not found")
+    n = [_num(c) for c in act if re.fullmatch(r"[\d,]+", c.strip())][-7:]    # cells can be sparse
+    dem, rep, con, wor, other, blank, total = n
+    if dem + rep + con + wor + other + blank != total:
+        raise RuntimeError("NY: party columns don't sum to the total")
+    from datetime import datetime
+    dm = re.search(r"as of ([A-Za-z]+ \d{1,2}, \d{4})", title)
+    as_of = datetime.strptime(dm.group(1), "%B %d, %Y").strftime("%Y-%m-%d") if dm else ""
+    return {"rep": rep, "dem": dem, "npa": blank, "oth": con + wor + other, "as_of": as_of, "source": url}
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"[,"source"]} (wired per state)
 SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co,
            "md": parse_md, "ky": parse_ky, "ne": parse_ne, "ak": parse_ak,
            "ia": parse_ia, "or": parse_or, "wy": parse_wy, "nj": parse_nj,
            "ut": parse_ut, "sd": parse_sd, "ca": parse_ca, "wv": parse_wv,
-           "ok": parse_ok}
+           "ok": parse_ok, "ks": parse_ks, "dc": parse_dc, "ct": parse_ct,
+           "nm": parse_nm, "me": parse_me, "la": parse_la, "de": parse_de,
+           "ri": parse_ri, "ny": parse_ny}
+# not in assets/states.json (the 50 turnout states) but has party registration
+EXTRA_CODES = ["dc"]
 
 
 def main():
@@ -679,7 +949,7 @@ def main():
     # dropping off the table; its original as_of date shows how old they are.
     prev_states = (existing or {}).get("states", {}) or {}
     out = {}
-    for s in reg.get("states", []):
+    for s in reg.get("states", []) + [{"code": c} for c in EXTRA_CODES]:
         code = s.get("code")
         # NOTE: states.json's `partisan` flag describes TURNOUT ballot-tracking
         # (whether early/mail ballots cast are broken out by party), not voter
@@ -704,6 +974,8 @@ def main():
             continue
         out[code] = {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "total": tot,
                      "as_of": r.get("as_of", ""), "source": r.get("source") or srcmap.get(code, "")}
+        if r.get("name"):
+            out[code]["name"] = r["name"]
 
     # Manual snapshots for states whose official source can't be auto-fetched
     # (e.g. Cloudflare/JS dashboards like Idaho's VoteIdaho). These are read by
@@ -720,6 +992,8 @@ def main():
         out[code] = {"rep": rep, "dem": dem, "npa": npa, "oth": oth, "total": tot,
                      "as_of": m.get("as_of", ""), "source": m.get("source", srcmap.get(code, "")),
                      "manual": True, "note": m.get("note", "")}
+        if m.get("name"):
+            out[code]["name"] = m["name"]
     doc = {"generated_at": now(), "note": "Statewide voter registration by party; the denominator for the Registration-vs-Turnout comparison. Wired per state from official registration-statistics sources.", "states": out}
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         json.dump(doc, f, separators=(",", ":"))
