@@ -147,12 +147,34 @@ def build(code, cfg, geo_path, partisan):
     return snap
 
 
+def due(prev, force=False):
+    """The Lab updates about once a day (mornings ET) and the turnout workflow
+    runs every 10 minutes, so: skip once we hold today's update, otherwise
+    check roughly hourly (runs in the first ~12 minutes of the hour)."""
+    from datetime import datetime, timedelta, timezone
+    if force:
+        return True
+    now = datetime.now(timezone.utc)
+    et = now - timedelta(hours=4)
+    today = "%d/%d/%d" % (et.month, et.day, et.year)
+    if prev.get("lab_standin") and (prev.get("source") or {}).get("as_of") == today:
+        return False
+    return now.minute < 12 or not prev.get("lab_standin")
+
+
 def run(code, cfg, geo_path, latest_path, history_path, partisan, force=False):
-    """Build + write the stand-in. Returns True if the state has Lab data."""
+    """Build + write the stand-in. Returns True if the state has Lab data
+    (including when an existing stand-in is kept because no check is due)."""
+    prev0 = _load(latest_path, {}) or {}
+    if not due(prev0, force):
+        if prev0.get("lab_standin"):
+            print("%s: holding the Election Lab's %s update (stand-in) — next check not due."
+                  % (code, (prev0.get("source") or {}).get("as_of")))
+        return bool(prev0.get("lab_standin"))
     snap = build(code, cfg, geo_path, partisan)
     if not snap:
-        return False
-    prev = _load(latest_path, {}) or {}
+        return bool(prev0.get("lab_standin"))   # Lab unreachable: keep the last stand-in
+    prev = prev0
     changed = force or snap["data_hash"] != prev.get("data_hash")
     now = C.utc_now_iso()
     snap["generated_at"] = now if changed else prev.get("generated_at", now)

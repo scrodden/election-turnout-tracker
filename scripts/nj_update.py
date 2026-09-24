@@ -103,6 +103,12 @@ def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {}) or {}
     src = cfg.get("source", {})
+    import lab_standin as LAB
+    prev0 = load(LATEST_PATH, {}) or {}
+    # the Lab updates ~daily: skip once we hold today's figures, else check ~hourly
+    if prev0.get("counties") and not LAB.due(dict(prev0, lab_standin=True), force):
+        print("nj: holding the Election Lab's %s update — next check not due." % (prev0.get("source") or {}).get("as_of"))
+        return 0
     try:
         state_row = next((r for r in csv.DictReader(io.StringIO(C.http_get(src["lab_csv"], no_cache=True)))
                           if (r.get("state_abbv") or "").upper() == "NJ"), None)
