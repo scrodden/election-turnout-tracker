@@ -426,6 +426,8 @@
         : hasT
           ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). This state does not register voters by party, so no partisan breakdown is available."
           : "Shaded by early-ballot volume in the selected category (darker = more ballots). This state does not register voters by party, so no partisan breakdown is available. Gray = no ballots yet.");
+    // e.g. SD: statewide totals from the state, county map from a source that's behind it
+    if (mapMode !== "precinct" && data && data.map_note) $("#map-note").textContent += " ⚠ " + data.map_note;
   }
 
   function renderCountyMap() {
