@@ -3,17 +3,31 @@
   "state_name": "Georgia",
   "state_fips": "13",
   "partisan": false,
-  "election": { "date": "2026-11-03", "name": "2026 General" },
-  "general_start": "2026-10-13",
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-09-19",
   "source": {
     "_comment": "LIVE (waiting for the general to load). GA SoS 'Election Data Hub - Unofficial Turnout' is a Qlik Cloud app. Its sos.ga.gov page is behind a Cloudflare browser challenge; the Qlik tenant and the public token endpoint the page's S3-hosted mashup (gasos-elections-mashups-mashup-bucket/DH.ELECTION2024) calls for every visitor are not. scripts/qlik.py opens the app like the page does; ga_update.py sums Ballots_*_Counter by County x Ballot Style for the Election Name matching election_match, plus active voters from the newest Snapshot.AsOfDate <= today. Each fetch creates an anonymous Qlik user, so fetch at most once per fetch_hours_utc window (7am/7pm ET). Verified against NOVEMBER 5, 2024 - GENERAL ELECTION (5,295,967 accepted ballots statewide). The 2026 general was not yet in the hub on 2026-09-23 (26 elections, latest the Aug 25 2026 runoff).",
     "hub": "https://sos.ga.gov/page/election-data-hub-unofficial-turnout",
     "token_url": "https://fn4akbihvavvcmki6ih67rmuky0ezils.lambda-url.us-east-1.on.aws/",
     "qlik_host": "sos-ga-gov.us.qlikcloudgov.com",
     "app_id": "7d780725-d407-4db8-b287-005bb85eda87",
-    "election_match": ["NOVEMBER 3, 2026", "GENERAL"],
-    "registered_status": ["Active"],
-    "fetch_hours_utc": [11, 23]
+    "election_match": [
+      "NOVEMBER 3, 2026",
+      "GENERAL"
+    ],
+    "registered_status": [
+      "Active"
+    ],
+    "fetch_hours_utc": [
+      11,
+      23
+    ],
+    "lab_csv": "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/US.csv",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/",
+    "_fallback_comment": "Until the hub lists the general, ga_update.py shows the UF Election Lab's statewide Georgia row (built by the Lab from the SoS absentee voter file, whose download is reCAPTCHA Enterprise-gated and so is not scripted here). Used unaltered, attributed, CC BY-NC-ND 4.0 (non-commercial). The hub's county-level data replaces it automatically."
   },
   "method_labels": {
     "cast": "Ballots cast",

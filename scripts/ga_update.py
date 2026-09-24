@@ -187,6 +187,60 @@ def build(cfg, elec, snap_date, rows):
     return statewide, counties, methods_present, unmatched
 
 
+LAB_AGE = [("18-25", "1"), ("26-40", "2"), ("41-65", "3"), ("Over 65", "4")]
+LAB_RACE = [("White", "nh_white"), ("Black", "nh_black"), ("Hispanic", "hispanic"), ("Asian American", "nh_asian"),
+            ("Native American", "nh_native_american"), ("Other/unknown", "nh_other")]
+
+
+def lab_fallback(cfg, src, now, status):
+    """Statewide-only snapshot from the UF Election Lab's Georgia row (its source
+    is the SoS absentee voter file). Used unaltered, with attribution, under
+    CC BY-NC-ND 4.0, only while the SoS hub lacks the general. None if absent."""
+    import csv
+    import io
+    url = src.get("lab_csv")
+    if not url:
+        return None
+    try:
+        row = next((r for r in csv.DictReader(io.StringIO(C.http_get(url, no_cache=True)))
+                    if (r.get("state_abbv") or "").upper() == "GA"), None)
+    except Exception as e:  # noqa: BLE001
+        print("GA: Election Lab CSV unavailable: %s" % str(e)[:100], file=sys.stderr)
+        return None
+
+    def n(k):
+        v = (row or {}).get(k, "") or ""
+        return int(float(v)) if v.replace(".", "", 1).isdigit() else 0
+    if not row or not n("request_all"):
+        return None
+    req, ret, inp = n("request_all"), n("accept_all"), n("inperson_all")
+    statewide = {"mail_voted": _block(ret), "mail_provided": _block(max(0, req - ret)), "early_voted": _block(inp),
+                 "cast": _block(ret + inp), "registered": 0, "turnout_pct": None}
+    m = C.compute_mail(statewide)
+    if m:
+        statewide["mail"] = m
+    demo = {"age": [{"label": lab, "count": n("voted_age_" + k)} for lab, k in LAB_AGE],
+            "gender": [{"label": "Female", "count": n("voted_female")}, {"label": "Male", "count": n("voted_male")},
+                       {"label": "Unknown", "count": n("voted_gender_unknown")}],
+            "race": [{"label": lab, "count": n("voted_" + k)} for lab, k in LAB_RACE]}
+    body = {
+        "state": STATE, "state_name": cfg.get("state_name", "Georgia"), "election": cfg.get("election", {}),
+        "partisan": False, "statewide_only": True,
+        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
+        "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": {},
+        "demographics": demo if n("voted_all") else None,
+    }
+    snap = dict(body)
+    snap["source"] = {"primary": "UF Election Lab early-vote tracker (M. McDonald), from the GA SoS absentee voter file; "
+                                 "CC BY-NC-ND 4.0 -- statewide stand-in until the SoS hub loads the general",
+                      "url": src.get("lab_page"), "as_of": row.get("last_update", ""),
+                      "fetched_at": now, "status": status + "; using Election Lab statewide fallback"}
+    snap["source_compiled"] = row.get("last_update", "")
+    snap["source_compiled_iso"] = now
+    snap["data_hash"] = C.data_hash(body)
+    return snap
+
+
 def main():
     force = "--force" in sys.argv
     dry = "--dry-run" in sys.argv
@@ -223,6 +277,23 @@ def main():
 
     os.makedirs(DATA_DIR, exist_ok=True)
     if not rows:
+        # Until the hub carries the general, fall back to the UF Election Lab's
+        # statewide Georgia figures (built from the SoS absentee voter file).
+        snap = lab_fallback(cfg, src, now, status)
+        if snap:
+            changed = snap["data_hash"] != prev.get("data_hash")
+            snap["generated_at"] = now if changed else prev.get("generated_at", now)
+            with open(LATEST_PATH, "w", encoding="utf-8") as f:
+                json.dump(snap, f, separators=(",", ":"))
+            cast = snap["statewide"]["cast"]["total"]
+            if changed and cast:
+                with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+                    f.write(json.dumps({"generated_at": now, "cast": cast, "data_hash": snap["data_hash"]},
+                                       separators=(",", ":")) + "\n")
+            print("%s  Election Lab statewide fallback: returned=%d of %d requested (as of %s)"
+                  % ("CHANGED" if changed else "NOCHANGE", cast, (snap["statewide"].get("mail") or {}).get("requested", 0),
+                     snap["source"].get("as_of")))
+            return 0
         # record the attempt so the next try waits for the next window
         snap = prev or {"state": STATE, "state_name": cfg.get("state_name", "Georgia"),
                         "election": cfg.get("election", {}), "partisan": False,

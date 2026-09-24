@@ -85,7 +85,7 @@
       "data": "data/ga/latest.json",
       "geojson": "assets/ga-counties.geojson",
       "history": "data/ga/history.jsonl",
-      "source_note": "Source: <a href='https://sos.ga.gov/page/election-data-hub-unofficial-turnout' target='_blank' rel='noopener'>Georgia Secretary of State Election Data Hub</a> (unofficial turnout), checked twice a day. Georgia has no party registration, so this is turnout only: accepted early in-person, absentee (mail + electronic) and election-day ballots by county, with turnout as a share of active voters. Early voting starts October 13."
+      "source_note": "Source: <a href='https://sos.ga.gov/page/election-data-hub-unofficial-turnout' target='_blank' rel='noopener'>Georgia Secretary of State Election Data Hub</a> (unofficial turnout by county), checked twice a day. Until the state loads the November general into the hub, Georgia shows statewide absentee figures from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), which builds them from the state's absentee voter file; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Georgia has no party registration, so this is turnout only. Early voting starts October 13."
     },
     {
       "code": "mi",
