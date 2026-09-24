@@ -44,15 +44,23 @@
     svg.innerHTML = parts.join("");
     var tip = $("#tooltip");
     svg.querySelectorAll("[data-u]").forEach(function (n) {
-      n.style.cursor = "pointer";
-      n.addEventListener("mousemove", function (e) { var s = idx[n.getAttribute("data-u").toLowerCase()]; if (!s) { tip.hidden = true; return; }
+      var st = idx[n.getAttribute("data-u").toLowerCase()];
+      var live = !!(st && st.has_data);
+      n.style.cursor = live ? "pointer" : "default";
+      n.addEventListener("mousemove", function (e) { var s = st; if (!s) { tip.hidden = true; return; }
         var r = $("#map-holder").getBoundingClientRect();
-        tip.innerHTML = "<b>" + s.name + "</b><br>" + (s.has_data ? (fmt(s.cast) + " ballots" + (s.partisan ? " · " + marginText(s.margin) : (s.turnout_pct != null ? " · " + s.turnout_pct + "% turnout" : ""))) : "no ballots yet");
+        tip.innerHTML = "<b>" + s.name + "</b><br>" + (s.has_data ? (fmt(s.cast) + " ballots" + (s.partisan ? " · " + marginText(s.margin) : (s.turnout_pct != null ? " · " + s.turnout_pct + "% turnout" : ""))) + "<br><span style='opacity:.75'>Click to open the state page</span>" : "no ballots yet");
         tip.hidden = false; tip.style.left = Math.min(e.clientX - r.left + 12, r.width - 170) + "px"; tip.style.top = (e.clientY - r.top + 12) + "px"; });
       n.addEventListener("mouseleave", function () { tip.hidden = true; });
+      if (live) {   // open that state's turnout page
+        n.setAttribute("tabindex", "0"); n.setAttribute("role", "link"); n.setAttribute("aria-label", st.name + " turnout page");
+        n.addEventListener("click", function () { location.href = statePage(st.code); });
+        n.addEventListener("keydown", function (e) { if (e.key === "Enter") location.href = statePage(st.code); });
+      }
     });
     renderLegend();
   }
+  function statePage(code) { return "index.html#s=" + encodeURIComponent(code); }
   function renderLegend() { $("#legend").innerHTML = "<div style='display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)'><span>fewer</span><span style='width:110px;height:10px;border-radius:3px;background:linear-gradient(90deg," + colorG(0.03) + "," + colorG(0.4) + "," + colorG(1) + ")'></span><span>more ballots cast</span></div>"; }
 
   function renderCards() {
@@ -85,7 +93,8 @@
     $("#lead thead").querySelectorAll("th").forEach(function (th) { th.onclick = function () { var k = th.getAttribute("data-k"); if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = k === "name" ? 1 : -1; } renderTable(); }; });
     $("#lead tbody").innerHTML = rows.map(function (r) {
       var lean = r.partisan ? ("<span class='lean' style='background:" + (r.has_data ? colorM(r.margin) : "#c9ced6") + "'></span>" + (r.has_data ? marginText(r.margin) : "—")) : "<span class='dim'>turnout-only</span>";
-      return "<tr><td><b>" + r.name + "</b></td><td>" + fmt(r.cast) + "</td><td>" + (r.turnout_pct == null ? "—" : r.turnout_pct + "%") + "</td><td>" + lean + "</td></tr>";
+      var nm = r.has_data ? "<a href='" + statePage(r.code) + "'>" + r.name + "</a>" : r.name;
+      return "<tr><td><b>" + nm + "</b></td><td>" + fmt(r.cast) + "</td><td>" + (r.turnout_pct == null ? "—" : r.turnout_pct + "%") + "</td><td>" + lean + "</td></tr>";
     }).join("");
   }
 
