@@ -9,12 +9,14 @@
   },
   "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. Few days of early voting by county & registered party. Source pointer: https://oklahoma.gov/elections.html . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://oklahoma.gov/elections.html"
+    "_comment": "Oklahoma State Election Board posts county x party absentee PDFs on its Absentee Voting Statistics page only in an election's final stretch (for the 2024 general: from Oct 29). ok_update.py takes the newest 2026 'ballot-totals-by-affiliation' (mail: sent/undeliverable/received) and 'absentee-inperson-totals' (in-person early) files and uses them only if the election date printed in the file is election_date, so primary/runoff files are ignored. Parser verified against the 2024 general mail report and the Aug 2026 runoff in-person report.",
+    "stats_page": "https://oklahoma.gov/elections/voters/absentee-voting-statistics/absentee-voting-statistics.html",
+    "year": "2026",
+    "election_date": "11/3/2026"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
+    "cast": "Absentee ballots (mail + in person)",
+    "mail_voted": "Mail ballots received",
+    "early_voted": "In-person absentee (early)"
   }
 }

@@ -7,13 +7,15 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-09-19",
   "source": {
-    "_comment": "STAGED SKELETON. All-mail; ballots returned by county (no party registration). Source pointer: https://elections.hawaii.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://elections.hawaii.gov/"
+    "_comment": "LIVE. Hawaii Office of Elections posts a daily statewide 'Absentee Reconciliation' PDF (AbsenteeReconState-YYYYMMDD.pdf) on its Voting Report page: per county ELECT sent/voted/invalid, EV voted, MAIL sent/voted/invalid, VOTED, TOTAL, plus a statewide row (checked against the county sum). All-mail state with no party registration -> turnout-only; mail_provided = outstanding ballots -> ballot chase. Per-county PDFs by district/precinct (AbsenteeReconDP-0N-*) also exist but aren't needed.",
+    "report_page": "https://elections.hawaii.gov/resources/absentee-voting-report/",
+    "election_match": "2026 General Election"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Ballots voted",
+    "mail_voted": "By mail (incl. electronic)",
+    "early_voted": "Early in person"
   }
 }

@@ -1248,7 +1248,11 @@
     if (st && st.precincts) n.innerHTML = "Click a " + u + " for precinct-level detail. Each " + u + " links to its live TQV feed&nbsp;↗.";
     else n.textContent = "Click a " + u + " for its detail.";
   }
-  function renderAll() { renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
+  function renderStatewideOnly() {
+    // e.g. SD publishes statewide totals only: no county map/table to show
+    var g = document.querySelector("section.grid"); if (g) g.style.display = (data && data.statewide_only) ? "none" : "";
+  }
+  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {

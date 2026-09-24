@@ -9,12 +9,12 @@
   },
   "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. Absentee by county & registered party. Source pointer: https://sdsos.gov/elections-voting/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://sdsos.gov/elections-voting/"
+    "_comment": "SD SoS posts weekly (Fridays) statewide absentee statistics with a party breakout on its '2026 Weekly Absentee Numbers' page, one section per election. No county breakdown is published, so SD is statewide-only (counties empty). sd_update.py reads the section whose heading contains section_match. As of 2026-09-24 only the Primary and Run-off sections were posted.",
+    "page": "https://sdsos.gov/elections-voting/upcoming-elections/general-information/2026%20Election%20Information/2026-Election-Absentee-Data.aspx",
+    "section_match": "General"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
+    "cast": "Absentee ballots received",
+    "mail_voted": "Absentee ballots received"
   }
 }

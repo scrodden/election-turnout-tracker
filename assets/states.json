@@ -288,7 +288,7 @@
       "data": "data/ok/latest.json",
       "geojson": "assets/ok-counties.geojson",
       "history": "data/ok/history.jsonl",
-      "source_note": "Source: <a href='https://oklahoma.gov/elections.html' target='_blank' rel='noopener'>Oklahoma Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://oklahoma.gov/elections/voters/absentee-voting-statistics/absentee-voting-statistics.html' target='_blank' rel='noopener'>Oklahoma State Election Board</a> absentee statistics by county &amp; registered party (mail ballots received and in-person absentee voting). The board posts these only in the final weeks before Election Day, so figures appear then."
     },
     {
       "code": "or",
@@ -315,7 +315,7 @@
       "data": "data/sd/latest.json",
       "geojson": "assets/sd-counties.geojson",
       "history": "data/sd/history.jsonl",
-      "source_note": "Source: <a href='https://sdsos.gov/elections-voting/' target='_blank' rel='noopener'>South Dakota Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://sdsos.gov/elections-voting/upcoming-elections/general-information/2026%20Election%20Information/2026-Election-Absentee-Data.aspx' target='_blank' rel='noopener'>South Dakota Secretary of State</a> weekly absentee statistics (updated Fridays), by registered party. South Dakota publishes statewide totals only, so there is no county map. Independents and no-party voters are shown as NPA."
     },
     {
       "code": "ut",
@@ -372,7 +372,7 @@
       "data": "data/hi/latest.json",
       "geojson": "assets/hi-counties.geojson",
       "history": "data/hi/history.jsonl",
-      "source_note": "Source: <a href='https://elections.hawaii.gov/' target='_blank' rel='noopener'>Hawaii Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://elections.hawaii.gov/resources/absentee-voting-report/' target='_blank' rel='noopener'>Hawaii Office of Elections</a> daily voting report, by county. Hawaii votes by mail and has no party registration, so this is turnout only: ballots voted by mail (including electronic) and in person, with the mail-ballot chase. Kalawao is counted with Maui."
     },
     {
       "code": "il",
