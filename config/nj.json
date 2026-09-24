@@ -7,14 +7,16 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-09-19",
   "source": {
-    "_comment": "STAGED SKELETON. VBM-heavy; mail + early by county & registered party. Source pointer: https://www.nj.gov/state/elections/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.nj.gov/state/elections/"
+    "_comment": "LIVE (statewide only). NJ's Division of Elections publishes no pre-election mail-ballot counts (its county 'periodic reports' begin on Election Day). The UF Election Lab receives the state's figures directly and publishes them daily; nj_update.py uses the NJ row of the Lab's CSV unaltered, with attribution, under CC BY-NC-ND 4.0 (credit, non-commercial, no modification). County-level sources are being investigated; if enough counties publish, they can replace this.",
+    "lab_csv": "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/US.csv",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/",
+    "periodic_reports": "https://www.nj.gov/state/elections/election-results-information.shtml"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
+    "cast": "Ballots returned (mail + early in person)",
+    "mail_voted": "Mail ballots returned",
+    "early_voted": "Early in person"
   }
 }
