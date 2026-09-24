@@ -1,46 +1,50 @@
 #!/usr/bin/env python3
-"""Fill Virginia per-locality early-vote turnout (data/va/locality.json) by
-scraping VPAP's per-locality pages, which are the only public source of
-locality-level Virginia early voting (VA ELECT's locality file is a paid,
-voter-level list; VPAP's only bulk feed is the by-CD file used by va_update.py).
+"""Virginia early-vote turnout by LOCALITY (data/va/locality.json).
 
-VPAP sits behind Cloudflare, which rate-limits bursts (HTTP 202 challenge stub
-with an empty/tiny body). VPAP only refreshes once a day, so we scrape gently:
-GROUP_SIZE localities per group, GROUP_PAUSE seconds between groups, at most once
-a day. Anything that comes back challenged/unparseable is skipped and the prior
-run's value for that locality is kept (never fabricated); coverage is recorded so
-the page can flag partial/stale data. config/va_localities.json also powers the
-outbound-link directory on the turnout page, so locality detail is always
-reachable even when a scrape is fully blocked.
+There is no official public locality feed: VA ELECT's daily absentee list is
+sold only to qualified requesters, and VPAP's 133 per-locality pages sit behind
+bot protection that blocks automated access (we used to scrape them; CI got ~7
+of 133 before being cut off, so that approach is retired).
 
-Each locality page embeds the cumulative split in inline chart JS
-(value:N,label:'In Person' / 'Mail'), the headline total in an SVG <text
-class="total">, per-1,000-registered in the barchart, and an "(As of M/D/YY)".
+VPAP does publish its visuals' data as public files on S3 (not bot-protected):
+for the April 2026 referendum, datasets/locality_earlyvotes_2026apr.json -- a
+TopoJSON whose 133 locality geometries carry {locality, early_votes, ...}, updated
+daily. This script watches for the November 2026 equivalent:
+  1. reuse the dataset URL found on an earlier run, if it still resolves;
+  2. else probe config source.locality_dataset_candidates on S3 (cheap HEADs);
+  3. else look once for a new VPAP visual whose slug mentions locality + 2026
+     November/general, and read its dataset URL from the visual's JS bundle
+     (at most a few requests a run -- well within what VPAP serves).
+A file only counts if its 'updated' stamp is on/after source.locality_min_updated
+(so the April referendum file can never be mistaken for November).
 
-Run:  python scripts/va_locality_update.py [--force] [--limit N] [--slugs a,b,c]
-      (--force ignores the once-a-day throttle; --limit/--slugs scrape a subset)
+Registered (active) voters per locality come from VA ELECT's monthly CSV
+(va_registration.py) for turnout %. Until the dataset exists, locality.json
+carries only the outbound VPAP link directory status (no numbers).
+
+Run:  python scripts/va_locality_update.py [--test-url URL]
+      (--test-url parses a given dataset, e.g. the April file, without writing)
 """
+import json
 import os
 import re
 import sys
-import json
-import time
+import urllib.request
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import common as C  # noqa: E402
+import va_registration  # noqa: E402
 
 STATE = "va"
-CONFIG_PATH = os.path.join(ROOT, "config", "va_localities.json")
+VA_CONFIG = os.path.join(ROOT, "config", "va.json")
+LOC_CONFIG = os.path.join(ROOT, "config", "va_localities.json")
 GEO_PATH = os.path.join(ROOT, "assets", "va-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 OUT_PATH = os.path.join(DATA_DIR, "locality.json")
-
-GROUP_SIZE = int(os.environ.get("VA_LOC_GROUP_SIZE", "10"))
-GROUP_PAUSE = float(os.environ.get("VA_LOC_GROUP_PAUSE", "60"))   # seconds between groups
-ITEM_PAUSE = float(os.environ.get("VA_LOC_ITEM_PAUSE", "1.5"))    # seconds between pages
-REFRESH_HOURS = 20.0    # VPAP updates ~daily; scrape at most this often
+VPAP = "https://www.vpap.org"
 
 
 def load(p, d=None):
@@ -51,24 +55,8 @@ def load(p, d=None):
         return d
 
 
-def now_iso():
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def age_hours(iso):
-    from datetime import datetime, timezone
-    try:
-        t = datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-        return (datetime.now(timezone.utc) - t).total_seconds() / 3600.0
-    except (ValueError, TypeError):
-        return 1e9
-
-
-def geo_name_by_fips():
-    """fips -> the geojson feature name (the map/table unit key)."""
-    g = load(GEO_PATH, {"features": []})
-    return {ft["properties"]["fips"]: ft["properties"]["name"] for ft in g["features"]}
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", str(s).lower().replace("&", "and"))
 
 
 def _block(total):
@@ -76,146 +64,195 @@ def _block(total):
             "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
 
 
-def _find_int(pat, html):
-    m = re.search(pat, html)
-    return int(m.group(1).replace(",", "")) if m else None
+def _exists(url):
+    try:
+        req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": C.USER_AGENT})
+        with urllib.request.urlopen(req, timeout=20, context=C._SSL_CTX) as r:
+            return r.status == 200
+    except Exception:  # noqa: BLE001 - S3 answers 403 for keys that don't exist
+        return False
 
 
-def parse_locality(html):
-    """Return dict of numbers, or None if the page is a Cloudflare stub / not a
-    real locality page (so the caller keeps the previous value)."""
-    if not html or len(html) < 4000:
-        return None
-    if "label: 'In Person'" not in html and 'id="barchart"' not in html \
-            and "<strong>2026</strong>" not in html:
-        return None
-    # headline total: SVG <text class="total">N</text> right before <strong>2026</strong>
-    total = _find_int(r'class="total">([\d,]+)</text>\s*</svg>\s*</div>\s*<div><strong>2026</strong>', html)
-    # cumulative split from inline chart JS
-    inp = _find_int(r"value:\s*(\d+),\s*label:\s*'In Person'", html)
-    mail = _find_int(r"value:\s*(\d+),\s*label:\s*'Mail'", html)
-    if total is None and inp is None and mail is None:
-        return None
-    inp = inp or 0
-    mail = mail or 0
-    if total is None:
-        total = inp + mail
-    # per-1,000 registered: first barchart row is this locality
-    per1000 = None
-    b = html.find('id="barchart"')
-    if b >= 0:
-        m = re.search(r'<div class="bar background">\s*([\d.]+)\s*</div>', html[b:b + 3000])
-        if m:
-            per1000 = float(m.group(1))
-    registered = int(round(total / per1000 * 1000)) if per1000 else 0
-    turnout_pct = round(per1000 / 10.0, 2) if per1000 else None
-    prev2022 = _find_int(r'class="total">([\d,]+)</text>\s*</svg>\s*</div>\s*<div><strong>2022</strong>', html)
-    m = re.search(r'\(As of ([\d/]+)\)', html)
-    as_of = m.group(1) if m else ""
-    return {"total": total, "in_person": inp, "mail": mail, "registered": registered,
-            "turnout_pct": turnout_pct, "final_2022": prev2022, "as_of": as_of}
+def _updated_ok(topo, min_updated):
+    """VPAP stamps datasets like 'Apr 20, 2026 09:01 AM'."""
+    s = (topo or {}).get("updated") or ""
+    for fmt in ("%b %d, %Y %I:%M %p", "%B %d, %Y %I:%M %p", "%Y-%m-%d %H:%M:%S %p", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(s.strip(), fmt).strftime("%Y-%m-%d") >= min_updated
+        except ValueError:
+            continue
+    return False
 
 
-def entry_from(fips, per):
-    e = {"fips": fips, "cast": _block(per["total"]),
-         "early_voted": _block(per["in_person"]), "mail_voted": _block(per["mail"]),
-         "turnout_pct": per["turnout_pct"], "registered": per["registered"],
-         "as_of": per["as_of"]}
-    if per.get("final_2022") is not None:
-        e["final_2022"] = per["final_2022"]
-    return e
+def discover_from_visuals():
+    """One look at VPAP's visuals index for a November-2026 locality visual; if
+    found, pull the dataset URL out of its S3-hosted JS bundle."""
+    try:
+        idx = C.http_get(VPAP + "/visuals/", retries=1, timeout=30)
+    except Exception as e:  # noqa: BLE001
+        print("  (visuals index unavailable: %s)" % str(e)[:60], file=sys.stderr)
+        return []
+    slugs = sorted(set(re.findall(r'href="(/visuals/visual/[^"]+/)"', idx)))
+    hits = [s for s in slugs if "locality" in s and "2026" in s and ("nov" in s or "general" in s)]
+    urls = []
+    for slug in hits[:2]:
+        try:
+            page = C.http_get(VPAP + slug, retries=1, timeout=30)
+        except Exception:  # noqa: BLE001
+            continue
+        found = re.findall(r"https://vpap-production[^\"'<> ]+?\.json", page)
+        for js in re.findall(r"https://vpap-production[^\"'<> ]+?/assets/index\.js", page)[:1]:
+            try:
+                found += re.findall(r"https://vpap-production[^\"'`<> ]+?\.json", C.http_get(js, retries=1))
+            except Exception:  # noqa: BLE001
+                pass
+        urls += [u for u in found if "locality" in u.lower()]
+    return urls
+
+
+def find_dataset(src, prev):
+    tried = []
+    known = ((prev or {}).get("source_detail") or {}).get("dataset_url")
+    if known:
+        tried.append(known)
+    tried += src.get("locality_dataset_candidates", [])
+    for u in tried:
+        if _exists(u):
+            return u, "known" if u == known else "candidate"
+    for u in discover_from_visuals():
+        if _exists(u):
+            return u, "visual"
+    return None, None
+
+
+def locality_index():
+    """VPAP locality label -> FIPS. VPAP uses bare names ('Augusta',
+    'Alexandria') and adds City/County only where two localities share a name
+    ('Fairfax City' / 'Fairfax County')."""
+    locs = (load(LOC_CONFIG, {}) or {}).get("localities", [])
+    full = {_norm(L["name"]): L["fips"] for L in locs}
+
+    def match(label):
+        n = _norm(label)
+        if n in full:
+            return full[n]
+        keys = [n + "county", n + "city"]
+        if n.endswith("county"):       # 'James City County' vs our 'James City'
+            keys.append(n[:-len("county")])
+        hits = [full[k] for k in keys if k in full]
+        return hits[0] if len(hits) == 1 else None
+    return match, {L["fips"]: L for L in locs}
+
+
+def parse(topo):
+    """-> ({fips: {total, mail, in_person}}, unmatched_labels)"""
+    match, _ = locality_index()
+    obj = next(iter((topo.get("objects") or {}).values()), {})
+    out, unmatched = {}, []
+    for g in obj.get("geometries", []):
+        p = g.get("properties") or {}
+        label = p.get("locality") or p.get("name") or ""
+        fips = match(label)
+        if not fips:
+            unmatched.append(label)
+            continue
+        total = next((p[k] for k in ("early_votes", "ballots", "total", "early_ballots") if p.get(k) is not None), None)
+        if total is None:
+            unmatched.append(label)
+            continue
+        mail = next((p[k] for k in ("mail_ballots", "mail", "by_mail") if p.get(k) is not None), None)
+        inp = next((p[k] for k in ("in_person", "in_person_ballots") if p.get(k) is not None), None)
+        out[fips] = {"total": int(total), "mail": None if mail is None else int(mail),
+                     "in_person": None if inp is None else int(inp)}
+    return out, unmatched
+
+
+def build(rows, reg, dataset_url, topo):
+    _, by_fips = locality_index()
+    geo = load(GEO_PATH, {"features": []})
+    name_by_fips = {ft["properties"]["fips"]: ft["properties"]["name"] for ft in geo["features"]}
+    reg_loc = (reg or {}).get("locality", {})
+    counties = {}
+    tot = {"cast": 0, "mail": 0, "inp": 0, "reg": 0}
+    has_split = any(r["mail"] is not None or r["in_person"] is not None for r in rows.values())
+    for fips, r in rows.items():
+        key = name_by_fips.get(fips, by_fips.get(fips, {}).get("name", fips))
+        registered = int((reg_loc.get(fips) or {}).get("active") or 0)
+        e = {"fips": fips, "cast": _block(r["total"]), "registered": registered,
+             "turnout_pct": (round(100.0 * r["total"] / registered, 2) if registered else None),
+             "url": by_fips.get(fips, {}).get("url")}
+        if has_split:
+            e["mail_voted"] = _block(r["mail"] or 0)
+            e["early_voted"] = _block(r["in_person"] or 0)
+            tot["mail"] += r["mail"] or 0
+            tot["inp"] += r["in_person"] or 0
+        counties[key] = e
+        tot["cast"] += r["total"]
+        tot["reg"] += registered
+    statewide = {"cast": _block(tot["cast"]), "registered": tot["reg"],
+                 "turnout_pct": (round(100.0 * tot["cast"] / tot["reg"], 2) if tot["reg"] else None)}
+    methods = []
+    if has_split:
+        statewide["mail_voted"] = _block(tot["mail"])
+        statewide["early_voted"] = _block(tot["inp"])
+        methods = [m for m, t in (("mail_voted", tot["mail"]), ("early_voted", tot["inp"])) if t]
+    return statewide, counties, methods
 
 
 def main():
-    force = "--force" in sys.argv
-    limit = None
-    slugs_filter = None
-    for a in sys.argv:
-        if a.startswith("--limit"):
-            limit = int(a.split("=", 1)[1]) if "=" in a else int(sys.argv[sys.argv.index(a) + 1])
-        if a.startswith("--slugs"):
-            slugs_filter = set((a.split("=", 1)[1] if "=" in a else sys.argv[sys.argv.index(a) + 1]).split(","))
-
+    test_url = None
+    if "--test-url" in sys.argv:
+        test_url = sys.argv[sys.argv.index("--test-url") + 1]
+    src = (load(VA_CONFIG, {}) or {}).get("source", {})
+    loc_cfg = load(LOC_CONFIG, {}) or {}
     prev = load(OUT_PATH, {}) or {}
-    if prev.get("counties") and not force and age_hours(prev.get("generated_at", "")) < REFRESH_HOURS:
-        print("locality.json is fresh (<%.0fh) — skipping (VPAP refreshes ~daily)." % REFRESH_HOURS)
+    total_localities = len(loc_cfg.get("localities", []))
+
+    url, how = (test_url, "test") if test_url else find_dataset(src, prev)
+    topo = None
+    if url:
+        try:
+            topo = json.loads(C.http_get(url, no_cache=True).lstrip("﻿"))
+        except Exception as e:  # noqa: BLE001
+            print("VA locality dataset fetch failed: %s" % str(e)[:120], file=sys.stderr)
+    if topo and not test_url and not _updated_ok(topo, src.get("locality_min_updated", "2026-09-01")):
+        print("VA locality: %s is dated %r — not the November dataset; ignoring." % (url, topo.get("updated")))
+        topo = None
+
+    rows, unmatched = parse(topo) if topo else ({}, [])
+    reg = va_registration.get()
+    statewide, counties, methods = build(rows, reg, url, topo)
+    if test_url:
+        print("TEST %s (updated %s): %d/%d localities matched, cast=%d, registered=%d, turnout=%s%%, unmatched=%s"
+              % (url, topo.get("updated") if topo else None, len(rows), total_localities,
+                 statewide["cast"]["total"], statewide["registered"], statewide["turnout_pct"], unmatched))
         return 0
 
-    cfg = load(CONFIG_PATH, {}) or {}
-    locs = cfg.get("localities", [])
-    if slugs_filter:
-        locs = [x for x in locs if x["slug"] in slugs_filter]
-    if limit:
-        locs = locs[:limit]
-    if not locs:
-        print("no localities configured", file=sys.stderr)
-        return 1
-
-    name_by_fips = geo_name_by_fips()
-    prev_counties = prev.get("counties", {}) or {}
-    counties = {}
-    ok = failed = kept = 0
-    fail_slugs = []
-
-    for i, loc in enumerate(locs):
-        if i and i % GROUP_SIZE == 0:
-            time.sleep(GROUP_PAUSE)
-        elif i:
-            time.sleep(ITEM_PAUSE)
-        fips = loc["fips"]
-        key = name_by_fips.get(fips, loc["name"])
-        per = None
-        try:
-            html = C.http_get(loc["url"], retries=2, timeout=45,
-                              accept="text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            per = parse_locality(html)
-        except Exception as e:  # noqa: BLE001
-            print("  ! %s fetch error: %s" % (loc["slug"], str(e)[:60]), file=sys.stderr)
-        if per and per["total"] >= 0 and (per["in_person"] or per["mail"] or per["total"]):
-            e = entry_from(fips, per)
-            e["url"] = loc["url"]
-            counties[key] = e
-            ok += 1
-        else:
-            failed += 1
-            fail_slugs.append(loc["slug"])
-            if key in prev_counties:                 # keep last-good; never fabricate
-                counties[key] = prev_counties[key]
-                kept += 1
-
-    def sw(field):
-        return sum((counties[k].get(field, {}) or {}).get("total", 0) for k in counties)
-    cast_total = sw("cast")
-    mail_total = sw("mail_voted")
-    inp_total = sw("early_voted")
-    reg_total = sum(counties[k].get("registered", 0) for k in counties)
-    as_ofs = sorted([counties[k].get("as_of", "") for k in counties if counties[k].get("as_of")])
-
-    statewide = {"cast": _block(cast_total), "mail_voted": _block(mail_total),
-                 "early_voted": _block(inp_total), "registered": reg_total,
-                 "turnout_pct": (round(100.0 * cast_total / reg_total, 2) if reg_total else None)}
+    status = ("ok" if rows else
+              "waiting: VPAP has not published a November 2026 locality dataset yet")
     doc = {
-        "state": STATE, "election": cfg.get("election", "2026 November General"),
-        "unit_label": "Locality", "unit_label_plural": "Localities",
-        "source": "Virginia Public Access Project (VPAP), per-locality early-voting pages",
-        "methods_present": [m for m, t in (("mail_voted", mail_total), ("early_voted", inp_total)) if t],
+        "state": STATE, "election": loc_cfg.get("election", "2026 November General"),
+        "unit_label": "Locality", "unit_label_plural": "Localities", "partisan": False,
+        "source": "Virginia Public Access Project (VPAP) locality early-vote dataset" if rows else "",
+        "source_detail": {"dataset_url": url if rows else None, "found_via": how if rows else None,
+                          "dataset_updated": topo.get("updated") if (topo and rows) else None,
+                          "registration_as_of": (reg or {}).get("as_of"), "status": status},
+        "methods_present": methods,
         "method_labels": {"cast": "All early ballots", "mail_voted": "By mail", "early_voted": "In person"},
-        "coverage": {"ok": ok, "kept_prev": kept, "failed": failed,
-                     "total": len(locs), "fail_slugs": fail_slugs[:20]},
-        "as_of": (as_ofs[-1] if as_ofs else ""),
+        "coverage": {"ok": len(rows), "total": total_localities, "unmatched": unmatched[:20]},
+        "as_of": (topo.get("updated") if (topo and rows) else ""),
         "statewide": statewide, "counties": counties,
-        "generated_at": now_iso(),
     }
+    doc["data_hash"] = C.data_hash({k: v for k, v in doc.items() if k != "source_detail"})
+    if doc["data_hash"] == prev.get("data_hash") and (prev.get("source_detail") or {}).get("status") == status:
+        print("va locality: no change (%s)" % status)
+        return 0
+    doc["generated_at"] = C.utc_now_iso()
     os.makedirs(DATA_DIR, exist_ok=True)
-    # only overwrite if we have at least some real coverage (avoid wiping to empty
-    # when a whole run is Cloudflare-blocked)
-    if counties or not prev.get("counties"):
-        with open(OUT_PATH, "w", encoding="utf-8") as f:
-            json.dump(doc, f, separators=(",", ":"))
-    print("va locality: ok=%d kept=%d failed=%d / %d  cast=%d  as_of=%s"
-          % (ok, kept, failed, len(locs), cast_total, doc["as_of"]))
-    if fail_slugs:
-        print("  failed:", ", ".join(fail_slugs[:15]), ("…" if len(fail_slugs) > 15 else ""))
+    with open(OUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(doc, f, separators=(",", ":"))
+    print("va locality: %s | %d/%d localities | cast=%d | turnout=%s%%"
+          % (status, len(rows), total_localities, statewide["cast"]["total"], statewide["turnout_pct"]))
     return 0
 
 

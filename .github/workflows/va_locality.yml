@@ -1,25 +1,20 @@
-name: VA locality early-vote (daily)
+name: VA locality early-vote (dataset watch)
 
-# Virginia's per-locality early-vote numbers exist only on VPAP's per-locality
-# pages (VA ELECT's locality file is a paid, voter-level list; VPAP's only bulk
-# feed is the by-CD file used by the 10-minute turnout job). VPAP sits behind
-# Cloudflare and only refreshes ~once a day, so we scrape gently, once a day, in
-# small paced groups. Anything challenged is skipped and the prior value kept
-# (never fabricated); config/va_localities.json still powers the outbound-link
-# directory so locality detail is always reachable even if a run is blocked.
+# Virginia early votes by locality. There is no official public locality feed,
+# and VPAP's per-locality pages block automated access, so we no longer scrape
+# them. scripts/va_locality_update.py instead watches for VPAP's public S3
+# dataset of locality early votes (it published one for the April referendum)
+# and, once a November one exists, rebuilds data/va/locality.json from it with
+# turnout against VA ELECT's registered-voter counts. Until then it records
+# "waiting" and the page keeps its per-locality links to VPAP.
 #
-# Runs in its own workflow (not the every-10-min turnout loop) because a paced
-# 133-page pass takes ~15 minutes and must not block turnout updates.
+# Cheap (a few HEAD requests to S3, at most a few VPAP page views when looking
+# for a new visual), so it runs every 3 hours.
 
 on:
   schedule:
-    - cron: "0 11 * * *"    # 11:00 UTC daily (~after VPAP's early-morning refresh)
-  workflow_dispatch:
-    inputs:
-      force:
-        description: "Force a scrape even if data is fresh (<20h)"
-        type: boolean
-        default: true
+    - cron: "20 */3 * * *"
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -29,9 +24,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  scrape:
+  watch:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,19 +41,16 @@ jobs:
         run: |
           if [ -f data/_frozen_all.json ]; then echo "frozen=1" >> "$GITHUB_OUTPUT"; else echo "frozen=0" >> "$GITHUB_OUTPUT"; fi
 
-      - name: Scrape VA per-locality early voting (paced)
+      - name: Update VA locality early votes
         if: steps.gate.outputs.frozen != '1'
-        run: |
-          FORCE=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.force }}" = "true" ]; then FORCE="--force"; fi
-          python scripts/va_locality_update.py $FORCE || echo "va locality scrape failed (non-fatal)"
+        run: python scripts/va_locality_update.py || echo "va locality update failed (non-fatal)"
 
       - name: Commit if locality data changed
         if: steps.gate.outputs.frozen != '1'
         run: |
           git config user.name  "turnout-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/va/locality.json
+          git add data/va/locality.json data/va/registered.json
           if git diff --cached --quiet; then
             echo "No VA locality change; nothing to commit."
           else

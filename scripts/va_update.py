@@ -24,6 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import common as C  # noqa: E402
+import va_registration  # noqa: E402
 
 STATE = "va"
 CONFIG_PATH = os.path.join(ROOT, "config", "va.json")
@@ -81,6 +82,9 @@ def main():
         okey = list(topo["objects"].keys())[0]
         geoms = topo["objects"][okey].get("geometries", []) or []
 
+    reg = None if validate else va_registration.get()
+    reg_cd = (reg or {}).get("cd", {})
+
     counties_out = {}
     cast_total = mail_total = inperson_total = 0
     for g in geoms:
@@ -91,10 +95,12 @@ def main():
         ballots = int(p.get("ballots") or 0)
         mail = int(p.get("mail_ballots") or 0)
         inp = int(p.get("in_person") or 0)
+        registered = int(reg_cd.get(d) or 0)
         entry = {"fips": "51-%02d" % int(p.get("district_number") or 0),
                  "cast": _block(ballots), "mail_voted": _block(mail), "early_voted": _block(inp),
-                 "turnout_pct": None, "lean": p.get("vpap_index"),
-                 "lean_desc": p.get("vpap_index_description")}
+                 "registered": registered,
+                 "turnout_pct": (round(100.0 * ballots / registered, 2) if registered else None),
+                 "lean": p.get("vpap_index"), "lean_desc": p.get("vpap_index_description")}
         cands = p.get("candidates")
         if cands:
             entry["candidates"] = [{"name": c.get("name"), "party": c.get("party")} for c in cands]
@@ -111,20 +117,33 @@ def main():
               % (cast_total, mail_total, inperson_total, len(counties_out)))
         return 0
 
+    if not counties_out:
+        prev_snap = {}
+        try:
+            prev_snap = load(LATEST_PATH)
+        except (ValueError, OSError):
+            pass
+        if prev_snap.get("counties"):
+            print("VA: no district data this run — keeping the previous snapshot.")
+            return 0
+
     methods_present = []
     if mail_total:
         methods_present.append("mail_voted")
     if inperson_total:
         methods_present.append("early_voted")
 
+    reg_total = sum(e["registered"] for e in counties_out.values())
     statewide = {"cast": _block(cast_total), "mail_voted": _block(mail_total),
-                 "early_voted": _block(inperson_total), "registered": 0, "turnout_pct": None}
+                 "early_voted": _block(inperson_total), "registered": reg_total,
+                 "turnout_pct": (round(100.0 * cast_total / reg_total, 2) if reg_total else None)}
     snap = {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
         "partisan": False,
         "unit_label": cfg.get("unit_label", "District"),
         "unit_label_plural": cfg.get("unit_label_plural", "Districts"),
-        "source": {"primary": "VPAP early voting by U.S. House district (2026 general; turnout-only, VA has no party registration)"},
+        "source": {"primary": "VPAP early voting by U.S. House district (2026 general; turnout-only, VA has no party registration)",
+                   "registration": ("VA ELECT active registered voters by district, as of %s" % reg["cd_as_of"]) if reg else ""},
         "source_compiled": (topo.get("updated") if topo else "") or "",
         "source_compiled_iso": C.utc_now_iso() if topo else "",
         "methods_present": methods_present,

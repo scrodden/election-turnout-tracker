@@ -46,7 +46,8 @@
       "history": "data/va/history.jsonl",
       "locality_links": "config/va_localities.json",
       "locality_data": "data/va/locality.json",
-      "source_note": "Source: <a href='https://www.vpap.org/visuals/visual/early-voting-by-district-2026-nov-general/' target='_blank' rel='noopener'>VPAP</a> early voting by U.S. House district (2026 general). Virginia has no party registration, so this is turnout-only — total early ballots split into by-mail and in-person, by congressional district. Each district also shows VPAP's partisan lean. No partisan breakdown of the ballots themselves is available."
+      "source_note": "Source: <a href='https://www.vpap.org/visuals/visual/early-voting-by-district-2026-nov-general/' target='_blank' rel='noopener'>VPAP</a> early voting by U.S. House district, with turnout measured against <a href='https://www.elections.virginia.gov/resultsreports/registration-statistics/' target='_blank' rel='noopener'>Virginia Department of Elections</a> active registered voters. Virginia has no party registration, so this is turnout only: early ballots split into by mail and in person. A map by city and county appears here once VPAP publishes its November locality data; until then, each locality links to its VPAP page below.",
+      "locality_geojson": "assets/va-counties.geojson"
     },
     {
       "code": "co",

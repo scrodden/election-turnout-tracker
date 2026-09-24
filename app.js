@@ -50,6 +50,9 @@
   var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
   var unitLabel = "County", unitLabelPlural = "Counties";  // per-state map/table unit noun (VA = "District")
   var localityLinks = null, localityData = null, localityFilter = "";  // outbound per-locality directory (VA -> VPAP)
+  // VA: the main map is by U.S. House district; once locality early-vote data
+  // covers most localities, a Districts|Localities toggle swaps in the locality map.
+  var unitMode = "primary", primaryView = null, locGeo = null;
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -74,6 +77,13 @@
   function block(entity, key) {
     var b = entity && entity[key];
     return b || { rep: 0, dem: 0, oth: 0, npa: 0, total: 0, rep_pct: null, dem_pct: null, npa_pct: null, oth_pct: null, margin: null };
+  }
+  // turnout for the selected ballot category (share of registered voters);
+  // falls back to the snapshot's cast-based turnout_pct when there's no registered count
+  function turnoutOf(cty, b) {
+    if (!cty) return null;
+    if (cty.registered) return 100 * ((b && b.total) || 0) / cty.registered;
+    return method === "cast" && cty.turnout_pct != null ? cty.turnout_pct : null;
   }
   function compareActive() { return compare && baseline && CMP_METHODS.indexOf(method) >= 0; }
   function marginOf(b) { return (!b || !b.total) ? null : Math.round((100 * b.rep / b.total - 100 * b.dem / b.total) * 10) / 10; }
@@ -406,13 +416,16 @@
 
   function updateMapCaption() {
     var unitLc = unitLabel.toLowerCase();
+    var hasT = !partisan && anyTurnout();
     $("#map-title").textContent = mapMode === "precinct" ? "Turnout by precinct"
-      : (partisan ? "Partisan lean by " + unitLc : "Early ballots by " + unitLc);
+      : (partisan ? "Partisan lean by " + unitLc : (hasT ? "Early turnout by " : "Early ballots by ") + unitLc);
     $("#map-note").textContent = mapMode === "precinct"
       ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
       : (partisan
         ? "Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet."
-        : "Shaded by early-ballot volume in the selected category (darker = more ballots). This state does not register voters by party, so no partisan breakdown is available. Gray = no ballots yet.");
+        : hasT
+          ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). This state does not register voters by party, so no partisan breakdown is available."
+          : "Shaded by early-ballot volume in the selected category (darker = more ballots). This state does not register voters by party, so no partisan breakdown is available. Gray = no ballots yet.");
   }
 
   function renderCountyMap() {
@@ -420,17 +433,22 @@
     pzInit(); pzApply();
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     var cmp = compareActive();
-    var maxTot = 0;
+    var maxTot = 0, maxT = 0, anyT = false, tOf = {};
     if (!partisan) {
-      geo.features.forEach(function (ft) { var t = block(data.counties[ft.properties.name], method).total || 0; if (t > maxTot) maxTot = t; });
+      geo.features.forEach(function (ft) {
+        var nm = ft.properties.name, c = data.counties[nm], bb = block(c, method);
+        var tt = bb.total || 0; if (tt > maxTot) maxTot = tt;
+        var tv = turnoutOf(c, bb); tOf[nm] = tv;
+        if (tv != null) { anyT = true; if (tv > maxT) maxT = tv; }
+      });
     }
     geo.features.forEach(function (ft) {
       var name = ft.properties.name;
       var b = block(data.counties[name], method);
       var fill;
       if (!partisan) {
-        var cty = data.counties[name] || {};
-        fill = (cty.turnout_pct != null) ? colorForTurnout(cty.turnout_pct)
+        // relative shading: darkest = highest turnout (or most ballots) among units
+        fill = anyT ? (tOf[name] == null ? "#e9edf0" : colorForFrac(maxT ? tOf[name] / maxT : 0))
              : colorForFrac(maxTot ? (b.total / maxTot) : 0);
       } else if (rcActive()) {
         var rm = rcMarginOf(name);
@@ -532,9 +550,10 @@
     var tip = $("#tooltip");
     tip.hidden = false;
     if (!partisan) {
-      var cty = data.counties[name] || {};
+      var cty = data.counties[name] || {}, tv = turnoutOf(data.counties[name], b);
       tip.innerHTML = "<b>" + name + "</b><br>Ballots: " + fmt(b.total) +
-        (cty.turnout_pct != null ? "<br>Turnout: <span class='tt-margin'>" + pctText(cty.turnout_pct) + "</span>" : "");
+        (tv != null ? "<br>Turnout: <span class='tt-margin'>" + pctText(tv) + "</span>" +
+          (cty.registered ? " of " + fmt(cty.registered) + " registered" : "") : "");
       var hh = $("#map-holder").getBoundingClientRect();
       tip.style.left = (ev.clientX - hh.left) + "px"; tip.style.top = (ev.clientY - hh.top) + "px";
       return;
@@ -616,7 +635,8 @@
       var res = rcActive() ? rcMarginOf(name) : null;
       var gap = (rcActive() && b.margin != null && res != null) ? Math.round((b.margin - res) * 10) / 10 : null;
       return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
-               margin: b.margin, turnout: cty.turnout_pct, tqv: cty.tqv_url, source: cty.source,
+               margin: b.margin, turnout: partisan ? cty.turnout_pct : turnoutOf(data.counties[name], b),
+               tqv: cty.tqv_url, source: cty.source,
                m22: m22, shift: shift, res: res, gap: gap };
     });
     if (filter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(filter) >= 0; });
@@ -779,9 +799,19 @@
     setTimeout(function () { if (f.parentNode) f.parentNode.removeChild(f); }, 4000);
   }
   function refresh() {
+    if (st && st.locality_data && localityLinks) {
+      getJSON(st.locality_data).then(function (ld) {
+        if (!localityData || ld.data_hash !== localityData.data_hash) {
+          localityData = ld; updateUnitToggle(); renderLocalityLookup();
+          if (unitMode === "locality") { applyLocalityView(); renderAll(); }
+        }
+      }).catch(function () {});
+    }
     getJSON(DATA_URL).then(function (nd) {
-      if (!data || nd.data_hash !== data.data_hash) {
-        data = nd; ensureMethodValid(); precinctCache = {}; renderAll();
+      var shown = (unitMode === "locality" && primaryView) ? primaryView.data : data;
+      if (!shown || nd.data_hash !== shown.data_hash) {
+        if (unitMode === "locality" && primaryView) { primaryView.data = nd; applyLocalityView(); } else data = nd;
+        ensureMethodValid(); precinctCache = {}; renderAll();
         if (selected) openPrecincts(selected);
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
           precinctData = pd; if (mapMode === "precinct") renderMap();
@@ -931,6 +961,7 @@
     if (st) parts.push("s=" + st.code);
     parts.push("m=" + method);
     if (mapMode !== "county") parts.push("v=" + mapMode);
+    if (unitMode === "locality") parts.push("u=loc");
     if (compare) parts.push("cmp=1");
     if (rcmp) parts.push("rc=1");
     if (selected) parts.push("c=" + encodeURIComponent(selected));
@@ -991,6 +1022,10 @@
     precinctLoading = false; selected = null; filter = ""; cur = null;
     compare = false; mapMode = "county"; method = "cast";
     rcmp = false; rcData = null;
+    unitMode = "primary"; primaryView = null; locGeo = null;
+    var um = $("#unit-mode"); if (um) um.style.display = "none";
+    // read now: updateHash() rewrites the hash before the locality data arrives
+    var wantLocality = !!applyHash && parseHash().u === "loc";
     RCMP_URL = st.data ? st.data.replace(/latest\.json$/, "results_county.json") : null;
     partisan = (st.partisan !== false);
     $("#filter").value = ""; var cb = $("#cmp-2022"); if (cb) cb.checked = false;
@@ -1020,7 +1055,7 @@
         if (h2.c && data.counties[h2.c]) selectCounty(h2.c, true);
       }
       loadTrends();
-      loadLocalityLookup();
+      loadLocalityLookup(wantLocality);
       if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
       if (RCMP_URL) getJSON(RCMP_URL).then(function (rc) {
         rcData = rc; rcRace = (rc.race_types && rc.race_types.indexOf("gov") >= 0) ? "gov" : "sen";
@@ -1044,19 +1079,68 @@
     var s = $("#locality-lookup"); if (s) s.hidden = true;
     var fi = $("#locality-filter"); if (fi) fi.value = "";
   }
-  function loadLocalityLookup() {
+  function loadLocalityLookup(wantLocality) {
     if (!st || !st.locality_links) { resetLocality(); return; }
     var dataUrl = st.locality_data || null;
+    var code = st.code;
     Promise.all([
       getJSON(st.locality_links),
       dataUrl ? getJSON(dataUrl).catch(function () { return null; }) : Promise.resolve(null)
     ]).then(function (r) {
+      if (!st || st.code !== code) return;   // user switched states meanwhile
       localityLinks = r[0]; localityData = r[1];
       var sec = $("#locality-lookup"); if (sec) sec.hidden = false;
       var fi = $("#locality-filter");
       if (fi && !fi._wired) { fi._wired = true; fi.addEventListener("input", function (e) { localityFilter = e.target.value.trim().toLowerCase(); renderLocalityLookup(); }); }
       renderLocalityLookup();
+      updateUnitToggle();
+      if (wantLocality && localityReady()) setUnit("locality");
     }).catch(function () { resetLocality(); });
+  }
+
+  // ---- Districts | Localities map toggle (VA) --------------------------------
+  function localityReady() {
+    var d = localityData, cov = d && d.coverage;
+    return !!(st && st.locality_geojson && d && d.counties && cov && cov.total && cov.ok >= 0.9 * cov.total);
+  }
+  function updateUnitToggle() {
+    var box = $("#unit-mode"); if (!box) return;
+    var on = localityReady();
+    box.style.display = on ? "" : "none";
+    if (!on && unitMode === "locality") { setUnit("primary"); return; }
+    var bs = box.querySelectorAll("button");
+    for (var i = 0; i < bs.length; i++) {
+      var u = bs[i].getAttribute("data-unit");
+      bs[i].setAttribute("aria-selected", String(u === unitMode));
+      if (u === "primary") bs[i].textContent = primaryView ? primaryView.unitLabelPlural : unitLabelPlural;
+    }
+  }
+  function applyLocalityView() {
+    var ld = localityData, base = primaryView.data;
+    data = Object.assign({}, base, {
+      counties: ld.counties, statewide: ld.statewide,
+      methods_present: ld.methods_present || [], method_labels: ld.method_labels || base.method_labels,
+      unit_label: "Locality", unit_label_plural: "Localities"
+    });
+  }
+  function setUnit(u) {
+    if (u === unitMode) return;
+    if (u === "locality") {
+      if (!localityReady()) return;
+      if (!locGeo) { getJSON(st.locality_geojson).then(function (g) { locGeo = g; setUnit("locality"); }).catch(function () {}); return; }
+      primaryView = primaryView || { geo: geo, data: data, proj: proj, unitLabel: unitLabel, unitLabelPlural: unitLabelPlural };
+      geo = locGeo; proj = buildProjection(locGeo);
+      applyLocalityView();
+      unitLabel = "Locality"; unitLabelPlural = "Localities";
+    } else {
+      if (!primaryView) return;
+      geo = primaryView.geo; data = primaryView.data; proj = primaryView.proj;
+      unitLabel = primaryView.unitLabel; unitLabelPlural = primaryView.unitLabelPlural;
+    }
+    unitMode = u; selected = null; cur = null;
+    if (!methodAvailable(method)) method = "cast";
+    var cp = $("#county-panel"); if (cp) cp.hidden = true;
+    updateUnitToggle(); renderAll(); updateHash();
   }
   function renderLocalityLookup() {
     if (!localityLinks) return;
@@ -1066,7 +1150,8 @@
     if (note) {
       var parts = [];
       if (d && d.as_of) parts.push("As of " + d.as_of);
-      if (cov && cov.ok != null) parts.push(cov.ok + " of " + cov.total + " localities with live counts");
+      if (cov && cov.ok) parts.push(cov.ok + " of " + cov.total + " localities with live counts");
+      else if (cov) parts.push("locality counts and a locality map appear here once VPAP publishes its November locality data");
       parts.push("detail hosted by <a href='https://www.vpap.org/elections/early-voting/2026-november-general-election/' target='_blank' rel='noopener'>VPAP</a> — click a locality to open its live page (updates daily)");
       note.innerHTML = parts.join(" &middot; ");
     }
@@ -1213,6 +1298,8 @@
       });
       var modeBtns = $("#map-mode").querySelectorAll("button");
       for (var i = 0; i < modeBtns.length; i++) modeBtns[i].addEventListener("click", function () { setMode(this.getAttribute("data-mode")); });
+      var unitBtns = document.querySelectorAll("#unit-mode button");
+      for (var j = 0; j < unitBtns.length; j++) unitBtns[j].addEventListener("click", function () { setUnit(this.getAttribute("data-unit")); });
       setInterval(refresh, REFRESH_MS);
       var h = parseHash();
       var code = (h.s && STATES.some(function (s) { return s.code === h.s; })) ? h.s : (reg.default || (STATES[0] && STATES[0].code));

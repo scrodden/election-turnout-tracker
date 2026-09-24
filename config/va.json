@@ -10,7 +10,17 @@
     "_comment": "Virginia has no party registration -> turnout-only. VPAP publishes a Nov-2026-general early-vote-by-US-House-district TopoJSON on S3 (objects[].properties: district, ballots, mail_ballots, in_person, vpap_index[_description], candidates). We discover the dataset URL from the visual page at runtime (VPAP bumps the dated S3 path when it re-cuts the file) and fall back to dataset_url. This is per-CD turnout, split into by-mail (mail_voted) and in-person (early_voted); no partisan breakdown of the ballots (VA doesn't tag ballots by party).",
     "visual_url": "https://www.vpap.org/visuals/visual/early-voting-by-district-2026-nov-general/",
     "dataset_pattern": "https://vpap-production\\.s3[^\"'<> ]*?cd_earlyvotingballots[^\"'<> ]*?\\.json",
-    "dataset_url": "https://vpap-production.s3.us-east-1.amazonaws.com/media/visuals/custom/static/2026/09/early-voting-by-ushouse-district/assets/cd_earlyvotingballots_nov2026.json"
+    "dataset_url": "https://vpap-production.s3.us-east-1.amazonaws.com/media/visuals/custom/static/2026/09/early-voting-by-ushouse-district/assets/cd_earlyvotingballots_nov2026.json",
+    "_locality_comment": "Locality early votes: watched by va_locality_update.py. VPAP published datasets/locality_earlyvotes_2026apr.json for the April referendum; these are the likely names of a November equivalent (S3 returns 403 until a key exists). Any file must carry an 'updated' stamp on/after locality_min_updated. Registered voters come from VA ELECT's monthly CSVs (va_registration.py).",
+    "locality_dataset_candidates": [
+      "https://vpap-production.s3.amazonaws.com/media/visuals/custom/datasets/locality_earlyvotes_2026nov.json",
+      "https://vpap-production.s3.amazonaws.com/media/visuals/custom/datasets/locality_earlyvotes_nov2026.json",
+      "https://vpap-production.s3.amazonaws.com/media/visuals/custom/datasets/locality_earlyvotes_2026nov_general.json",
+      "https://vpap-production.s3.amazonaws.com/media/visuals/custom/datasets/locality_earlyvotingballots_nov2026.json",
+      "https://vpap-production.s3.amazonaws.com/media/visuals/custom/datasets/locality_earlyvotes_2026_general.json",
+      "https://vpap-production.s3.us-east-1.amazonaws.com/media/visuals/custom/static/2026/09/early-voting-by-ushouse-district/assets/locality_earlyvotingballots_nov2026.json"
+    ],
+    "locality_min_updated": "2026-09-01"
   },
   "method_labels": { "cast": "All early ballots", "mail_voted": "By mail", "early_voted": "In person" }
 }
