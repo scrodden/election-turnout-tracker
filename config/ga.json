@@ -6,8 +6,19 @@
   "election": { "date": "2026-11-03", "name": "2026 General" },
   "general_start": "2026-10-13",
   "source": {
-    "_comment": "Georgia has NO party registration -> turnout-only. The GA SoS 'Election Data Hub - Unofficial Turnout' publishes early-in-person + absentee + election-day turnout by county, but only through an interactive S3-hosted mashup app behind Cloudflare; no persistent public flat file was found off-season. STAGED SKELETON: writes 0 until a verified live 2026 feed is wired. The Friday rollout routine captures the live data-layer endpoint and finalizes the parser when GA early voting opens (~mid-Oct). Turnout-only: 'cast' = ballots cast; the map shades by turnout %.",
-    "hub": "https://sos.ga.gov/page/election-data-hub-turnout"
+    "_comment": "LIVE (waiting for the general to load). GA SoS 'Election Data Hub - Unofficial Turnout' is a Qlik Cloud app. Its sos.ga.gov page is behind a Cloudflare browser challenge; the Qlik tenant and the public token endpoint the page's S3-hosted mashup (gasos-elections-mashups-mashup-bucket/DH.ELECTION2024) calls for every visitor are not. scripts/qlik.py opens the app like the page does; ga_update.py sums Ballots_*_Counter by County x Ballot Style for the Election Name matching election_match, plus active voters from the newest Snapshot.AsOfDate <= today. Each fetch creates an anonymous Qlik user, so fetch at most once per fetch_hours_utc window (7am/7pm ET). Verified against NOVEMBER 5, 2024 - GENERAL ELECTION (5,295,967 accepted ballots statewide). The 2026 general was not yet in the hub on 2026-09-23 (26 elections, latest the Aug 25 2026 runoff).",
+    "hub": "https://sos.ga.gov/page/election-data-hub-unofficial-turnout",
+    "token_url": "https://fn4akbihvavvcmki6ih67rmuky0ezils.lambda-url.us-east-1.on.aws/",
+    "qlik_host": "sos-ga-gov.us.qlikcloudgov.com",
+    "app_id": "7d780725-d407-4db8-b287-005bb85eda87",
+    "election_match": ["NOVEMBER 3, 2026", "GENERAL"],
+    "registered_status": ["Active"],
+    "fetch_hours_utc": [11, 23]
   },
-  "method_labels": { "cast": "Ballots cast", "early_voted": "Early / absentee ballots" }
+  "method_labels": {
+    "cast": "Ballots cast",
+    "early_voted": "Early in person",
+    "mail_voted": "Absentee (mail + electronic)",
+    "election_day": "Election day"
+  }
 }

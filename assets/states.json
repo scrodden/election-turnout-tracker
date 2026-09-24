@@ -84,7 +84,7 @@
       "data": "data/ga/latest.json",
       "geojson": "assets/ga-counties.geojson",
       "history": "data/ga/history.jsonl",
-      "source_note": "Source: <a href='https://sos.ga.gov/page/election-data-hub-turnout' target='_blank' rel='noopener'>Georgia Secretary of State</a> Election Data Hub (unofficial turnout). Georgia has no party registration, so this is turnout-only — early in-person + absentee + election-day ballots &amp; turnout% by county. General-election early voting begins in mid-October, so figures read zero until then."
+      "source_note": "Source: <a href='https://sos.ga.gov/page/election-data-hub-unofficial-turnout' target='_blank' rel='noopener'>Georgia Secretary of State Election Data Hub</a> (unofficial turnout), checked twice a day. Georgia has no party registration, so this is turnout only: accepted early in-person, absentee (mail + electronic) and election-day ballots by county, with turnout as a share of active voters. Early voting starts October 13."
     },
     {
       "code": "mi",
