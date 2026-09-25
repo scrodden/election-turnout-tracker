@@ -55,6 +55,10 @@ def main():
     cfg = load(CONFIG_PATH)
 
     rows = fetch_counties(cfg)
+    if not rows:   # sos.mn.gov blocks automated requests -> UF Election Lab stand-in
+        import lab_standin as LAB
+        if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=False, force=force):
+            return 0
     counties_out = {}
     reg_total = cast_total = 0
     for name, r in rows.items():

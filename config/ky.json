@@ -10,7 +10,8 @@
   "general_start": "2026-10-15",
   "source": {
     "_comment": "STAGED SKELETON. Limited no-excuse early voting (a few days) by county & party. Source pointer: https://www.sos.ky.gov/elections . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.sos.ky.gov/elections"
+    "portal": "https://www.sos.ky.gov/elections",
+    "_standin": "UF Election Lab stand-in (US.csv + KY_county.csv) via scripts/lab_standin.py until an official source is wired."
   },
   "method_labels": {
     "cast": "Ballots cast",

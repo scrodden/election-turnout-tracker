@@ -207,9 +207,14 @@ def aggregate_towns(rows, crosswalk):
     return out, unmatched
 
 
-def read_xlsx(raw):
-    """Minimal stdlib .xlsx reader -> {sheet_name: [[cell, ...] rows]}. No deps."""
+def read_xlsx(raw, positional=False):
+    """Minimal stdlib .xlsx reader -> {sheet_name: [[cell, ...] rows]}. No deps.
+    Handles shared, inline ('inlineStr') and formula-string cells. With
+    positional=True each cell is placed at its real column (from its 'A1'
+    reference), so sparse rows keep their alignment; the default keeps the
+    original packed behaviour that existing parsers rely on."""
     import io
+    import re as _re
     import zipfile
     import xml.etree.ElementTree as ET
     NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
@@ -220,6 +225,13 @@ def read_xlsx(raw):
         for si in ET.fromstring(z.read("xl/sharedStrings.xml")).iter(NS + "si"):
             shared.append("".join(t.text or "" for t in si.iter(NS + "t")))
     rid = {r.get("Id"): r.get("Target") for r in ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))}
+
+    def col_index(ref):
+        m = _re.match(r"([A-Z]+)", ref or "")
+        n = 0
+        for ch in (m.group(1) if m else ""):
+            n = n * 26 + (ord(ch) - 64)
+        return n - 1
     out = {}
     for s in ET.fromstring(z.read("xl/workbook.xml")).iter(NS + "sheet"):
         tgt = rid.get(s.get(RNS + "id"), "")
@@ -233,8 +245,17 @@ def read_xlsx(raw):
             for c in row.iter(NS + "c"):
                 v = c.find(NS + "v")
                 val = ""
-                if v is not None and v.text is not None:
+                if c.get("t") == "inlineStr":
+                    val = "".join(t.text or "" for t in c.iter(NS + "t"))
+                elif v is not None and v.text is not None:
                     val = shared[int(v.text)] if c.get("t") == "s" else v.text
+                if positional and c.get("r"):
+                    i = col_index(c.get("r"))
+                    while len(cells) < i:
+                        cells.append("")
+                    if i < len(cells):
+                        cells[i] = val
+                        continue
                 cells.append(val)
             rows.append(cells)
         out[s.get("name")] = rows

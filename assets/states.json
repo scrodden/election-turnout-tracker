@@ -104,7 +104,7 @@
       "data": "data/md/latest.json",
       "geojson": "assets/md-counties.geojson",
       "history": "data/md/history.jsonl",
-      "source_note": "Source: <a href='https://elections.maryland.gov/press_room/index.html' target='_blank' rel='noopener'>Maryland State Board of Elections</a> — turnout by county, registered party &amp; method (early voting, mail, election day, provisional). General-election early voting &amp; mail run through early November, so figures read zero until then."
+      "source_note": "Source: <a href='https://elections.maryland.gov/press_room/index.html' target='_blank' rel='noopener'>Maryland State Board of Elections</a> daily &ldquo;Mail-in Sent and Returned&rdquo; report by county and registered party. Maryland's report groups unaffiliated voters with minor parties, so they appear under Other. Early in-person voting starts October 22."
     },
     {
       "code": "ia",
@@ -177,7 +177,7 @@
       "data": "data/mn/latest.json",
       "geojson": "assets/mn-counties.geojson",
       "history": "data/mn/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.mn.gov/election-administration-campaigns/data-maps/accepted-absentee-ballot-list-requests/' target='_blank' rel='noopener'>Minnesota Secretary of State</a> accepted absentee/early ballots by county. Minnesota has no party registration, so this is turnout-only. Early voting begins ~46 days out, so figures read zero until then."
+      "source_note": "Source: absentee ballots by county from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, from Minnesota Secretary of State data (the Secretary of State's site blocks automated access). Minnesota has no party registration, so this is turnout only: ballots requested and accepted by mail, plus in-person absentee voting, which began September 18."
     },
     {
       "code": "oh",
@@ -252,7 +252,7 @@
       "data": "data/ky/latest.json",
       "geojson": "assets/ky-counties.geojson",
       "history": "data/ky/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.ky.gov/elections' target='_blank' rel='noopener'>Kentucky Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: absentee ballots by county and registered party from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Kentucky State Board of Elections (the Board posts no public report). Independents and other unaffiliated voters are shown as NPA. In-person early voting runs the three days before Election Day."
     },
     {
       "code": "ma",

@@ -151,6 +151,78 @@ def read_pdf_text(raw):
     return "\n".join(p.extract_text() for p in reader.pages)
 
 
+def parse_mail_xlsx(raw, idx):
+    """Pre-election daily 'Mail-in Sent and Returned' by county workbook
+    (press_room/2026_stats/GG26/Absentees_Sent_and_Returned_by_County.xlsx).
+    Sheet1 rows: CATEGORY | COUNTY NAME | DISTRICT | .. | DEM/REP/OTH/TOTAL SENT |
+    DEM/REP/OTH/TOTAL RECEIVED; the 'ALL' category is each county's total.
+    MD lumps unaffiliated voters into OTH, so OTH -> oth (npa stays 0).
+    -> (as_of text, {geo_name: {"fips", "sent": {..}, "recv": {..}}}, unmatched)"""
+    sheets = C.read_xlsx(raw, positional=True)
+    rows = next(iter(sheets.values()), [])
+    as_of = ""
+    for r in rows[:6]:
+        for c in r:
+            m = re.search(r"As of:\s*([A-Za-z]+ \d{1,2}, \d{4}(?: \d{1,2}(?::\d{2})? ?[AP]M)?)", c)
+            if m:
+                as_of = m.group(1)
+    head = next((r for r in rows if "COUNTY NAME" in [c.strip().upper() for c in r]), None)
+    if not head:
+        raise RuntimeError("MD: header row not found")
+    H = {c.strip().upper(): i for i, c in enumerate(head) if c.strip()}
+    need = ["CATEGORY", "COUNTY NAME", "DEM SENT", "REP SENT", "OTH SENT", "TOTAL SENT",
+            "DEM RECEIVED", "REP RECEIVED", "OTH RECEIVED", "TOTAL RECEIVED"]
+    if any(k not in H for k in need):
+        raise RuntimeError("MD: unexpected columns %s" % list(H))
+
+    def num(r, k):
+        v = r[H[k]] if H[k] < len(r) else ""
+        return int(float(v)) if str(v).replace(".", "", 1).isdigit() else 0
+    out, unmatched = {}, []
+    for r in rows:
+        if len(r) <= H["COUNTY NAME"] or r[H["CATEGORY"]].strip().upper() != "ALL":
+            continue
+        name = r[H["COUNTY NAME"]].strip()
+        g = idx.get(norm(name))
+        if not g:
+            unmatched.append(name)
+            continue
+        sent = {"dem": num(r, "DEM SENT"), "rep": num(r, "REP SENT"), "oth": num(r, "OTH SENT"), "npa": 0}
+        recv = {"dem": num(r, "DEM RECEIVED"), "rep": num(r, "REP RECEIVED"), "oth": num(r, "OTH RECEIVED"), "npa": 0}
+        if sum(sent.values()) != num(r, "TOTAL SENT") or sum(recv.values()) != num(r, "TOTAL RECEIVED"):
+            raise RuntimeError("MD: party columns don't add up for %s" % name)
+        out[g["name"]] = {"fips": g["fips"], "sent": sent, "recv": recv}
+    return as_of, out, unmatched
+
+
+def mail_snapshot(cfg, as_of, rows, url):
+    def pb(d):
+        return C.party_block(d["rep"], d["dem"], d["oth"], d["npa"])
+
+    def ent(sent, recv):
+        e = {"mail_voted": pb(recv), "mail_provided": pb({k: max(0, sent[k] - recv[k]) for k in sent}),
+             "cast": pb(recv), "registered": 0, "turnout_pct": None}
+        m = C.compute_mail(e)
+        if m:
+            e["mail"] = m
+        return e
+    counties, S, R = {}, {"dem": 0, "rep": 0, "oth": 0, "npa": 0}, {"dem": 0, "rep": 0, "oth": 0, "npa": 0}
+    for name, r in rows.items():
+        counties[name] = dict(ent(r["sent"], r["recv"]), fips=r["fips"])
+        for k in S:
+            S[k] += r["sent"][k]
+            R[k] += r["recv"][k]
+    statewide = ent(S, R)
+    return {
+        "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"], "partisan": True,
+        "source": {"primary": "MD State Board of Elections 'Mail-in Sent and Returned' by county (2026 general), as of %s; "
+                              "unaffiliated voters are included in Other" % as_of, "url": url, "as_of": as_of},
+        "source_compiled": as_of, "source_compiled_iso": C.utc_now_iso(),
+        "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
+        "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
+    }
+
+
 def main():
     force = "--force" in sys.argv
     validate = "--validate" in sys.argv
@@ -183,7 +255,43 @@ def main():
         except Exception:  # noqa: BLE001 - file not posted yet
             continue
     if not parsed:
-        print("no live file yet (candidates not reachable)")
+        # before the official turnout file exists: the daily mail-in sent/returned workbook
+        mail_url = cfg["source"].get("mail_by_county")
+        try:
+            as_of, rows, unmatched = parse_mail_xlsx(C.http_get(mail_url, binary=True, retries=2), idx)
+            if unmatched:
+                raise RuntimeError("MD: unmatched counties %s" % unmatched)
+        except Exception as e:  # noqa: BLE001
+            print("MD mail-in workbook unavailable: %s" % str(e)[:140])
+            rows = {}
+        if rows:
+            snap = mail_snapshot(cfg, as_of, rows, mail_url)
+        else:
+            import lab_standin as LAB   # nothing official yet -> UF Election Lab stand-in
+            if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force):
+                return 0
+            print("no live file yet (candidates not reachable)")
+            snap = None
+        if snap:
+            prev = load(LATEST_PATH) if os.path.exists(LATEST_PATH) else {}
+            snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
+            changed = force or snap["data_hash"] != prev.get("data_hash")
+            snap["generated_at"] = C.utc_now_iso()
+            if not changed:
+                print("NOCHANGE  (mail-in as of %s)" % as_of)
+                return 0
+            os.makedirs(DATA_DIR, exist_ok=True)
+            with open(LATEST_PATH, "w", encoding="utf-8") as f:
+                json.dump(snap, f, separators=(",", ":"))
+            c = snap["statewide"]["cast"]
+            with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps({"generated_at": snap["generated_at"],
+                                    "statewide": {"cast": [c["rep"], c["dem"], c["oth"], c["npa"], c["total"]]}},
+                                   separators=(",", ":")) + "\n")
+            m = snap["statewide"].get("mail") or {}
+            print("CHANGED  MD mail-in as of %s: %d counties | received=%d of %d sent (R%d D%d Oth%d) margin=%s"
+                  % (as_of, len(snap["counties"]), c["total"], m.get("requested", 0), c["rep"], c["dem"], c["oth"], c["margin"]))
+            return 0
 
     snap, unmatched = build_snapshot(cfg, parsed, idx, src_label)
     snap["data_hash"] = C.data_hash(snap)

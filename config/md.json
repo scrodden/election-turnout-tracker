@@ -3,8 +3,11 @@
   "state_name": "Maryland",
   "state_fips": "24",
   "partisan": true,
-  "election": { "date": "2026-11-03", "name": "2026 General" },
-  "general_start": "2026-10-01",
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
+  "general_start": "2026-09-19",
   "source": {
     "_comment": "MD State Board of Elections posts an 'Official Turnout (By Party and County)' PDF with sections Democrat / Republican / Libertarian / Unaffiliated / Other Parties, each a county table with columns Election Day, Early Voting, Vote By Mail, Provisional, Eligible Voters, Turnout% -> full party x method x county. Requires pypdf (MD workflow step installs it). During the general the file lives under press_room/2026_stats/; the exact daily-vs-official cadence and filename are confirmed by the routine in Oct (general_candidates lists the likely names). validation_url is the persisted 2024 file used by --validate. Baltimore City = FIPS 24510 (renamed 'Baltimore City' in geometry), Baltimore County = 24005.",
     "base": "https://elections.maryland.gov/press_room/2026_stats/",
@@ -14,8 +17,25 @@
       "General by Party and County.pdf"
     ],
     "validation_url": "https://elections.maryland.gov/press_room/2024_stats/Official%20by%20Party%20and%20County.pdf",
-    "party_headers": { "Democrat": "dem", "Republican": "rep", "Unaffiliated": "npa", "Libertarian": "oth", "Other Parties": "oth" },
-    "header_tokens": ["NLM", "LBE", "Election Day", "Early Voting", "Vote By Mail", "Provisional", "Eligible Voters", "TURNOUT"]
+    "party_headers": {
+      "Democrat": "dem",
+      "Republican": "rep",
+      "Unaffiliated": "npa",
+      "Libertarian": "oth",
+      "Other Parties": "oth"
+    },
+    "header_tokens": [
+      "NLM",
+      "LBE",
+      "Election Day",
+      "Early Voting",
+      "Vote By Mail",
+      "Provisional",
+      "Eligible Voters",
+      "TURNOUT"
+    ],
+    "mail_by_county": "https://elections.maryland.gov/press_room/2026_stats/GG26/Absentees_Sent_and_Returned_by_County.xlsx",
+    "_mail_comment": "Before the official turnout PDF exists, md_update.py reads the SBE's daily 'Mail-in Sent and Returned' by county workbook (GG26 folder; 'ALL' category rows = county totals; DEM/REP/OTH sent & received, OTH includes unaffiliated). If neither is reachable it falls back to the UF Election Lab stand-in. In-person early voting (Oct 22+) is in GG26/'EarlyVoting RAW data.csv' -- not wired yet."
   },
   "method_labels": {
     "cast": "All ballots cast",

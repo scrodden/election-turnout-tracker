@@ -24,6 +24,7 @@ CONFIG_PATH = os.path.join(ROOT, "config", STATE + ".json")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
+GEO_PATH = os.path.join(ROOT, "assets", "ky-counties.geojson")
 SOURCE = "Kentucky Secretary of State (by county & registered party)"
 VOTED_METHODS = ["early_voted", "mail_voted"]
 
@@ -47,6 +48,10 @@ def main():
     cfg = load(CONFIG_PATH)
 
     rows = fetch_counties(cfg)
+    if not rows:   # no official feed wired yet -> UF Election Lab stand-in
+        import lab_standin as LAB
+        if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force):
+            return 0
     counties_out = {}
     for name, r in rows.items():
         ent = {"fips": r["fips"]}
