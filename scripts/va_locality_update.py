@@ -275,7 +275,7 @@ def main():
         doc = {
             "state": STATE, "election": loc_cfg.get("election", "2026 November General"),
             "unit_label": "Locality", "unit_label_plural": "Localities", "partisan": False,
-            "source": "UF Election Lab early-vote tracker (M. McDonald), VA_county.csv; CC BY-NC-ND 4.0",
+            "source": "VPAP locality early-vote data, as republished by the UF Election Lab (VA_county.csv; CC BY-NC-ND 4.0)",
             "source_detail": {"dataset_url": LAB_BASE + "VA_county.csv", "found_via": "election-lab",
                               "dataset_updated": lab_asof, "registration_as_of": (reg or {}).get("as_of"), "status": status},
             "source_compiled": lab_asof, "source_compiled_iso": C.utc_now_iso(),

@@ -1160,7 +1160,7 @@
       if (d && d.as_of) parts.push("As of " + d.as_of);
       if (cov && cov.ok) parts.push(cov.ok + " of " + cov.total + " localities with live counts");
       else if (cov) parts.push("locality counts and a locality map appear here once VPAP publishes its November locality data");
-      if (d && /Election Lab/.test(d.source || "")) parts.push("counts from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (CC BY-NC-ND 4.0)");
+      if (d && /Election Lab/.test(d.source || "")) parts.push("VPAP's locality counts, as republished by the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (CC BY-NC-ND 4.0)");
       parts.push("detail hosted by <a href='https://www.vpap.org/elections/early-voting/2026-november-general-election/' target='_blank' rel='noopener'>VPAP</a> — click a locality to open its live page (updates daily)");
       note.innerHTML = parts.join(" &middot; ");
     }
