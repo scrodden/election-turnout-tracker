@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
-"""Kentucky turnout by county and registered party.
+"""Kentucky absentee ballots by county and party.
 
-Source: Iowa SoS "Absentee Ballot Statistics" PDF, by county and party
-(requested / issued / received). "Received" (returned) by party = ballots cast.
-The 2024 file persists, so this is upgradeable to a real pypdf parser (like
-LA/MD). STAGED SKELETON for now: writes an empty (0) partisan snapshot until the
-parser is wired against the live 2026 file (the Friday rollout routine does this
-in Oct). See config/ia.json for the exact URLs.
+Source: the KY State Board of Elections' "2026 General Election Current Voter
+Turnout" workbook linked from elect.ky.gov (Documents/Absentee_Public_MMDDYY.xlsx,
+date in the name; sheet DATA). Per county:
+  All/DEM/REP Mail-in Applications, All/DEM/REP Ballots SENT,
+  All/DEM/REP Ballots RETURNED, All/DEM/REP Excused In-person,
+  All/DEM/REP No Excuse In-person, FPCA Applications, FPCA RETURNED,
+  UNOFFICIAL Total Absentee; plus a TOTALS row (used as a check).
+Only DEM and REP are split out, so everyone else (independents, minor parties,
+and military/overseas FPCA ballots, which carry no party) -> oth.
+requested = mail-in + FPCA applications; mail_voted = mail + FPCA returned;
+early_voted = excused + no-excuse in-person; mail_provided = requested -
+returned (outstanding) -> ballot chase.
 
-Run:  python scripts/ia_update.py [--force]
+If the workbook can't be read, falls back to the UF Election Lab stand-in.
+
+Run:  python scripts/ky_update.py [--force]
 """
-import os
-import sys
 import json
+import os
+import re
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -21,80 +30,153 @@ import common as C  # noqa: E402
 
 STATE = "ky"
 CONFIG_PATH = os.path.join(ROOT, "config", STATE + ".json")
+GEO_PATH = os.path.join(ROOT, "assets", "ky-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
-GEO_PATH = os.path.join(ROOT, "assets", "ky-counties.geojson")
-SOURCE = "Kentucky Secretary of State (by county & registered party)"
-VOTED_METHODS = ["early_voted", "mail_voted"]
+HOME = "https://elect.ky.gov/Pages/default.aspx"
 
 
-def load(p):
-    with open(p, encoding="utf-8") as f:
-        return json.load(f)
+def load(p, d=None):
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return d
 
 
-def fetch_counties(cfg):
-    """Return {county: {fips, methods:{mkey:{rep,dem,oth,npa}}}} from the live feed.
+def _norm(s):
+    return re.sub(r"[^a-z0-9]", "", str(s).lower())
 
-    PENDING: no wired parser yet. Returns {} (empty snapshot); the rollout
-    routine wires the live parser in Oct.
-    """
-    return {}
+
+def _num(v):
+    v = str(v or "").replace(",", "").strip()
+    try:
+        return int(float(v)) if v else 0
+    except ValueError:
+        return 0
+
+
+def newest_workbook():
+    h = C.http_get(HOME, retries=2)
+    links = re.findall(r'href="([^"]*Absentee_Public_(\d{2})(\d{2})(\d{2})\.xlsx)"', h)
+    if not links:
+        raise RuntimeError("KY: turnout workbook not linked from the home page")
+    href, mm, dd, yy = max(links, key=lambda x: (x[3], x[1], x[2]))
+    url = href if href.startswith("http") else "https://elect.ky.gov" + href
+    return url, "20%s-%s-%s" % (yy, mm, dd)
+
+
+def parse(raw):
+    rows = next(iter(C.read_xlsx(raw, positional=True).values()), [])
+    hi = next(i for i, r in enumerate(rows) if r and r[0].strip() == "County")
+    head = [c.strip() for c in rows[hi]]
+
+    def col(name):
+        return head.index(name)
+    cols = {k: col(k) for k in ("All Mail-in Applications", "DEM Mail-in Applications", "REP Mail-in Applications",
+                                "All Ballots RETURNED", "DEM Ballots RETURNED", "REP Ballots RETURNED",
+                                "Excused In-person", "DEM Excused In-person", "REP Excused In-person",
+                                "No Excuse In-person", "DEM No Excuse In-person", "REP No Excuse In-person",
+                                "FPCA Applications", "FPCA RETURNED", "UNOFFICIAL Total Absentee")}
+    out, totals = {}, None
+    for r in rows[hi + 1:]:
+        if not r or not r[0].strip():
+            continue
+        vals = {k: _num(r[i]) if i < len(r) else 0 for k, i in cols.items()}
+        if r[0].strip().upper() == "TOTALS":
+            totals = vals
+        else:
+            out[r[0].strip()] = vals
+    if not totals:
+        raise RuntimeError("KY: TOTALS row not found")
+    for k in cols:
+        if sum(v[k] for v in out.values()) != totals[k]:
+            raise RuntimeError("KY: county %r doesn't add up to TOTALS" % k)
+    return out
+
+
+def split(allv, dem, rep):
+    return {"dem": dem, "rep": rep, "npa": 0, "oth": max(0, allv - dem - rep)}
+
+
+def entity(v):
+    req = split(v["All Mail-in Applications"] + v["FPCA Applications"],
+                v["DEM Mail-in Applications"], v["REP Mail-in Applications"])
+    ret = split(v["All Ballots RETURNED"] + v["FPCA RETURNED"], v["DEM Ballots RETURNED"], v["REP Ballots RETURNED"])
+    inp = split(v["Excused In-person"] + v["No Excuse In-person"],
+                v["DEM Excused In-person"] + v["DEM No Excuse In-person"],
+                v["REP Excused In-person"] + v["REP No Excuse In-person"])
+
+    def pb(d):
+        return C.party_block(d["rep"], d["dem"], d["oth"], d["npa"])
+    e = {"mail_voted": pb(ret), "early_voted": pb(inp),
+         "mail_provided": pb({k: max(0, req[k] - ret[k]) for k in req}),
+         "cast": pb({k: ret[k] + inp[k] for k in ret}), "registered": 0, "turnout_pct": None}
+    m = C.compute_mail(e)
+    if m:
+        e["mail"] = m
+    return e
 
 
 def main():
     force = "--force" in sys.argv
-    cfg = load(CONFIG_PATH)
+    cfg = load(CONFIG_PATH, {}) or {}
+    from datetime import datetime, timezone
+    if not force and (load(LATEST_PATH, {}) or {}).get("counties") and datetime.now(timezone.utc).minute >= 12:
+        print("ky: next check at the top of the hour.")   # the workbook updates about daily
+        return 0
+    try:
+        url, as_of = newest_workbook()
+        rows = parse(C.http_get(url, binary=True, retries=2))
+    except Exception as e:  # noqa: BLE001
+        print("KY SBE workbook unavailable: %s" % str(e)[:140], file=sys.stderr)
+        rows = {}
+    if not rows:
+        import lab_standin as LAB   # official file unavailable -> UF Election Lab stand-in
+        LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force)
+        return 0
 
-    rows = fetch_counties(cfg)
-    if not rows:   # no official feed wired yet -> UF Election Lab stand-in
-        import lab_standin as LAB
-        if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force):
-            return 0
-    counties_out = {}
-    for name, r in rows.items():
-        ent = {"fips": r["fips"]}
-        for mkey, s in r.get("methods", {}).items():
-            ent[mkey] = C.party_block(s.get("rep", 0), s.get("dem", 0), s.get("oth", 0), s.get("npa", 0))
-        voted = [ent[m] for m in VOTED_METHODS if ent.get(m)]
-        ent["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
-        counties_out[name] = ent
-
-    statewide = {}
-    for mkey in VOTED_METHODS:
-        blocks = [counties_out[n][mkey] for n in counties_out if counties_out[n].get(mkey)]
-        if blocks:
-            statewide[mkey] = C.add_blocks(*blocks)
-    voted = [statewide[m] for m in VOTED_METHODS if statewide.get(m)]
-    statewide["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
-    methods_present = sorted({m for c in counties_out.values() for m in VOTED_METHODS if c.get(m)})
-
+    geo = load(GEO_PATH, {"features": []})
+    gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}
+    unmatched = [n for n in rows if _norm(n) not in gidx]
+    if unmatched:
+        print("KY: unmatched counties %s — keeping previous snapshot." % unmatched[:5], file=sys.stderr)
+        return 0
+    counties = {}
+    tot = {k: 0 for k in next(iter(rows.values()))}
+    for name, v in rows.items():
+        g = gidx[_norm(name)]
+        counties[g["name"]] = dict(entity(v), fips=g["fips"])
+        for k in tot:
+            tot[k] += v[k]
+    statewide = entity(tot)
     snap = {
-        "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
-        "source": {"primary": SOURCE},
-        "source_compiled": "", "source_compiled_iso": (C.utc_now_iso() if counties_out else ""),
-        "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
-        "statewide": statewide, "counties": counties_out,
+        "state": STATE, "state_name": cfg.get("state_name", "Kentucky"), "election": cfg.get("election", {}),
+        "partisan": True,
+        "source": {"primary": "KY State Board of Elections 'Current Voter Turnout' absentee workbook, as of %s" % as_of,
+                   "url": url, "as_of": as_of},
+        "source_compiled": as_of, "source_compiled_iso": C.utc_now_iso(),
+        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
+        "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
     }
-    snap["data_hash"] = C.data_hash(snap)
+    prev = load(LATEST_PATH, {}) or {}
+    snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
     snap["generated_at"] = C.utc_now_iso()
-
-    prev = None
-    if os.path.exists(LATEST_PATH):
-        try:
-            prev = load(LATEST_PATH).get("data_hash")
-        except (ValueError, OSError):
-            pass
-    changed = force or (snap["data_hash"] != prev)
+    if not force and snap["data_hash"] == prev.get("data_hash"):
+        print("NOCHANGE  (KY workbook as of %s)" % as_of)
+        return 0
     os.makedirs(DATA_DIR, exist_ok=True)
-    if changed:
-        with open(LATEST_PATH, "w", encoding="utf-8") as f:
-            json.dump(snap, f, separators=(",", ":"))
-        cast = statewide["cast"]
-        print("CHANGED  counties=%d  cast=%s margin=%s" % (len(counties_out), cast["total"], cast["margin"]))
-    else:
-        print("NOCHANGE  (hash %s)" % (prev or "")[:12])
+    with open(LATEST_PATH, "w", encoding="utf-8") as f:
+        json.dump(snap, f, separators=(",", ":"))
+    c = statewide["cast"]
+    with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"generated_at": snap["generated_at"],
+                            "statewide": {"cast": [c["rep"], c["dem"], c["oth"], c["npa"], c["total"]]}},
+                           separators=(",", ":")) + "\n")
+    m = statewide.get("mail") or {}
+    print("CHANGED  KY SBE workbook as of %s: %d counties | returned=%d of %d requested (R%d D%d Oth%d) margin=%s"
+          % (as_of, len(counties), c["total"], m.get("requested", 0), c["rep"], c["dem"], c["oth"], c["margin"]))
     return 0
 
 

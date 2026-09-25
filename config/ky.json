@@ -7,15 +7,14 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-09-19",
   "source": {
-    "_comment": "STAGED SKELETON. Limited no-excuse early voting (a few days) by county & party. Source pointer: https://www.sos.ky.gov/elections . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.sos.ky.gov/elections",
-    "_standin": "UF Election Lab stand-in (US.csv + KY_county.csv) via scripts/lab_standin.py until an official source is wired."
+    "_comment": "LIVE (official). KY SBE 'Current Voter Turnout' workbook linked from the elect.ky.gov home page: Documents/Absentee_Public_MMDDYY.xlsx (sheet DATA). Per county All/DEM/REP mail-in applications, sent, returned; excused and no-excuse in-person; FPCA applications/returned; TOTALS row checked. Non-D/R and FPCA -> oth. Falls back to the UF Election Lab stand-in if unreadable. Checked about hourly.",
+    "home": "https://elect.ky.gov/Pages/default.aspx"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
+    "cast": "Absentee ballots (mail + in person)",
+    "mail_voted": "Mail-in ballots returned",
+    "early_voted": "In-person absentee"
   }
 }

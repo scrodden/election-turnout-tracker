@@ -252,7 +252,7 @@
       "data": "data/ky/latest.json",
       "geojson": "assets/ky-counties.geojson",
       "history": "data/ky/history.jsonl",
-      "source_note": "Source: absentee ballots by county and registered party from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Kentucky State Board of Elections (the Board posts no public report). Independents and other unaffiliated voters are shown as NPA. In-person early voting runs the three days before Election Day."
+      "source_note": "Source: <a href='https://elect.ky.gov/Pages/default.aspx' target='_blank' rel='noopener'>Kentucky State Board of Elections</a> &ldquo;Current Voter Turnout&rdquo; absentee report, by county and registered party. The report splits out only Democrats and Republicans, so Other includes independents, minor parties and military/overseas ballots. In-person absentee voting starts October 21 (excused) and October 29 (no excuse)."
     },
     {
       "code": "ma",
