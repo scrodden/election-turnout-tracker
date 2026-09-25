@@ -1126,6 +1126,10 @@
       methods_present: ld.methods_present || [], method_labels: ld.method_labels || base.method_labels,
       unit_label: "Locality", unit_label_plural: "Localities"
     });
+    // the locality file has its own source and as-of date
+    if (ld.source) data.source = { primary: ld.source };
+    if (ld.source_compiled_iso) { data.source_compiled_iso = ld.source_compiled_iso; data.source_compiled = ld.source_compiled || ld.as_of; }
+    if (ld.data_hash) data.data_hash = ld.data_hash;
   }
   function setUnit(u) {
     if (u === unitMode) return;
@@ -1156,6 +1160,7 @@
       if (d && d.as_of) parts.push("As of " + d.as_of);
       if (cov && cov.ok) parts.push(cov.ok + " of " + cov.total + " localities with live counts");
       else if (cov) parts.push("locality counts and a locality map appear here once VPAP publishes its November locality data");
+      if (d && /Election Lab/.test(d.source || "")) parts.push("counts from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (CC BY-NC-ND 4.0)");
       parts.push("detail hosted by <a href='https://www.vpap.org/elections/early-voting/2026-november-general-election/' target='_blank' rel='noopener'>VPAP</a> — click a locality to open its live page (updates daily)");
       note.innerHTML = parts.join(" &middot; ");
     }

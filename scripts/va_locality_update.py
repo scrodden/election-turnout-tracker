@@ -167,6 +167,44 @@ def parse(topo):
     return out, unmatched
 
 
+LAB_BASE = "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/"
+LAB_PAGE = "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
+
+
+def lab_rows():
+    """UF Election Lab VA_county.csv (133 localities; built from VPAP/ELECT data):
+    request_all, accept_all (mail returned), inperson_all, voted_all. Rows must
+    match our localities and sum to the Lab's statewide VA row.
+    -> ({fips: {total, mail, in_person, requested}}, as_of, unmatched)"""
+    import csv
+    import io
+    match, _ = locality_index()
+    state = next((r for r in csv.DictReader(io.StringIO(C.http_get(LAB_BASE + "US.csv", no_cache=True)))
+                  if (r.get("state_abbv") or "").upper() == "VA"), None)
+    crow = list(csv.DictReader(io.StringIO(C.http_get(LAB_BASE + "VA_county.csv", no_cache=True))))
+
+    def n(r, k):
+        v = str((r or {}).get(k, "") or "").replace(",", "").strip()
+        try:
+            return int(float(v)) if v else 0
+        except ValueError:
+            return 0
+    if not state or not crow:
+        return {}, "", []
+    for k in ("request_all", "accept_all", "inperson_all", "voted_all"):
+        if sum(n(r, k) for r in crow) != n(state, k):
+            raise RuntimeError("Lab VA_county %s doesn't sum to the statewide row" % k)
+    out, unmatched = {}, []
+    for r in crow:
+        fips = match(r.get("county", ""))
+        if not fips:
+            unmatched.append(r.get("county"))
+            continue
+        out[fips] = {"total": n(r, "voted_all"), "mail": n(r, "accept_all"), "in_person": n(r, "inperson_all"),
+                     "requested": n(r, "request_all")}
+    return out, state.get("last_update", ""), unmatched
+
+
 def build(rows, reg, dataset_url, topo):
     _, by_fips = locality_index()
     geo = load(GEO_PATH, {"features": []})
@@ -186,6 +224,12 @@ def build(rows, reg, dataset_url, topo):
             e["early_voted"] = _block(r["in_person"] or 0)
             tot["mail"] += r["mail"] or 0
             tot["inp"] += r["in_person"] or 0
+        if r.get("requested") is not None:
+            e["mail_provided"] = _block(max(0, r["requested"] - (r["mail"] or 0)))
+            tot["out"] = tot.get("out", 0) + max(0, r["requested"] - (r["mail"] or 0))
+            m = C.compute_mail(e)
+            if m:
+                e["mail"] = m
         counties[key] = e
         tot["cast"] += r["total"]
         tot["reg"] += registered
@@ -196,6 +240,12 @@ def build(rows, reg, dataset_url, topo):
         statewide["mail_voted"] = _block(tot["mail"])
         statewide["early_voted"] = _block(tot["inp"])
         methods = [m for m, t in (("mail_voted", tot["mail"]), ("early_voted", tot["inp"])) if t]
+    if "out" in tot:
+        statewide["mail_provided"] = _block(tot["out"])
+        m = C.compute_mail(statewide)
+        if m:
+            statewide["mail"] = m
+        methods.append("mail_provided")
     return statewide, counties, methods
 
 
@@ -208,6 +258,45 @@ def main():
     prev = load(OUT_PATH, {}) or {}
     total_localities = len(loc_cfg.get("localities", []))
 
+    # 1) UF Election Lab locality file (all 133, mail/in-person split, requests)
+    lab, lab_asof, lab_unmatched = ({}, "", [])
+    if not test_url:
+        try:
+            lab, lab_asof, lab_unmatched = lab_rows()
+        except Exception as e:  # noqa: BLE001
+            print("VA locality: Election Lab file unusable: %s" % str(e)[:120], file=sys.stderr)
+        if lab_unmatched:
+            print("VA locality: Lab localities unmatched %s — not used." % lab_unmatched[:5], file=sys.stderr)
+            lab = {}
+    if lab:
+        reg = va_registration.get()
+        statewide, counties, methods = build(lab, reg, None, None)
+        status = "ok"
+        doc = {
+            "state": STATE, "election": loc_cfg.get("election", "2026 November General"),
+            "unit_label": "Locality", "unit_label_plural": "Localities", "partisan": False,
+            "source": "UF Election Lab early-vote tracker (M. McDonald), VA_county.csv; CC BY-NC-ND 4.0",
+            "source_detail": {"dataset_url": LAB_BASE + "VA_county.csv", "found_via": "election-lab",
+                              "dataset_updated": lab_asof, "registration_as_of": (reg or {}).get("as_of"), "status": status},
+            "source_compiled": lab_asof, "source_compiled_iso": C.utc_now_iso(),
+            "methods_present": methods,
+            "method_labels": {"cast": "All early ballots", "mail_voted": "By mail", "early_voted": "In person"},
+            "coverage": {"ok": len(lab), "total": total_localities, "unmatched": []},
+            "as_of": lab_asof, "statewide": statewide, "counties": counties,
+        }
+        doc["data_hash"] = C.data_hash({k: v for k, v in doc.items() if k not in ("source_detail", "source_compiled_iso")})
+        if doc["data_hash"] == prev.get("data_hash"):
+            print("va locality: no change (Election Lab as of %s)" % lab_asof)
+            return 0
+        doc["generated_at"] = C.utc_now_iso()
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(OUT_PATH, "w", encoding="utf-8") as f:
+            json.dump(doc, f, separators=(",", ":"))
+        print("va locality: Election Lab as of %s | %d/%d localities | cast=%d | turnout=%s%%"
+              % (lab_asof, len(lab), total_localities, statewide["cast"]["total"], statewide["turnout_pct"]))
+        return 0
+
+    # 2) otherwise watch for VPAP's public locality dataset
     url, how = (test_url, "test") if test_url else find_dataset(src, prev)
     topo = None
     if url:
