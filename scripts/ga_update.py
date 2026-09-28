@@ -40,6 +40,8 @@ GEO_PATH = os.path.join(ROOT, "assets", "ga-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
+CD_GEO_PATH = os.path.join(ROOT, "assets", "ga-cd.geojson")
+DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
 
 MAIL_STYLES = ["Absentee by mail", "Electronic Ballot Delivery"]
 EIP_STYLES = ["Early In-Person"]
@@ -192,78 +194,203 @@ LAB_RACE = [("White", "nh_white"), ("Black", "nh_black"), ("Hispanic", "hispanic
             ("Native American", "nh_native_american"), ("Other/unknown", "nh_other")]
 
 
-def lab_fallback(cfg, src, now, status):
-    """Statewide-only snapshot from the UF Election Lab's Georgia row (its source
-    is the SoS absentee voter file). Used unaltered, with attribution, under
-    CC BY-NC-ND 4.0, only while the SoS hub lacks the general. None if absent."""
-    import csv
-    import io
+def _lab_int(v):
+    v = str(v or "").strip()
+    try:
+        return int(float(v))
+    except ValueError:
+        return 0
+
+
+def lab_ga_row(src):
+    """The UF Election Lab's Georgia row from US.csv, or None."""
     url = src.get("lab_csv")
     if not url:
         return None
     try:
-        row = next((r for r in csv.DictReader(io.StringIO(C.http_get(url, no_cache=True)))
-                    if (r.get("state_abbv") or "").upper() == "GA"), None)
+        return next((r for r in lab_rows(url) if (r.get("state_abbv") or "").upper() == "GA"), None)
     except Exception as e:  # noqa: BLE001
         print("GA: Election Lab CSV unavailable: %s" % str(e)[:100], file=sys.stderr)
         return None
 
+
+def lab_rows(url):
+    import csv
+    import io
+    return list(csv.DictReader(io.StringIO(C.http_get(url, no_cache=True))))
+
+
+def lab_entity(req, ret, inp):
+    e = {"mail_voted": _block(ret), "mail_provided": _block(max(0, req - ret)), "early_voted": _block(inp),
+         "cast": _block(ret + inp), "registered": 0, "turnout_pct": None}
+    mm = C.compute_mail(e)
+    if mm:
+        e["mail"] = mm
+    return e
+
+
+def lab_demo(get):
+    """Age / gender / race of ballots cast from a Lab row (voted_* columns); None if none cast."""
+    if not get("voted_all"):
+        return None
+    return {"age": [{"label": lab, "count": get("voted_age_" + k)} for lab, k in LAB_AGE],
+            "gender": [{"label": "Female", "count": get("voted_female")}, {"label": "Male", "count": get("voted_male")},
+                       {"label": "Unknown", "count": get("voted_gender_unknown")}],
+            "race": [{"label": lab, "count": get("voted_" + k)} for lab, k in LAB_RACE]}
+
+
+def reconcile(parts, total_get):
+    """Lab county/district rows vs its statewide row. Every ballot cast must be
+    attributed (accepted + in-person sums match exactly); a few mail-ballot
+    requests may carry no county/district (<= 1%). -> (ok, unassigned requests)."""
+    exact = all(sum(_lab_int(r.get(k)) for r in parts) == total_get(k) for k in ("accept_all", "inperson_all"))
+    gap = total_get("request_all") - sum(_lab_int(r.get("request_all")) for r in parts)
+    return exact and 0 <= gap <= max(50, total_get("request_all") // 100), gap
+
+
+def unassigned_note(gap, total):
+    if not gap:
+        return None
+    return ("%s of the %s mail-ballot requests in the Election Lab's data have no county or district, so "
+            "request figures on the map add up to %s." % (format(gap, ","), format(total, ","), format(total - gap, ",")))
+
+
+def lab_fallback(cfg, src, now, status, row=None):
+    """Snapshot from the UF Election Lab (its source is the SoS absentee voter
+    file): statewide from its Georgia row, counties from GA_county.csv when
+    they reconcile. Used unaltered, with attribution, under CC BY-NC-ND 4.0,
+    only while the SoS hub lacks the general. None if absent."""
+    row = row or lab_ga_row(src)
+
     def n(k):
-        v = (row or {}).get(k, "") or ""
-        return int(float(v)) if v.replace(".", "", 1).isdigit() else 0
+        return _lab_int((row or {}).get(k))
     if not row or not n("request_all"):
         return None
-    def ent(req, ret, inp):
-        e = {"mail_voted": _block(ret), "mail_provided": _block(max(0, req - ret)), "early_voted": _block(inp),
-             "cast": _block(ret + inp), "registered": 0, "turnout_pct": None}
-        mm = C.compute_mail(e)
-        if mm:
-            e["mail"] = mm
-        return e
-    req, ret, inp = n("request_all"), n("accept_all"), n("inperson_all")
-    statewide = ent(req, ret, inp)
-    m = statewide.get("mail")
-    # county detail from the Lab's GA_county.csv; must add up to the statewide row
-    counties = {}
+    statewide = lab_entity(n("request_all"), n("accept_all"), n("inperson_all"))
+    counties, gap = {}, 0
     try:
-        crow = list(csv.DictReader(io.StringIO(C.http_get(src["lab_county_csv"], no_cache=True))))
+        crow = lab_rows(src["lab_county_csv"])
         geo = load(GEO_PATH, {"features": []})
         gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}
-
-        def cn(r, k):
-            v = r.get(k, "") or ""
-            return int(float(v)) if v.replace(".", "", 1).isdigit() else 0
-        sums_ok = all(sum(cn(r, k) for r in crow) == n(k) for k in ("request_all", "accept_all", "inperson_all"))
+        ok, gap = reconcile(crow, n)
         for r in crow:
             g = gidx.get(_norm(r.get("county")))
             if g:
-                counties[g["name"]] = dict(ent(cn(r, "request_all"), cn(r, "accept_all"), cn(r, "inperson_all")), fips=g["fips"])
-        if not sums_ok or len(counties) != len(crow):
+                ent = dict(lab_entity(_lab_int(r.get("request_all")), _lab_int(r.get("accept_all")),
+                                      _lab_int(r.get("inperson_all"))), fips=g["fips"])
+                d = lab_demo(lambda k, r=r: _lab_int(r.get(k)))
+                if d:
+                    ent["demographics"] = d
+                counties[g["name"]] = ent
+        if not ok or len(counties) != len(crow):
             print("GA: Lab county file doesn't reconcile with the statewide row — statewide only.", file=sys.stderr)
-            counties = {}
+            counties, gap = {}, 0
     except Exception as e:  # noqa: BLE001
         print("GA: Lab county file unavailable: %s" % str(e)[:100], file=sys.stderr)
-        counties = {}
-    demo = {"age": [{"label": lab, "count": n("voted_age_" + k)} for lab, k in LAB_AGE],
-            "gender": [{"label": "Female", "count": n("voted_female")}, {"label": "Male", "count": n("voted_male")},
-                       {"label": "Unknown", "count": n("voted_gender_unknown")}],
-            "race": [{"label": lab, "count": n("voted_" + k)} for lab, k in LAB_RACE]}
+        counties, gap = {}, 0
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Georgia"), "election": cfg.get("election", {}),
         "partisan": False, "statewide_only": not counties,
         "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
         "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
-        "demographics": demo if n("voted_all") else None,
+        "demographics": lab_demo(n),
     }
+    note = unassigned_note(gap, n("request_all"))
+    if note:
+        body["map_note"] = note
     snap = dict(body)
     snap["source"] = {"primary": "UF Election Lab early-vote tracker (M. McDonald), from the GA SoS absentee voter file; "
-                                 "CC BY-NC-ND 4.0 -- statewide stand-in until the SoS hub loads the general",
+                                 "CC BY-NC-ND 4.0 -- stand-in until the SoS hub loads the general",
                       "url": src.get("lab_page"), "as_of": row.get("last_update", ""),
-                      "fetched_at": now, "status": status + "; using Election Lab statewide fallback"}
+                      "fetched_at": now, "status": status + "; using Election Lab fallback"}
     snap["source_compiled"] = row.get("last_update", "")
     snap["source_compiled_iso"] = now
     snap["data_hash"] = C.data_hash(body)
     return snap
+
+
+def lab_districts(cfg, src, now, force=False):
+    """U.S. House district view (data/ga/districts.json, shown by the site's
+    Counties | Districts toggle) from the Lab's GA_cd.csv, whose rows are
+    district x county pieces, summed per district. Checked about hourly;
+    the previous file is kept if the new one is missing or doesn't reconcile."""
+    if not src.get("lab_cd_csv") or (not force and C.checked_recently(DATA_DIR, "lab_cd")):
+        return
+    row = lab_ga_row(src)
+    if not row:
+        return
+
+    def n(k):
+        return _lab_int(row.get(k))
+    try:
+        parts = lab_rows(src["lab_cd_csv"])
+    except Exception as e:  # noqa: BLE001
+        print("GA: Lab district file unavailable: %s" % str(e)[:100], file=sys.stderr)
+        return
+    geo = load(CD_GEO_PATH, {"features": []})
+    gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
+    ok, gap = reconcile(parts, n)
+    sums, bad = {}, []
+    for r in parts:
+        cd = str(r.get("cd") or "").strip()
+        if not cd.isdigit() or int(cd) not in gidx:
+            bad.append(cd)
+            continue
+        acc = sums.setdefault(int(cd), {})
+        for k, v in r.items():
+            if k not in ("cd", "county", "return_rate"):
+                acc[k] = acc.get(k, 0) + _lab_int(v)
+    if not ok or bad or len(sums) != len(gidx):
+        print("GA: Lab district file doesn't reconcile (unknown districts %s) — keeping the previous one." % bad[:5],
+              file=sys.stderr)
+        return
+    districts = {}
+    for num, a in sorted(sums.items()):
+        g = gidx[num]
+        ent = dict(lab_entity(a.get("request_all", 0), a.get("accept_all", 0), a.get("inperson_all", 0)),
+                   fips=g["fips"])
+        d = lab_demo(lambda k, a=a: a.get(k, 0))
+        if d:
+            ent["demographics"] = d
+        districts[g["name"]] = ent
+    statewide = lab_entity(n("request_all"), n("accept_all"), n("inperson_all"))
+    body = {
+        "state": STATE, "election": cfg.get("election", {}), "unit_label": "District", "unit_label_plural": "Districts",
+        "partisan": False, "source": "UF Election Lab early-vote tracker (M. McDonald), U.S. House district file "
+                                     "(GA_cd.csv, from the GA SoS absentee voter file); CC BY-NC-ND 4.0",
+        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
+        "method_labels": cfg.get("method_labels", {}),
+        "coverage": {"ok": len(districts), "total": len(gidx), "unmatched": []},
+        "as_of": row.get("last_update", ""), "statewide": statewide, "counties": districts,
+    }
+    note = unassigned_note(gap, n("request_all"))
+    if note:
+        body["map_note"] = note
+    prev = load(DISTRICTS_PATH, {}) or {}
+    h = C.data_hash(body)
+    if h == prev.get("data_hash") and not force:
+        print("ga districts: NOCHANGE (Lab as of %s)" % body["as_of"])
+        return
+    out = dict(body, source_compiled=body["as_of"], source_compiled_iso=now, data_hash=h, generated_at=now)
+    with open(DISTRICTS_PATH, "w", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"))
+    print("ga districts: CHANGED %d districts, cast=%d (Lab as of %s)"
+          % (len(districts), statewide["cast"]["total"], body["as_of"]))
+
+
+def write_lab(snap, prev, now):
+    changed = snap["data_hash"] != prev.get("data_hash")
+    snap["generated_at"] = now if changed else prev.get("generated_at", now)
+    with open(LATEST_PATH, "w", encoding="utf-8") as f:
+        json.dump(snap, f, separators=(",", ":"))
+    cast = snap["statewide"]["cast"]["total"]
+    if changed and cast:
+        with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"generated_at": now, "cast": cast, "data_hash": snap["data_hash"]},
+                               separators=(",", ":")) + "\n")
+    print("%s  Election Lab fallback: %d counties | returned=%d of %d requested (as of %s)"
+          % ("CHANGED" if changed else "NOCHANGE", len(snap["counties"]), cast,
+             (snap["statewide"].get("mail") or {}).get("requested", 0), snap["source"].get("as_of")))
 
 
 def main():
@@ -278,11 +405,25 @@ def main():
     prev = load(LATEST_PATH, {}) or {}
     psrc = prev.get("source") or {}
 
-    if not (force or dry) and not due(psrc.get("fetched_at"), src.get("fetch_hours_utc", [11, 23])):
-        print("ga: fetched %s; next window not reached — skipping." % psrc.get("fetched_at"))
+    now = C.utc_now_iso()
+    if not dry:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        lab_districts(cfg, src, now, force)   # district view: Lab file, ~hourly
+
+    hub_last = psrc.get("hub_checked_at") or psrc.get("fetched_at")
+    if not (force or dry) and not due(hub_last, src.get("fetch_hours_utc", [11, 23])):
+        # the hub is only tried twice a day; while we're on the Lab fallback,
+        # re-check the Lab about hourly in between
+        on_lab = "Election Lab" in str(psrc.get("primary", "")) or not prev.get("statewide")
+        if on_lab and not C.checked_recently(DATA_DIR, "lab"):
+            snap = lab_fallback(cfg, src, now, str(psrc.get("status", "waiting")).split("; using")[0])
+            if snap:
+                snap["source"]["hub_checked_at"] = hub_last
+                write_lab(snap, prev, now)
+                return 0
+        print("ga: hub checked %s; next window not reached — skipping." % hub_last)
         return 0
 
-    now = C.utc_now_iso()
     try:
         elec, snap_date, rows = fetch(src, override)
         status = "ok" if elec else "waiting: no election matching %s in the hub yet" % src["election_match"]
@@ -300,31 +441,20 @@ def main():
                      sw["mail_provided"]["total"], sw["registered"], sw["turnout_pct"], um))
         return 0
 
-    os.makedirs(DATA_DIR, exist_ok=True)
     if not rows:
         # Until the hub carries the general, fall back to the UF Election Lab's
-        # statewide Georgia figures (built from the SoS absentee voter file).
+        # Georgia figures (built from the SoS absentee voter file).
         snap = lab_fallback(cfg, src, now, status)
         if snap:
-            changed = snap["data_hash"] != prev.get("data_hash")
-            snap["generated_at"] = now if changed else prev.get("generated_at", now)
-            with open(LATEST_PATH, "w", encoding="utf-8") as f:
-                json.dump(snap, f, separators=(",", ":"))
-            cast = snap["statewide"]["cast"]["total"]
-            if changed and cast:
-                with open(HISTORY_PATH, "a", encoding="utf-8") as f:
-                    f.write(json.dumps({"generated_at": now, "cast": cast, "data_hash": snap["data_hash"]},
-                                       separators=(",", ":")) + "\n")
-            print("%s  Election Lab statewide fallback: returned=%d of %d requested (as of %s)"
-                  % ("CHANGED" if changed else "NOCHANGE", cast, (snap["statewide"].get("mail") or {}).get("requested", 0),
-                     snap["source"].get("as_of")))
+            snap["source"]["hub_checked_at"] = now
+            write_lab(snap, prev, now)
             return 0
         # record the attempt so the next try waits for the next window
         snap = prev or {"state": STATE, "state_name": cfg.get("state_name", "Georgia"),
                         "election": cfg.get("election", {}), "partisan": False,
                         "methods_present": [], "method_labels": cfg.get("method_labels", {}),
                         "statewide": {"cast": _block(0)}, "counties": {}}
-        snap["source"] = dict(psrc, fetched_at=now, status=status)
+        snap["source"] = dict(psrc, fetched_at=now, hub_checked_at=now, status=status)
         with open(LATEST_PATH, "w", encoding="utf-8") as f:
             json.dump(snap, f, separators=(",", ":"))
         return 0
@@ -339,7 +469,8 @@ def main():
     changed = force or h != prev.get("data_hash")
     snap = dict(body)
     snap["source"] = {"primary": "GA SoS Election Data Hub (Qlik): accepted ballots by county & method; turnout-only",
-                      "hub_election": elec, "registration_snapshot": snap_date, "fetched_at": now, "status": status}
+                      "hub_election": elec, "registration_snapshot": snap_date, "fetched_at": now,
+                      "hub_checked_at": now, "status": status}
     snap["source_compiled"] = now[:10] if changed else prev.get("source_compiled", now[:10])
     snap["source_compiled_iso"] = now if changed else prev.get("source_compiled_iso", now)
     snap["data_hash"] = h

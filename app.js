@@ -50,8 +50,10 @@
   var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
   var unitLabel = "County", unitLabelPlural = "Counties";  // per-state map/table unit noun (VA = "District")
   var localityLinks = null, localityData = null, localityFilter = "";  // outbound per-locality directory (VA -> VPAP)
-  // VA: the main map is by U.S. House district; once locality early-vote data
-  // covers most localities, a Districts|Localities toggle swaps in the locality map.
+  // Second map view (st.locality_data + st.locality_geojson): VA's main map is by
+  // U.S. House district with a Localities view; GA's is by county with a Districts
+  // view. Once the second file covers most units, a toggle swaps it in; its labels
+  // come from the file's unit_label / unit_label_plural.
   var unitMode = "primary", primaryView = null, locGeo = null;
 
   // ---- utils ---------------------------------------------------------------
@@ -410,6 +412,8 @@
 
   function renderMap() {
     updateMapCaption();
+    $("#map").setAttribute("aria-label", "Map of " + ((data && data.state_name) || (st && st.name) || "the state") +
+      " early-vote turnout by " + (mapMode === "precinct" ? "precinct" : unitLabel.toLowerCase()));
     if (mapMode === "precinct") return renderPrecinctMap();
     return renderCountyMap();
   }
@@ -804,7 +808,7 @@
     setTimeout(function () { if (f.parentNode) f.parentNode.removeChild(f); }, 4000);
   }
   function refresh() {
-    if (st && st.locality_data && localityLinks) {
+    if (st && st.locality_data && (localityLinks || localityData)) {
       getJSON(st.locality_data).then(function (ld) {
         if (!localityData || ld.data_hash !== localityData.data_hash) {
           localityData = ld; updateUnitToggle(); renderLocalityLookup();
@@ -1085,16 +1089,16 @@
     var fi = $("#locality-filter"); if (fi) fi.value = "";
   }
   function loadLocalityLookup(wantLocality) {
-    if (!st || !st.locality_links) { resetLocality(); return; }
+    if (!st || !(st.locality_links || st.locality_data)) { resetLocality(); return; }
     var dataUrl = st.locality_data || null;
     var code = st.code;
     Promise.all([
-      getJSON(st.locality_links),
+      st.locality_links ? getJSON(st.locality_links) : Promise.resolve(null),
       dataUrl ? getJSON(dataUrl).catch(function () { return null; }) : Promise.resolve(null)
     ]).then(function (r) {
       if (!st || st.code !== code) return;   // user switched states meanwhile
       localityLinks = r[0]; localityData = r[1];
-      var sec = $("#locality-lookup"); if (sec) sec.hidden = false;
+      var sec = $("#locality-lookup"); if (sec) sec.hidden = !localityLinks;
       var fi = $("#locality-filter");
       if (fi && !fi._wired) { fi._wired = true; fi.addEventListener("input", function (e) { localityFilter = e.target.value.trim().toLowerCase(); renderLocalityLookup(); }); }
       renderLocalityLookup();
@@ -1103,7 +1107,11 @@
     }).catch(function () { resetLocality(); });
   }
 
-  // ---- Districts | Localities map toggle (VA) --------------------------------
+  // ---- second-map toggle (VA Districts | Localities, GA Counties | Districts) --
+  function altLabel(plural) {
+    var d = localityData || {};
+    return plural ? (d.unit_label_plural || "Localities") : (d.unit_label || "Locality");
+  }
   function localityReady() {
     var d = localityData, cov = d && d.coverage;
     return !!(st && st.locality_geojson && d && d.counties && cov && cov.total && cov.ok >= 0.9 * cov.total);
@@ -1118,6 +1126,7 @@
       var u = bs[i].getAttribute("data-unit");
       bs[i].setAttribute("aria-selected", String(u === unitMode));
       if (u === "primary") bs[i].textContent = primaryView ? primaryView.unitLabelPlural : unitLabelPlural;
+      else bs[i].textContent = altLabel(true);
     }
   }
   function applyLocalityView() {
@@ -1125,7 +1134,8 @@
     data = Object.assign({}, base, {
       counties: ld.counties, statewide: ld.statewide,
       methods_present: ld.methods_present || [], method_labels: ld.method_labels || base.method_labels,
-      unit_label: "Locality", unit_label_plural: "Localities"
+      unit_label: altLabel(false), unit_label_plural: altLabel(true),
+      map_note: ld.map_note || null, statewide_only: false, county_stale: false
     });
     // the locality file has its own source and as-of date
     if (ld.source) data.source = { primary: ld.source };
@@ -1140,7 +1150,7 @@
       primaryView = primaryView || { geo: geo, data: data, proj: proj, unitLabel: unitLabel, unitLabelPlural: unitLabelPlural };
       geo = locGeo; proj = buildProjection(locGeo);
       applyLocalityView();
-      unitLabel = "Locality"; unitLabelPlural = "Localities";
+      unitLabel = altLabel(false); unitLabelPlural = altLabel(true);
     } else {
       if (!primaryView) return;
       geo = primaryView.geo; data = primaryView.data; proj = primaryView.proj;
