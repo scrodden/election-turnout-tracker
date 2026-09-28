@@ -10,7 +10,9 @@ name: Election-Day live results (2-min)
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Nov 3-4 only (no more no-op runs the rest of the year). GitHub's cron is
+    # unreliable, so on those days tick.yml also starts this every ~10 minutes.
+    - cron: "*/10 * 3-4 11 *"
   workflow_dispatch: {}
 
 permissions:

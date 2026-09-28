@@ -1,0 +1,35 @@
+name: Update timer (10-min chain)
+
+# GitHub's cron is best-effort and has been firing the 10-minute schedule only
+# every few hours, so the updates chain themselves: each "Update turnout" run
+# ends by starting this workflow, whose job waits on the `update-timer`
+# environment (an 8-minute wait timer set in the repo's Settings -> Environments;
+# no runner is used while it waits) and then starts the next update run.
+# On Election Day it also starts the 2-minute live-results loop each cycle.
+# The cron schedules stay as a backup that restarts the chain if it ever breaks.
+# The chain stops by itself once every state is frozen (update.yml's gate).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  actions: write
+
+concurrency:
+  group: update-timer
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    environment: update-timer
+    steps:
+      - name: Start the next update run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run update.yml --repo "${{ github.repository }}" --ref main
+          D=$(date -u +%Y-%m-%d)
+          if [ "$D" = "2026-11-03" ] || [ "$D" = "2026-11-04" ]; then
+            gh workflow run results_eday.yml --repo "${{ github.repository }}" --ref main
+          fi

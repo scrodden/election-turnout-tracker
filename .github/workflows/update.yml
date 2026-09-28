@@ -12,9 +12,10 @@ name: Update turnout (all states)
 
 on:
   schedule:
-    # every 10 minutes, off the top of the hour: GitHub delays (and sometimes
-    # drops) scheduled runs under load, worst at :00. Slow sources throttle
-    # themselves (common.checked_recently), so late or extra runs are harmless.
+    # Backup only: GitHub delays (and often drops) scheduled runs under load, so
+    # the 10-minute cadence comes from the timer chain (tick.yml, started by the
+    # last step below). Slow sources throttle themselves
+    # (common.checked_recently), so late or extra runs are harmless.
     - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch: {}       # allow manual runs from the Actions tab
   push:                       # a code/config change (e.g. a newly wired state) runs it right away
@@ -23,6 +24,7 @@ on:
 
 permissions:
   contents: write
+  actions: write    # to start the next run via the timer chain (tick.yml)
 
 concurrency:
   group: update-fl
@@ -105,4 +107,17 @@ jobs:
             git commit -m "Turnout update $ts"
             git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
             git push
+          fi
+
+      - name: Schedule the next run (~10 min) via the timer chain
+        if: always() && steps.gate.outputs.frozen != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # one chain only: skip if a timer is already waiting/running
+          active=$(gh run list --repo "${{ github.repository }}" --workflow tick.yml --limit 10 --json status --jq '[.[] | select(.status != "completed")] | length' || echo 0)
+          if [ "$active" = "0" ]; then
+            gh workflow run tick.yml --repo "${{ github.repository }}" --ref main
+          else
+            echo "A timer is already pending; not starting another."
           fi
