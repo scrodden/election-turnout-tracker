@@ -106,7 +106,7 @@ def main():
     import lab_standin as LAB
     prev0 = load(LATEST_PATH, {}) or {}
     # the Lab updates ~daily: skip once we hold today's figures, else check ~hourly
-    if prev0.get("counties") and not LAB.due(dict(prev0, lab_standin=True), force):
+    if prev0.get("counties") and not LAB.due(dict(prev0, lab_standin=True), force, DATA_DIR):
         print("nj: holding the Election Lab's %s update — next check not due." % (prev0.get("source") or {}).get("as_of"))
         return 0
     try:

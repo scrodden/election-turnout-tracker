@@ -97,6 +97,33 @@ def utc_now_iso():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def checked_recently(data_dir, key="source", minutes=50):
+    """Roughly-hourly throttle for slow-changing sources. GitHub often runs the
+    10-minute workflow hours late, so a minute-of-the-hour gate can skip a state
+    for most of a day; instead remember when each source was last polled
+    (data/<st>/_checked.json) and skip only if that was under `minutes` ago.
+    Returns False (and records the poll time) when a check is due."""
+    import os
+    path = os.path.join(data_dir, "_checked.json")
+    now = datetime.now(timezone.utc)
+    try:
+        with open(path, encoding="utf-8") as f:
+            stamps = json.load(f)
+    except (OSError, ValueError):
+        stamps = {}
+    try:
+        last = datetime.strptime(stamps.get(key, ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        if (now - last).total_seconds() < minutes * 60:
+            return True
+    except ValueError:
+        pass
+    stamps[key] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    os.makedirs(data_dir, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(stamps, f, sort_keys=True)
+    return False
+
+
 def data_hash(obj):
     """Stable sha256 of a JSON-able object (keys sorted, compact)."""
     blob = json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")

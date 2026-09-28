@@ -147,10 +147,10 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
     return snap
 
 
-def due(prev, force=False):
+def due(prev, force=False, data_dir=None):
     """The Lab updates about once a day (mornings ET) and the turnout workflow
     runs every 10 minutes, so: skip once we hold today's update, otherwise
-    check roughly hourly (runs in the first ~12 minutes of the hour)."""
+    check roughly hourly (C.checked_recently, keyed "lab")."""
     from datetime import datetime, timedelta, timezone
     if force:
         return True
@@ -159,14 +159,18 @@ def due(prev, force=False):
     today = "%d/%d/%d" % (et.month, et.day, et.year)
     if prev.get("lab_standin") and (prev.get("source") or {}).get("as_of") == today:
         return False
-    return now.minute < 12 or not prev.get("lab_standin")
+    if not prev.get("lab_standin"):
+        return True
+    if data_dir:
+        return not C.checked_recently(data_dir, "lab")
+    return now.minute < 12
 
 
 def run(code, cfg, geo_path, latest_path, history_path, partisan, force=False, role=None):
     """Build + write the stand-in. Returns True if the state has Lab data
     (including when an existing stand-in is kept because no check is due)."""
     prev0 = _load(latest_path, {}) or {}
-    if not due(prev0, force):
+    if not due(prev0, force, os.path.dirname(latest_path)):
         if prev0.get("lab_standin"):
             print("%s: holding the Election Lab's %s update (stand-in) — next check not due."
                   % (code, (prev0.get("source") or {}).get("as_of")))

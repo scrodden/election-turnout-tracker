@@ -140,9 +140,8 @@ def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {}) or {}
     src = cfg.get("source", {})
-    from datetime import datetime, timezone
-    if not force and (load(LATEST_PATH, {}) or {}).get("counties") and datetime.now(timezone.utc).minute >= 12:
-        print("il: next check at the top of the hour.")   # ISBE updates a few times a day
+    if not force and (load(LATEST_PATH, {}) or {}).get("counties") and C.checked_recently(DATA_DIR):
+        print("il: checked under an hour ago.")   # ISBE updates a few times a day
         return 0
     geo = load(GEO_PATH, {"features": []})
     gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}

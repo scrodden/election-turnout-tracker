@@ -12,8 +12,14 @@ name: Update turnout (all states)
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # every 10 minutes (GitHub may delay under load)
+    # every 10 minutes, off the top of the hour: GitHub delays (and sometimes
+    # drops) scheduled runs under load, worst at :00. Slow sources throttle
+    # themselves (common.checked_recently), so late or extra runs are harmless.
+    - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch: {}       # allow manual runs from the Actions tab
+  push:                       # a code/config change (e.g. a newly wired state) runs it right away
+    branches: [main]
+    paths: ["scripts/**", "config/**", ".github/workflows/update.yml"]
 
 permissions:
   contents: write

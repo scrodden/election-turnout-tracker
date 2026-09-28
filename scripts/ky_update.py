@@ -122,9 +122,8 @@ def entity(v):
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {}) or {}
-    from datetime import datetime, timezone
-    if not force and (load(LATEST_PATH, {}) or {}).get("counties") and datetime.now(timezone.utc).minute >= 12:
-        print("ky: next check at the top of the hour.")   # the workbook updates about daily
+    if not force and (load(LATEST_PATH, {}) or {}).get("counties") and C.checked_recently(DATA_DIR):
+        print("ky: checked under an hour ago.")   # the workbook updates about daily
         return 0
     try:
         url, as_of = newest_workbook()

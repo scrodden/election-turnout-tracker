@@ -119,9 +119,8 @@ def main():
     section = sys.argv[sys.argv.index("--section") + 1] if test else src.get("section_match", "General")
     prev = load(LATEST_PATH, {}) or {}
     # both sources change at most daily (the SoS weekly): check about hourly
-    from datetime import datetime, timezone
-    if not (test or force) and prev.get("statewide") and datetime.now(timezone.utc).minute >= 12:
-        print("sd: next check at the top of the hour.")
+    if not (test or force) and prev.get("statewide") and C.checked_recently(DATA_DIR):
+        print("sd: checked under an hour ago.")
         return 0
 
     try:
