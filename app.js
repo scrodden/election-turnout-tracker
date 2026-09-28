@@ -608,6 +608,7 @@
       return cols0;
     }
     var cols = COLS.slice();
+    cols[0] = { key: "county", label: unitLabel, cls: "county" };   // County / District / Locality
     if (compareActive()) { cols.push({ key: "m22", label: "2022" }); cols.push({ key: "shift", label: "Δ vs '22" }); }
     if (rcActive()) { cols.push({ key: "res", label: "Result" }); cols.push({ key: "gap", label: "T−Result" }); }
     return cols;
@@ -937,7 +938,7 @@
   function exportCSV() {
     var methodLabel = METHODS.filter(function (m) { return m.key === method; })[0].label;
     var cmp = baseline && CMP_METHODS.indexOf(method) >= 0;
-    var head = ["County", "FIPS", "Category", "Rep", "Dem", "Other", "NPA", "Total",
+    var head = [unitLabel, "FIPS", "Category", "Rep", "Dem", "Other", "NPA", "Total",
                 "Turnout_pct", "Lean", "Registered", "Mail_return_pct"];
     if (cmp) head.push("Lean_2022", "Shift_vs_2022");
     var rc = rcActive();

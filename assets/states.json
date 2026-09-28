@@ -19,7 +19,9 @@
       "data": "data/nc/latest.json",
       "geojson": "assets/nc-counties.geojson",
       "history": "data/nc/history.jsonl",
-      "source_note": "Source: <a href='https://www.ncsbe.gov/results-data/absentee-and-provisional-data' target='_blank' rel='noopener'>NC State Board of Elections</a> voter-level absentee file (mail + one-stop early voting; returned ballots, by registered party). NC does not publish mail requests until a ballot is returned, so there is no “mail outstanding” figure."
+      "source_note": "Source: <a href='https://www.ncsbe.gov/results-data/absentee-and-provisional-data' target='_blank' rel='noopener'>NC State Board of Elections</a> voter-level absentee file (mail + one-stop early voting; returned ballots, by registered party). NC does not publish mail requests until a ballot is returned, so there is no “mail outstanding” figure. The Districts map groups the same ballots by each voter's congressional district as recorded in the NCSBE file, on the U.S. Census Bureau's boundaries for the 2026 elections (reflecting the 2025 redraw).",
+      "locality_data": "data/nc/districts.json",
+      "locality_geojson": "assets/nc-cd.geojson"
     },
     {
       "code": "nv",
