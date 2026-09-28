@@ -703,6 +703,7 @@
       if (row) row.scrollIntoView({ block: "nearest" });
     }
     if (selected) renderCountyPanel(selected); else { closeCountyPanel(); closePrecincts(); }
+    renderDemographics();
     updateHash();
   }
   function cssEscape(s) { return s.replace(/'/g, "\\'"); }
@@ -1197,7 +1198,10 @@
 
   function renderDemographics() {
     var host = $("#demographics"), body = $("#demo-body");
-    var dm = data && data.demographics;   // {age:[{label,count}], gender:[...], race:[...]}
+    // {age:[{label,count}], gender:[...], race:[...], ethnicity:[...]}; a clicked county's own block if it has one
+    var cty = selected && data && data.counties && data.counties[selected];
+    var local = !!(cty && cty.demographics);
+    var dm = local ? cty.demographics : (data && data.demographics);
     if (!dm || !(dm.age || dm.gender || dm.race)) { if (host) host.hidden = true; return; }
     function group(title, arr) {
       if (!arr || !arr.length) return "";
@@ -1211,7 +1215,11 @@
             "<span style='width:96px;text-align:right'>" + (x.count || 0).toLocaleString("en-US") + " (" + p.toFixed(0) + "%)</span></div>";
         }).join("") + "</div>";
     }
-    body.innerHTML = group("Age", dm.age) + group("Gender", dm.gender) + group("Race", dm.race);
+    var scope = "<div class='dim' style='font-size:12.5px'>" + (local ? selected + " — click it again for " + (data.state_name || "statewide")
+      : (data.state_name || "Statewide") + (data.counties && Object.keys(data.counties).some(function (k) { return data.counties[k].demographics; })
+        ? " — click a " + unitLabel.toLowerCase() + " for its breakdown" : "")) + "</div>";
+    body.innerHTML = scope + group("Age", dm.age) + group("Gender", dm.gender) + group("Race", dm.race) +
+      group("Hispanic / Latino", dm.ethnicity) + ((data.demographics || {}).note ? "<p class='dim' style='font-size:12px'>" + data.demographics.note + "</p>" : "");
     host.hidden = false;
   }
 

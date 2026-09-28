@@ -45,6 +45,39 @@ def parse_date(s):
     return "%s-%s-%s" % (m.group(3), m.group(1), m.group(2)) if m else ""
 
 
+AGE_GROUPS = [("18-25", 18, 25), ("26-40", 26, 40), ("41-65", 41, 65), ("Over 65", 66, 200)]
+GENDER = {"F": "Female", "M": "Male"}
+RACE = {"WHITE": "White", "BLACK or AFRICAN AMERICAN": "Black", "ASIAN": "Asian",
+        "INDIAN AMERICAN or ALASKA NATIVE": "American Indian / Alaska Native",
+        "NATIVE HAWAIIAN or PACIFIC ISLANDER": "Native Hawaiian / Pacific Islander",
+        "TWO or MORE RACES": "Two or more races", "OTHER": "Other"}
+ETHNICITY = {"HISPANIC or LATINO": "Hispanic or Latino", "NOT HISPANIC or NOT LATINO": "Not Hispanic or Latino"}
+
+
+def demographics(rows):
+    """Age / gender / race / ethnicity of returned ballots, as self-reported on
+    the voter registration (NCSBE file columns age, gender, race, ethnicity)."""
+    from collections import Counter
+    age, gen, race, eth = Counter(), Counter(), Counter(), Counter()
+    for r in rows:
+        a = (r.get("age") or "").strip()
+        label = "Unknown"
+        if a.isdigit():
+            label = next((g for g, lo, hi in AGE_GROUPS if lo <= int(a) <= hi), "Unknown")
+        age[label] += 1
+        gen[GENDER.get((r.get("gender") or "").strip().upper(), "Unknown")] += 1
+        race[RACE.get((r.get("race") or "").strip(), "Not designated")] += 1
+        eth[ETHNICITY.get((r.get("ethnicity") or "").strip(), "Not designated")] += 1
+
+    def ordered(counter, order):
+        keys = [k for k in order if counter.get(k)] + sorted(k for k in counter if k not in order)
+        return [{"label": k, "count": counter[k]} for k in keys]
+    return {"age": ordered(age, [g for g, _, _ in AGE_GROUPS] + ["Unknown"]),
+            "gender": ordered(gen, ["Female", "Male", "Unknown"]),
+            "race": ordered(race, list(RACE.values()) + ["Not designated"]),
+            "ethnicity": ordered(eth, list(ETHNICITY.values()) + ["Not designated"])}
+
+
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH)
@@ -63,11 +96,14 @@ def main():
     # aggregate county -> method -> party counts
     agg = {}
     max_rtn = ""
+    counted, by_county_rows = [], {}
     for r in rows:
         code = (r.get("county_desc") or "").strip().upper()
         mkey = method_map.get((r.get("ballot_req_type") or "").strip().upper())
         if not code or not mkey or code not in by_code:
             continue
+        counted.append(r)
+        by_county_rows.setdefault(code, []).append(r)
         tgt = party_map.get((r.get("voter_party_code") or "").strip().upper(), "oth")
         slot = agg.setdefault(code, {}).setdefault(mkey, {"rep": 0, "dem": 0, "oth": 0, "npa": 0})
         slot[tgt] += 1
@@ -84,6 +120,8 @@ def main():
             ent[mkey] = C.party_block(s["rep"], s["dem"], s["oth"], s["npa"])
         voted = [ent[m] for m in VOTED_METHODS if ent.get(m)]
         ent["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
+        if by_county_rows.get(c["code"]):
+            ent["demographics"] = demographics(by_county_rows[c["code"]])
         counties_out[c["name"]] = ent
 
     statewide = {}
@@ -102,6 +140,10 @@ def main():
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
+    if counted:
+        snap["demographics"] = dict(demographics(counted), note=(
+            "Age, gender, race and ethnicity as self-reported on each voter's registration record (NCSBE absentee "
+            "file). Many registrants leave race or ethnicity blank, shown as 'Not designated'."))
     snap["data_hash"] = C.data_hash(snap)
     snap["generated_at"] = C.utc_now_iso()
 
