@@ -382,7 +382,7 @@
       "data": "data/il/latest.json",
       "geojson": "assets/il-counties.geojson",
       "history": "data/il/history.jsonl",
-      "source_note": "Source: <a href='https://www.elections.il.gov/' target='_blank' rel='noopener'>Illinois Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://www.elections.il.gov/VotingAndRegistrationSystems/PreElectionCounts.aspx' target='_blank' rel='noopener'>Illinois State Board of Elections</a> pre-election ballot counts, by election jurisdiction. The six city election boards (Chicago, Bloomington, Danville, East St. Louis, Galesburg, Rockford) are folded into their counties on the map. Illinois has no party registration, so this is turnout only: vote-by-mail ballots requested and returned, and early in-person votes."
     },
     {
       "code": "in",

@@ -1,22 +1,33 @@
 #!/usr/bin/env python3
-"""Fetch Washington ballots-returned turnout by county (turnout-only; WA has no
-party registration).
+"""Illinois mail and early ballots by county (turnout-only; IL has no party
+registration).
 
-Source: WA Secretary of State "Ballot Return Statistics" (ballots returned & %
-by county). WA is all-mail. No persistent machine-readable county feed was found
-off-season -- the live numbers are published on a seasonal dashboard/report.
+Source: Illinois State Board of Elections "Pre-Election Ballot Counts"
+(VotingAndRegistrationSystems/PreElectionCounts.aspx). It's an ASP.NET page:
+choosing the election posts back and returns links to the current report in
+several formats; we take the 'ASCII Comma Delimited' CSV:
+  JID, Name, ElectionDate, By-Mail, By-Mail Returned, Early, Grace
+one row per election jurisdiction (102 counties + 6 city boards) plus a
+'STATEWIDE COUNTS' row (used as a check). City boards are folded into their
+counties for the map: Chicago -> Cook, Bloomington -> McLean, Danville ->
+Vermilion, East St. Louis -> St. Clair, Galesburg -> Knox, Rockford -> Winnebago.
 
-STATUS: staged skeleton. This writes an empty (0) turnout-only snapshot until a
-verified live 2026 feed is wired; the Friday rollout routine finalizes the
-parser against the live report when WA's general ballots start returning
-(~mid-Oct 2026). Kept in the same schema as Virginia's turnout-only connector so
-the front end treats it identically (green turnout-intensity map, no party UI).
+mail_voted = By-Mail Returned; early_voted = Early + Grace (grace-period
+in-person voting); mail_provided = By-Mail - Returned (outstanding) -> ballot
+chase. If the page can't be read, falls back to the UF Election Lab stand-in.
 
-Run:  python scripts/wa_update.py [--force]
+Run:  python scripts/il_update.py [--force]
 """
-import os
-import sys
+import csv
+import html as H
+import http.cookiejar
+import io
 import json
+import os
+import re
+import sys
+import urllib.parse
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -29,79 +40,151 @@ GEO_PATH = os.path.join(ROOT, "assets", "il-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
+PAGE = "https://www.elections.il.gov/VotingAndRegistrationSystems/PreElectionCounts.aspx"
+CITY_TO_COUNTY = {"chicago": "cook", "bloomington": "mclean", "danville": "vermilion",
+                  "eaststlouis": "stclair", "galesburg": "knox", "rockford": "winnebago"}
 
 
-def load(p):
-    with open(p, encoding="utf-8") as f:
-        return json.load(f)
+def load(p, d=None):
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return d
 
 
-def fetch_counties(cfg):
-    """Return {county_name: {fips, cast_total, registered}} from the live WA feed.
-
-    PENDING: no verified machine-readable 2026 feed off-season. Returns {} for
-    now (empty snapshot). The rollout routine wires the live parser in Oct.
-    """
-    return {}
+def _norm(s):
+    s = str(s).lower().replace("saint ", "st ")
+    s = re.sub(r"\s+county$", "", s.strip())
+    return re.sub(r"[^a-z0-9]", "", s)
 
 
-def sw_block(t):
-    return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": t, "rep_pct": None,
-            "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
+def _int(v):
+    v = str(v or "").replace(",", "").strip()
+    try:
+        return int(float(v)) if v else 0
+    except ValueError:
+        return 0
+
+
+def _block(total):
+    return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": int(total),
+            "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
+
+
+def fetch_csv(election_name):
+    """-> (csv text, 'last updated' text)."""
+    cj = http.cookiejar.CookieJar()
+    op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj),
+                                     urllib.request.HTTPSHandler(context=C._SSL_CTX))
+    op.addheaders = [("User-Agent", C.USER_AGENT)]
+    h = op.open(PAGE, timeout=60).read().decode("utf-8", "replace")
+    opt = re.search(r'<option[^>]*value="(\d+)"[^>]*>\s*%s\s*</option>' % re.escape(election_name), h)
+    if not opt:
+        raise RuntimeError("IL: election %r not offered yet" % election_name)
+    fields = {}
+    for m in re.finditer(r'<input[^>]+type="hidden"[^>]*>', h):
+        n, v = re.search(r'name="([^"]+)"', m.group(0)), re.search(r'value="([^"]*)"', m.group(0))
+        if n:
+            fields[n.group(1)] = H.unescape(v.group(1)) if v else ""   # values are HTML-escaped
+    fields.update({"__EVENTTARGET": "ctl00$ContentPlaceHolder1$ddlElection", "__EVENTARGUMENT": "",
+                   "ctl00$ContentPlaceHolder1$ddlElection": opt.group(1)})
+    r = op.open(urllib.request.Request(PAGE, data=urllib.parse.urlencode(fields).encode(), method="POST"),
+                timeout=90).read().decode("utf-8", "replace")
+    link = re.search(r'<a[^>]+href="([^"]*NewDocDisplay\.aspx\?[^"]+)"[^>]*>\s*ASCII Comma Delimited', r)
+    if not link:
+        raise RuntimeError("IL: CSV link not found after selecting the election")
+    stamp = re.search(r"last updated:\s*([^<]+)", r, re.I)
+    body = op.open(urllib.request.Request(urllib.parse.urljoin(PAGE, H.unescape(link.group(1))),
+                                          headers={"Referer": PAGE}), timeout=90).read()
+    return body.decode("utf-8-sig", "replace"), (stamp.group(1).strip() if stamp else "")
+
+
+def parse(text, gidx):
+    rows = list(csv.DictReader(io.StringIO(text)))
+    state = next((r for r in rows if (r.get("Name") or "").strip().upper() == "STATEWIDE COUNTS"), None)
+    if not state:
+        raise RuntimeError("IL: STATEWIDE COUNTS row missing")
+    keys = ("By-Mail", "By-Mail Returned", "Early", "Grace")
+    out, unmatched = {}, []
+    for r in rows:
+        name = (r.get("Name") or "").strip()
+        if not name or r is state:
+            continue
+        k = _norm(re.sub(r"^City of\s+", "", name)) if name.lower().startswith("city of") else _norm(name)
+        k = CITY_TO_COUNTY.get(k, k) if name.lower().startswith("city of") else k
+        g = gidx.get(k)
+        if not g:
+            unmatched.append(name)
+            continue
+        slot = out.setdefault(g["name"], {"fips": g["fips"], **{x: 0 for x in keys}})
+        for x in keys:
+            slot[x] += _int(r.get(x))
+    for x in keys:
+        if sum(v[x] for v in out.values()) != _int(state.get(x)):
+            raise RuntimeError("IL: jurisdictions don't add up to STATEWIDE COUNTS for %s" % x)
+    return out, unmatched
+
+
+def entity(v):
+    ret, inp, req = v["By-Mail Returned"], v["Early"] + v["Grace"], v["By-Mail"]
+    e = {"mail_voted": _block(ret), "early_voted": _block(inp), "mail_provided": _block(max(0, req - ret)),
+         "cast": _block(ret + inp), "registered": 0, "turnout_pct": None}
+    m = C.compute_mail(e)
+    if m:
+        e["mail"] = m
+    return e
 
 
 def main():
     force = "--force" in sys.argv
-    cfg = load(CONFIG_PATH)
+    cfg = load(CONFIG_PATH, {}) or {}
+    src = cfg.get("source", {})
+    from datetime import datetime, timezone
+    if not force and (load(LATEST_PATH, {}) or {}).get("counties") and datetime.now(timezone.utc).minute >= 12:
+        print("il: next check at the top of the hour.")   # ISBE updates a few times a day
+        return 0
+    geo = load(GEO_PATH, {"features": []})
+    gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}
+    try:
+        text, stamp = fetch_csv(src.get("election_name", "2026 General Election"))
+        rows, unmatched = parse(text, gidx)
+        if unmatched:
+            raise RuntimeError("IL: unmatched jurisdictions %s" % unmatched[:5])
+    except Exception as e:  # noqa: BLE001
+        print("IL ISBE counts unavailable: %s" % str(e)[:160], file=sys.stderr)
+        import lab_standin as LAB
+        LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=False, force=force)
+        return 0
 
-    rows = fetch_counties(cfg)
-    counties_out = {}
-    reg_total = cast_total = 0
-    for name, r in rows.items():
-        ev = int(r.get("cast_total") or 0)
-        reg = int(r.get("registered") or 0)
-        blk = sw_block(ev)
-        counties_out[name] = {"fips": r["fips"], "cast": blk, "early_voted": dict(blk),
-                              "registered": reg,
-                              "turnout_pct": (round(100.0 * ev / reg, 2) if reg else None)}
-        reg_total += reg
-        cast_total += ev
-
-    statewide = {"cast": sw_block(cast_total), "early_voted": sw_block(cast_total),
-                 "registered": reg_total,
-                 "turnout_pct": (round(100.0 * cast_total / reg_total, 2) if reg_total else None)}
+    counties = {name: dict(entity(v), fips=v["fips"]) for name, v in rows.items()}
+    tot = {x: sum(v[x] for v in rows.values()) for x in ("By-Mail", "By-Mail Returned", "Early", "Grace")}
+    statewide = entity(tot)
     snap = {
-        "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
+        "state": STATE, "state_name": cfg.get("state_name", "Illinois"), "election": cfg.get("election", {}),
         "partisan": False,
-        "source": {"primary": "Illinois ballot/turnout data (turnout-only)"},
-        "source_compiled": "", "source_compiled_iso": (C.utc_now_iso() if cast_total else ""),
-        "methods_present": (["early_voted"] if cast_total else []),
-        "method_labels": cfg.get("method_labels", {}),
-        "statewide": statewide, "counties": counties_out,
+        "source": {"primary": "Illinois State Board of Elections Pre-Election Ballot Counts (by election jurisdiction; "
+                              "city boards folded into their counties), last updated %s" % stamp,
+                   "url": PAGE, "as_of": stamp},
+        "source_compiled": stamp, "source_compiled_iso": C.utc_now_iso(),
+        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
+        "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
     }
+    prev = load(LATEST_PATH, {}) or {}
     snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
     snap["generated_at"] = C.utc_now_iso()
-
-    prev = None
-    if os.path.exists(LATEST_PATH):
-        try:
-            prev = load(LATEST_PATH).get("data_hash")
-        except (ValueError, OSError):
-            pass
-    changed = force or (snap["data_hash"] != prev)
+    if not force and snap["data_hash"] == prev.get("data_hash"):
+        print("NOCHANGE  (ISBE counts, last updated %s)" % stamp)
+        return 0
     os.makedirs(DATA_DIR, exist_ok=True)
-    if changed:
-        with open(LATEST_PATH, "w", encoding="utf-8") as f:
-            json.dump(snap, f, separators=(",", ":"))
-        if cast_total:
-            with open(HISTORY_PATH, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"generated_at": snap["generated_at"], "cast": cast_total,
-                                    "registered": reg_total, "data_hash": snap["data_hash"]},
-                                   separators=(",", ":")) + "\n")
-        print("CHANGED  counties=%d  cast=%s  turnout=%s%%"
-              % (len(counties_out), cast_total, statewide["turnout_pct"]))
-    else:
-        print("NOCHANGE  (hash %s)" % (prev or "")[:12])
+    with open(LATEST_PATH, "w", encoding="utf-8") as f:
+        json.dump(snap, f, separators=(",", ":"))
+    c = statewide["cast"]["total"]
+    with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"generated_at": snap["generated_at"], "cast": c, "data_hash": snap["data_hash"]},
+                           separators=(",", ":")) + "\n")
+    print("CHANGED  ISBE (last updated %s): %d counties | cast=%d (mail %d, early %d) | mail requested=%d"
+          % (stamp, len(counties), c, tot["By-Mail Returned"], tot["Early"] + tot["Grace"], tot["By-Mail"]))
     return 0
 
 

@@ -7,13 +7,15 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-09-24",
   "source": {
-    "_comment": "STAGED SKELETON. Large early + mail by county (no party registration). Source pointer: https://www.elections.il.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.elections.il.gov/"
+    "_comment": "LIVE (official). ISBE 'Pre-Election Ballot Counts' ASP.NET page: select the election (postback; hidden-field values must be HTML-unescaped) -> 'ASCII Comma Delimited' CSV via NewDocDisplay.aspx: JID, Name, ElectionDate, By-Mail, By-Mail Returned, Early, Grace; 108 jurisdictions (102 counties + 6 city boards folded into their counties) + STATEWIDE COUNTS row (checked). Turnout-only (no party registration). Falls back to the UF Election Lab stand-in. Checked about hourly.",
+    "page": "https://www.elections.il.gov/VotingAndRegistrationSystems/PreElectionCounts.aspx",
+    "election_name": "2026 General Election"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Ballots cast (mail + early)",
+    "mail_voted": "Vote-by-mail returned",
+    "early_voted": "Early in person (incl. grace period)"
   }
 }
