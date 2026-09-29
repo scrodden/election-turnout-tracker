@@ -406,7 +406,7 @@
       "data": "data/ms/latest.json",
       "geojson": "assets/ms-counties.geojson",
       "history": "data/ms/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.ms.gov/elections-voting' target='_blank' rel='noopener'>Mississippi Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/2026-general-election-early-vote-mississippi/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from <a href='https://www.sos.ms.gov/elections-voting' target='_blank' rel='noopener'>Mississippi Secretary of State</a> data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Statewide absentee ballots requested and returned; no county breakdown is published yet. Mississippi has no no-excuse early voting (ballots cast before Election Day are absentee, by mail or in person at the circuit clerk's office) and no party registration, so this is turnout only."
     },
     {
       "code": "mo",

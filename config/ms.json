@@ -9,11 +9,14 @@
   },
   "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. No in-person early voting (excuse-absentee only) -> minimal pre-election data. Source pointer: https://www.sos.ms.gov/elections-voting . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.sos.ms.gov/elections-voting"
+    "_comment": "No official absentee statistics page on sos.ms.gov (checked 2026-09-29; the site also 403s scripted requests). ms_update.py shows the UF Election Lab's statewide Mississippi row (source: MS Secretary of State) as a stand-in; CC BY-NC-ND 4.0, unaltered, attributed.",
+    "portal": "https://www.sos.ms.gov/elections-voting",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/2026-general-election-early-vote-mississippi/"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Absentee ballots returned",
+    "mail_voted": "Absentee ballots returned",
+    "mail_provided": "Absentee ballots outstanding",
+    "early_voted": "Early in person"
   }
 }
