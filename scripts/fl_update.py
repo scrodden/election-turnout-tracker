@@ -27,6 +27,7 @@ Run:  python scripts/fl_update.py        (writes only when data changed)
 Prints CHANGED / NOCHANGE for the workflow.
 """
 import os
+import html
 import re
 import sys
 import json
@@ -256,6 +257,53 @@ def fetch_broward_enr(cfg):
 
 
 # --------------------------------------------------------------------------
+# Broward SOE "TED ElectionLink" vote-by-mail dashboard (while TQV is dark)
+# --------------------------------------------------------------------------
+def _flat(html_text):
+    t = re.sub(r"<script.*?</script>|<style.*?</style>", " ", html_text, flags=re.S | re.I)
+    t = html.unescape(re.sub(r"<[^>]+>", "|", t))
+    return re.sub(r"\s*\|[\s|]*", "|", t)
+
+
+def fetch_broward_ted(cfg):
+    """Broward's own vote-by-mail dashboard (my.browardvotes.gov TED
+    ElectionLink, 'By Party'): ballots issued and returned by party, updated
+    every few minutes. The view page names the election (checked against
+    election_label); its tiles come server-rendered from the dashboard's html
+    endpoint. Party rows must add up to the dashboard's Total Issued / Total
+    Returned. -> {"issued": {party: n}, "returned": {party: n}, "asof": iso} or None."""
+    b = cfg.get("broward_ted")
+    if not b:
+        return None
+    try:
+        view = C.http_get(b["view"], no_cache=True, retries=2)
+        if b["election_label"] not in html.unescape(view):
+            print("  Broward TED: dashboard isn't showing %r" % b["election_label"])
+            return None
+        page = C.http_get(b["html"], no_cache=True, retries=2)
+    except Exception as e:  # noqa: BLE001
+        print("  Broward TED unavailable: %s" % str(e)[:100])
+        return None
+    t = _flat(page)
+    kpi = re.search(r"\|Total Issued\|([\d,]+)\|Total Returned\|([\d,]+)\|", t)
+    rows = re.findall(r"\|([A-Za-z][^|]{1,60}?)\|Issued\|([\d,]+)\|Returned\|([\d,]+)\|", t)
+    if not kpi or not rows:
+        print("  Broward TED: party table not found")
+        return None
+    pmap = {k.lower(): v for k, v in b["party_map"].items()}
+    issued, returned = {"rep": 0, "dem": 0, "oth": 0, "npa": 0}, {"rep": 0, "dem": 0, "oth": 0, "npa": 0}
+    for name, i, r in rows:
+        p = pmap.get(name.strip().lower(), "oth")
+        issued[p] += C.parse_number(i)
+        returned[p] += C.parse_number(r)
+    if (sum(issued.values()), sum(returned.values())) != (C.parse_number(kpi.group(1)), C.parse_number(kpi.group(2))):
+        print("  Broward TED: party rows don't add up to the totals")
+        return None
+    m = re.search(r'data-ted-dashboard-asof-src="([^"]+)"', page)
+    return {"issued": issued, "returned": returned, "asof": m.group(1) if m else ""}
+
+
+# --------------------------------------------------------------------------
 # Assembly
 # --------------------------------------------------------------------------
 def precinct_key(split_id):
@@ -462,6 +510,29 @@ def main():
             agg = aggregate_precincts(tqv["precincts"])
             if agg:
                 precincts_all[county["code"]] = agg
+
+    # Broward: while its TQV general feed is dark, take vote-by-mail from the
+    # county's own dashboard when it's at least as current as the DOS file
+    # (early voting / Election Day stay on DOS).
+    bw = counties_out.get("Broward")
+    if bw and bw.get("source") != "tqv":
+        ted = fetch_broward_ted(cfg)
+        if ted and sum(ted["returned"].values()) >= (bw.get("mail_voted") or {}).get("total", 0):
+            iso = ted["asof"]
+            bw["mail_voted"] = block_from_counts(ted["returned"], iso, iso)
+            bw["mail_provided"] = block_from_counts({p: max(0, ted["issued"][p] - ted["returned"][p])
+                                                     for p in ted["issued"]}, iso, iso)
+            voted = [bw[m] for m in VOTED_METHODS if bw.get(m)]
+            bw["cast"] = C.add_blocks(*voted)
+            bw["turnout_pct"] = C.pct(bw["cast"]["total"], bw.get("registered", 0))
+            bw["mail"] = compute_mail(bw)
+            bw["source"] = "county-dashboard"
+            bw["source_url"] = cfg["broward_ted"]["view"]
+            bw["last_updated"] = iso
+            if iso > max_iso:
+                max_iso = iso
+            print("  Broward TED: returned=%d of %d issued (as of %s)"
+                  % (bw["mail_voted"]["total"], sum(ted["issued"].values()), iso))
 
     # Broward: fill registered voters / turnout from ENR while its TQV general
     # feed isn't publishing (partisan cast still comes from DOS).

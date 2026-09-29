@@ -741,7 +741,9 @@
     if (compareActive()) { var m22 = b22(name); var sh = (b0.margin != null && m22 && m22.margin != null) ? Math.round((b0.margin - m22.margin) * 10) / 10 : null; extra += "<p class='dim'>2022 (" + methodLabel(method) + "): " + marginText(m22 ? m22.margin : null) + " · shift " + shiftText(sh) + "</p>"; }
     if (rcActive()) { var rm = rcMarginOf(name); var g = (b0.margin != null && rm != null) ? Math.round((b0.margin - rm) * 10) / 10 : null; extra += "<p class='dim'>" + rcRaceLabel() + " result: " + marginText(rm) + " · turnout vs result " + shiftText(g) + "</p>"; }
     var links = "";
-    if (cty.tqv_url) links += "<a class='tqv-link' href='" + cty.tqv_url + "' target='_blank' rel='noopener'>Live TQV feed &#8599;</a> ";
+    // FL: link the live TQV feed only for counties actually served by it
+    if (cty.tqv_url && cty.source === "tqv") links += "<a class='tqv-link' href='" + cty.tqv_url + "' target='_blank' rel='noopener'>Live TQV feed &#8599;</a> ";
+    if (cty.source_url) links += "<a class='tqv-link' href='" + cty.source_url + "' target='_blank' rel='noopener'>County vote-by-mail dashboard &#8599;</a> ";
     if (PRECINCT_GEO_URL) links += "<button id='county-precincts' class='mini-btn'>Precinct detail &#9662;</button>";
     $("#county-body").innerHTML = "<div class='table-scroll'><table class='ctytable'>" + rows.join("") + "</table></div>" + extra + (links ? "<p>" + links + "</p>" : "");
     var pb = $("#county-precincts"); if (pb) pb.addEventListener("click", function () { openPrecincts(name); });
@@ -760,15 +762,16 @@
     panel.hidden = false;
     $("#precinct-title").textContent = name + " — precinct detail";
     var link = $("#precinct-tqv");
-    if (cty.tqv_url) { link.href = cty.tqv_url; link.style.display = ""; } else { link.style.display = "none"; }
+    if (cty.tqv_url && cty.source === "tqv") { link.href = cty.tqv_url; link.style.display = ""; } else { link.style.display = "none"; }
     var body = $("#precinct-body");
     var summary = "<div class='p-summary'>" +
       "Registered: <b>" + fmt(cty.registered || 0) + "</b> · Cast: <b>" + fmt((cty.cast || {}).total || 0) +
       "</b> · Turnout: <b>" + pctText(cty.turnout_pct) + "</b>" +
-      (cty.source === "dos-fallback" ? " <span class='src-note'>(state file — live precinct feed not yet publishing)</span>" : "") +
+      (cty.source === "dos-fallback" ? " <span class='src-note'>(state file — live precinct feed not yet publishing)</span>" :
+       cty.source === "county-dashboard" ? " <span class='src-note'>(county vote-by-mail dashboard + state file — live precinct feed not yet publishing)</span>" : "") +
       "</div>";
     body.innerHTML = summary + "<div class='loading'>Loading precincts…</div>";
-    if (!cty.code || cty.source === "dos-fallback") {
+    if (!cty.code || (cty.source && cty.source !== "tqv")) {
       body.innerHTML = summary + "<p class='fineprint'>Precinct-level data isn't available for this county yet.</p>";
       return;
     }

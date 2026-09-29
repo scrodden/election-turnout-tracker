@@ -14,7 +14,11 @@
     "index_file": "index.json",
     "data_file": "data.json",
     "fvrs_election_number": 49894,
-    "party_map": { "REP": "rep", "DEM": "dem", "NPA": "npa" },
+    "party_map": {
+      "REP": "rep",
+      "DEM": "dem",
+      "NPA": "npa"
+    },
     "method_map": {
       "Mail": "mail_voted",
       "EarlyVoting": "early_voted",
@@ -68,5 +72,17 @@
       "note": "2026 U.S. Senate special election for the seat vacated by Marco Rubio; on the Nov 3 general ballot (election #49894).",
       "results": null
     }
-  ]
+  ],
+  "broward_ted": {
+    "_comment": "Broward isn't publishing a 2026-general TQV feed; its SOE runs a TED ElectionLink dashboard instead. fl_update reads the 'By Party' vote-by-mail tiles (issued / returned) from the dashboard's html endpoint; used for Broward's mail figures whenever it reports at least as many returned ballots as the DOS file.",
+    "view": "https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-party",
+    "html": "https://my.browardvotes.gov/TEDElectionLink/api/v1/dashboards/html/absturnout-party",
+    "election_label": "11/03/2026 - 2026 General Election",
+    "party_map": {
+      "Florida Democratic Party": "dem",
+      "Republican Party Of Florida": "rep",
+      "No Party Affiliation": "npa",
+      "Other": "oth"
+    }
+  }
 }
