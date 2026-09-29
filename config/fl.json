@@ -26,10 +26,13 @@
       "ElectionDay": "election_day",
       "Election Day": "election_day",
       "Provisional": "provisional"
+    },
+    "not_on_tqv": {
+      "BRO": "Broward switched vendors away from VR Systems; its last TQV election is the March 11, 2025 municipal"
     }
   },
   "broward_enr": {
-    "_comment": "Broward's TQV general feed isn't publishing yet; use its VR Systems ENR summary XML for registered voters + overall turnout (partisan cast still comes from DOS). Resolves the election id from the results page; prefers the 2026 General, else the latest available (registered-voter count is stable across a cycle).",
+    "_comment": "Registered voters for Broward (no TQV): from its election-results system's summary XML. Prefers the 2026 General, else the latest countywide election (registration is stable across a cycle).",
     "county": "Broward",
     "results_page": "https://browardvotes.gov/results-information/election-results-information",
     "enr_base": "https://results.browardvotes.gov/ENR/browardflenr/",
@@ -74,7 +77,7 @@
     }
   ],
   "broward_ted": {
-    "_comment": "Broward isn't publishing a 2026-general TQV feed; its SOE runs a TED ElectionLink dashboard instead. fl_update reads the 'By Party' vote-by-mail tiles (issued / returned) from the dashboard's html endpoint; used for Broward's mail figures whenever it reports at least as many returned ballots as the DOS file.",
+    "_comment": "Broward left VR Systems (TQV) and reports vote-by-mail on its own TED ElectionLink dashboard. fl_update reads the 'By Party' tiles (issued / returned) from the dashboard's html endpoint; used for Broward's mail figures whenever it reports at least as many returned ballots as the DOS file.",
     "view": "https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-party",
     "html": "https://my.browardvotes.gov/TEDElectionLink/api/v1/dashboards/html/absturnout-party",
     "election_label": "11/03/2026 - 2026 General Election",

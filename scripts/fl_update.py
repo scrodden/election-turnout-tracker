@@ -466,7 +466,11 @@ def main():
     print("Fetching TQV feeds for %d counties..." % len(counties))
     results = {}
 
+    not_on_tqv = cfg["tqv"].get("not_on_tqv", {})   # counties that left VR Systems (e.g. Broward)
+
     def work(county):
+        if county["code"] in not_on_tqv:
+            return county["name"], (None, None, "not-on-tqv")
         return county["name"], fetch_tqv_county(cfg, county, id_cache)
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
@@ -481,10 +485,12 @@ def main():
             ok += 1
             if eid is not None:
                 new_id_cache[county["code"]] = eid
+        elif note == "not-on-tqv":
+            print("  - %s: not on TQV (%s)" % (county["name"], not_on_tqv[county["code"]]))
         else:
             fail += 1
             print("  ! %s (%s): %s" % (county["name"], county["code"], note))
-    print("  TQV ok=%d fail=%d" % (ok, fail))
+    print("  TQV ok=%d fail=%d skipped=%d" % (ok, fail, len(not_on_tqv)))
     if ok == 0:
         print("ERROR: no TQV feeds returned; aborting.", file=sys.stderr)
         return 2
@@ -511,9 +517,9 @@ def main():
             if agg:
                 precincts_all[county["code"]] = agg
 
-    # Broward: while its TQV general feed is dark, take vote-by-mail from the
-    # county's own dashboard when it's at least as current as the DOS file
-    # (early voting / Election Day stay on DOS).
+    # Broward left VR Systems (no TQV since March 2025): vote-by-mail comes from
+    # the county's own dashboard, used whenever it's at least as current as the
+    # DOS file (early voting / Election Day stay on DOS until Broward publishes them).
     bw = counties_out.get("Broward")
     if bw and bw.get("source") != "tqv":
         ted = fetch_broward_ted(cfg)
