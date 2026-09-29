@@ -3,11 +3,27 @@
   "state_name": "Michigan",
   "state_fips": "26",
   "partisan": false,
-  "election": { "date": "2026-11-03", "name": "2026 General" },
-  "general_start": "2026-09-19",
-  "source": {
-    "_comment": "Michigan has NO party registration -> turnout-only. The MI SoS Voter Participation Dashboard (Power BI, app.powerbigov.us) publishes absentee/early voting counts by county, updated daily starting 45 days before Election Day (~Sept 19 2026). MI does not distinguish mail vs in-person early in its data. Public access is the Power BI dashboard; the raw weekday county file has no public URL. STAGED SKELETON: writes 0 until a verified live feed is wired (the Friday rollout routine captures the Power BI querydata endpoint / county file in Oct). Turnout-only: 'cast' = ballots cast; the map shades by turnout %.",
-    "dashboard": "https://www.michigan.gov/sos/elections/election-results-and-data/voter-participation-dashboard"
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
   },
-  "method_labels": { "cast": "Ballots cast", "early_voted": "Absentee / early ballots" }
+  "source": {
+    "_comment": "Michigan has NO party registration -> turnout-only. Official: MI SoS 'Michigan Voting Dashboard', a Power BI publish-to-web report on the US Government cloud (iowa cluster); mi_update.py queries it like the page does. It lists each election once the SoS adds it (on 2026-09-29 it held only the 2024 general and the Aug 2026 primary). Until the general appears, the UF Election Lab's MI_county.csv (data provided by the SoS) is the stand-in; the dashboard's county registration counts are added for turnout %.",
+    "dashboard": "https://www.michigan.gov/sos/elections/election-results-and-data/voter-participation-dashboard",
+    "api": "https://wabi-us-gov-iowa-api.analysis.usgovcloudapi.net/public/reports/",
+    "report_key": "197238ed-19df-47d1-99e9-87ab97a5f397",
+    "election_match": [
+      "2026",
+      "November",
+      "General"
+    ]
+  },
+  "method_labels": {
+    "cast": "Ballots cast",
+    "mail_voted": "Absentee ballots returned",
+    "early_voted": "Early in person",
+    "mail_provided": "Absentee ballots outstanding",
+    "election_day": "Election day"
+  },
+  "mail_base_label": "Ballots requested"
 }
