@@ -309,75 +309,6 @@ def lab_fallback(cfg, src, now, status, row=None):
     return snap
 
 
-def lab_districts(cfg, src, now, force=False):
-    """U.S. House district view (data/ga/districts.json, shown by the site's
-    Counties | Districts toggle) from the Lab's GA_cd.csv, whose rows are
-    district x county pieces, summed per district. Checked about hourly;
-    the previous file is kept if the new one is missing or doesn't reconcile."""
-    if not src.get("lab_cd_csv") or (not force and C.checked_recently(DATA_DIR, "lab_cd")):
-        return
-    row = lab_ga_row(src)
-    if not row:
-        return
-
-    def n(k):
-        return _lab_int(row.get(k))
-    try:
-        parts = lab_rows(src["lab_cd_csv"])
-    except Exception as e:  # noqa: BLE001
-        print("GA: Lab district file unavailable: %s" % str(e)[:100], file=sys.stderr)
-        return
-    geo = load(CD_GEO_PATH, {"features": []})
-    gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
-    ok, gap = reconcile(parts, n)
-    sums, bad = {}, []
-    for r in parts:
-        cd = str(r.get("cd") or "").strip()
-        if not cd.isdigit() or int(cd) not in gidx:
-            bad.append(cd)
-            continue
-        acc = sums.setdefault(int(cd), {})
-        for k, v in r.items():
-            if k not in ("cd", "county", "return_rate"):
-                acc[k] = acc.get(k, 0) + _lab_int(v)
-    if not ok or bad or len(sums) != len(gidx):
-        print("GA: Lab district file doesn't reconcile (unknown districts %s) — keeping the previous one." % bad[:5],
-              file=sys.stderr)
-        return
-    districts = {}
-    for num, a in sorted(sums.items()):
-        g = gidx[num]
-        ent = dict(lab_entity(a.get("request_all", 0), a.get("accept_all", 0), a.get("inperson_all", 0)),
-                   fips=g["fips"])
-        d = lab_demo(lambda k, a=a: a.get(k, 0))
-        if d:
-            ent["demographics"] = d
-        districts[g["name"]] = ent
-    statewide = lab_entity(n("request_all"), n("accept_all"), n("inperson_all"))
-    body = {
-        "state": STATE, "election": cfg.get("election", {}), "unit_label": "District", "unit_label_plural": "Districts",
-        "partisan": False, "source": "UF Election Lab early-vote tracker (M. McDonald), U.S. House district file "
-                                     "(GA_cd.csv, from the GA SoS absentee voter file); CC BY-NC-ND 4.0",
-        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
-        "method_labels": cfg.get("method_labels", {}),
-        "coverage": {"ok": len(districts), "total": len(gidx), "unmatched": []},
-        "as_of": row.get("last_update", ""), "statewide": statewide, "counties": districts,
-    }
-    note = unassigned_note(gap, n("request_all"))
-    if note:
-        body["map_note"] = note
-    prev = load(DISTRICTS_PATH, {}) or {}
-    h = C.data_hash(body)
-    if h == prev.get("data_hash") and not force:
-        print("ga districts: NOCHANGE (Lab as of %s)" % body["as_of"])
-        return
-    out = dict(body, source_compiled=body["as_of"], source_compiled_iso=now, data_hash=h, generated_at=now)
-    with open(DISTRICTS_PATH, "w", encoding="utf-8") as f:
-        json.dump(out, f, separators=(",", ":"))
-    print("ga districts: CHANGED %d districts, cast=%d (Lab as of %s)"
-          % (len(districts), statewide["cast"]["total"], body["as_of"]))
-
-
 def write_lab(snap, prev, now):
     changed = snap["data_hash"] != prev.get("data_hash")
     snap["generated_at"] = now if changed else prev.get("generated_at", now)
@@ -408,7 +339,8 @@ def main():
     now = C.utc_now_iso()
     if not dry:
         os.makedirs(DATA_DIR, exist_ok=True)
-        lab_districts(cfg, src, now, force)   # district view: Lab file, ~hourly
+        import lab_standin as LAB   # district view: the Lab's GA_cd.csv, ~hourly
+        LAB.districts(STATE, cfg, CD_GEO_PATH, DISTRICTS_PATH, partisan=False, force=force)
 
     hub_last = psrc.get("hub_checked_at") or psrc.get("fetched_at")
     if not (force or dry) and not due(hub_last, src.get("fetch_hours_utc", [11, 23])):

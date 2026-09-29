@@ -147,6 +147,93 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
     return snap
 
 
+def unassigned_note(gap, total, unit="county or district"):
+    if not gap:
+        return None
+    return ("%s of the %s mail-ballot requests in the Election Lab's data have no %s, so request figures on the "
+            "map add up to %s." % (format(gap, ","), format(total, ","), unit, format(total - gap, ",")))
+
+
+def reconcile(parts, row):
+    """Lab county/district rows vs its statewide row. Every ballot cast must be
+    attributed (accepted + in-person sums match exactly); a few mail-ballot
+    requests may carry no county/district (<= 1%). -> (ok, unassigned requests)."""
+    exact = all(sum(_n(r, k) for r in parts) == _n(row, k) for k in ("accept_all", "inperson_all"))
+    gap = _n(row, "request_all") - sum(_n(r, "request_all") for r in parts)
+    return exact and 0 <= gap <= max(50, _n(row, "request_all") // 100), gap
+
+
+def districts(code, cfg, cd_geo_path, out_path, partisan, force=False):
+    """U.S. House district view (<data>/districts.json, shown by the site's
+    Counties | Districts toggle) from the Lab's <ST>_cd.csv, whose rows are
+    district x county pieces, summed per district; rows without a district
+    ("NA") are left out and noted. Checked about hourly; the previous file is
+    kept if the Lab file is missing or doesn't reconcile with the statewide row.
+    Assets: scripts/build_cd_geo.py builds <st>-cd.geojson."""
+    st = code.upper()
+    data_dir = os.path.dirname(out_path)
+    if not force and C.checked_recently(data_dir, "lab_cd"):
+        return
+    try:
+        row = next((r for r in csv.DictReader(io.StringIO(C.http_get(BASE + "US.csv", no_cache=True)))
+                    if (r.get("state_abbv") or "").upper() == st), None)
+        parts = list(csv.DictReader(io.StringIO(C.http_get(BASE + st + "_cd.csv", no_cache=True, retries=1))))
+    except Exception as e:  # noqa: BLE001
+        print("%s: Lab district file unavailable: %s" % (st, str(e)[:100]), file=sys.stderr)
+        return
+    if not row or not parts:
+        return
+    partisan = partisan and any(_n(row, k) for k in ("request_dem", "accept_dem", "request_rep", "accept_rep"))
+    geo = _load(cd_geo_path, {"features": []})
+    gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
+    placed = [r for r in parts if str(r.get("cd") or "").strip().isdigit()]
+    ok, gap = reconcile(placed, row)
+    sums = {}
+    unknown = sorted({int(r["cd"]) for r in placed if int(r["cd"]) not in gidx})
+    for r in placed:
+        acc = sums.setdefault(int(r["cd"]), {})
+        for k, v in r.items():
+            if k not in ("cd", "county", "return_rate"):
+                acc[k] = acc.get(k, 0) + _n(r, k)
+    if not ok or unknown or not gidx:
+        print("%s: Lab district file doesn't reconcile (districts not on the map: %s) — keeping the previous one."
+              % (st, unknown[:5]), file=sys.stderr)
+        return
+    out_units = {}
+    for num in sorted(gidx):
+        a = sums.get(num, {})
+        ent = dict(_entity(a, partisan), fips=gidx[num]["fips"])
+        d = _demographics(a)
+        if d:
+            ent["demographics"] = d
+        out_units[gidx[num]["name"]] = ent
+    statewide = _entity(row, partisan)
+    body = {
+        "state": code, "election": cfg.get("election", {}), "unit_label": "District", "unit_label_plural": "Districts",
+        "partisan": partisan,
+        "source": "UF Election Lab early-vote tracker (M. McDonald), U.S. House district file (%s_cd.csv; source: %s); "
+                  "CC BY-NC-ND 4.0" % (st, row.get("data_source") or "state election office"),
+        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
+        "method_labels": cfg.get("method_labels", {}),
+        "coverage": {"ok": len(gidx), "total": len(gidx), "unmatched": []},
+        "as_of": row.get("last_update", ""), "statewide": statewide, "counties": out_units,
+    }
+    note = unassigned_note(gap, _n(row, "request_all"), "district")
+    if note:
+        body["map_note"] = note
+    prev = _load(out_path, {}) or {}
+    h = C.data_hash(body)
+    if h == prev.get("data_hash") and not force:
+        print("%s districts: NOCHANGE (Lab as of %s)" % (code, body["as_of"]))
+        return
+    now = C.utc_now_iso()
+    out = dict(body, source_compiled=body["as_of"], source_compiled_iso=now, data_hash=h, generated_at=now)
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"))
+    print("%s districts: CHANGED %d districts, cast=%d (Lab as of %s)"
+          % (code, len(out_units), statewide["cast"]["total"], body["as_of"]))
+
+
 def due(prev, force=False, data_dir=None):
     """The Lab updates about once a day (mornings ET) and the turnout workflow
     runs every 10 minutes, so: skip once we hold today's update, otherwise

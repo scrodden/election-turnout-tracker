@@ -29,7 +29,9 @@
       "data": "data/nv/latest.json",
       "geojson": "assets/nv-counties.geojson",
       "history": "data/nv/history.jsonl",
-      "source_note": "Source: <a href='https://www.nvsos.gov/vivid/' target='_blank' rel='noopener'>Nevada Secretary of State (VIVID)</a> — in-person early voting turnout and the statewide mail-ballot tracker, by county and registered party. Nevada is all-mail; general-election early voting &amp; mail begin in October, so figures read zero until then."
+      "source_note": "Source: <a href='https://www.nvsos.gov/elections/election-information/vivid-project' target='_blank' rel='noopener'>Nevada Secretary of State VIVID</a> (mail ballot and in-person early-voting dashboards), by registered party. Until the state's general-election dashboards go live, Nevada shows county and U.S. House district figures from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), built from the Secretary of State's daily Voter List &amp; Ballot Status files; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Nevada mails a ballot to every active voter, so &ldquo;sent&rdquo; covers the whole active roll. District boundaries: U.S. Census Bureau (districts for the 2026 elections).",
+      "locality_data": "data/nv/districts.json",
+      "locality_geojson": "assets/nv-cd.geojson"
     },
     {
       "code": "pa",

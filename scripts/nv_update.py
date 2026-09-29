@@ -9,10 +9,14 @@ Two feeds (static JSON, behind Incapsula -> needs a Referer header):
 NV is all-mail; we report mail_voted (received), mail_provided (sent-received =
 outstanding), early_voted, and cast = mail_voted + early_voted, by party.
 
-The feeds currently hold the 2026 PRIMARY; NV general early voting/mail begin in
-October. We gate on `general_start` so the tracker reads 0 until real general
-data appears, then lights up automatically. Use --all to ignore the gate (to
-test parsing against whatever the feed currently holds).
+Between elections the feeds keep the last one (the 2026 primary until the SoS
+launches its general-election dashboards), so data dated before
+`general_start` is ignored. Until the feeds carry the general, Nevada shows the
+UF Election Lab's county-by-party figures (built from the SoS's daily Voter
+List & Ballot Status files, which sit behind a bot check we don't script),
+used unaltered under CC BY-NC-ND 4.0. The Districts map always comes from the
+Lab's NV_cd.csv (the VIVID feeds have no district field). Use --all to ignore
+the gate (to test parsing against whatever the feeds currently hold).
 
 Run:  python scripts/nv_update.py [--force] [--all]
 """
@@ -31,6 +35,9 @@ COUNTIES_PATH = os.path.join(ROOT, "config", "nv_counties.json")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
+GEO_PATH = os.path.join(ROOT, "assets", "nv-counties.geojson")
+CD_GEO_PATH = os.path.join(ROOT, "assets", "nv-cd.geojson")
+DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
 VOTED_METHODS = ["mail_voted", "early_voted"]
 
 
@@ -48,6 +55,9 @@ def main():
     force = "--force" in sys.argv
     ignore_gate = "--all" in sys.argv
     cfg = load(CONFIG_PATH)
+    import lab_standin as LAB
+    os.makedirs(DATA_DIR, exist_ok=True)
+    LAB.districts(STATE, cfg, CD_GEO_PATH, DISTRICTS_PATH, partisan=True, force=force)   # ~hourly
     counties = {c["name"]: c for c in load(COUNTIES_PATH)["counties"]}
     ref = cfg["source"]["referer"]
     gstart = cfg["general_start"]
@@ -98,6 +108,12 @@ def main():
                 src_date = gen
     except Exception as e:  # noqa: BLE001
         print("WARN mail feed: %s" % str(e)[:60], file=sys.stderr)
+
+    if not agg and not ignore_gate:
+        # the SoS feeds don't carry the general yet: UF Election Lab stand-in
+        LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force,
+                role="stand-in until the SoS VIVID general-election feeds are live")
+        return 0
 
     # build snapshot
     counties_out = {}

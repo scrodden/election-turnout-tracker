@@ -2,7 +2,11 @@
   "state": "nv",
   "state_name": "Nevada",
   "state_fips": "32",
-  "election": { "number": "2026_11_03", "date": "2026-11-03", "name": "2026 General" },
+  "election": {
+    "number": "2026_11_03",
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
   "source": {
     "_comment": "NV SoS VIVID portal static JSON (behind Imperva/Incapsula -> needs Referer). turnout_seed = in-person early voting by county/party/day; ballot_seed = mail ballot stages (sent/received/accepted) by county/party.",
     "referer": "https://www.nvsos.gov/vivid/",
@@ -10,11 +14,12 @@
     "ballot_seed": "https://www.nvsos.gov/vivid/data/ballot-seed.json",
     "page": "https://www.nvsos.gov/vivid/"
   },
-  "general_start": "2026-10-01",
+  "general_start": "2026-09-15",
   "method_labels": {
     "cast": "All ballots cast",
     "mail_voted": "Voted by mail",
     "early_voted": "Voted early in person",
     "mail_provided": "Mail ballots outstanding"
-  }
+  },
+  "_general_start_comment": "VIVID data dated before this is the primary. UOCAVA ballots for the general went out Sept 19, 2026, so anything from Sept 15 on is the general."
 }
