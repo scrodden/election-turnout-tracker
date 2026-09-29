@@ -35,5 +35,6 @@
     "early_voted": "Early in person",
     "mail_voted": "Absentee (mail + electronic)",
     "election_day": "Election day"
-  }
+  },
+  "mail_base_label": "Ballots requested"
 }

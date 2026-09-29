@@ -846,8 +846,12 @@
     if (!m || !m.requested) { panel.hidden = true; return; }
     panel.hidden = false;
     function stat(k, v) { return "<div class='m'><div class='k'>" + k + "</div><div class='v'>" + v + "</div></div>"; }
+    // the base is ballots mailed in most states, but requests where the source only
+    // counts applications (e.g. MS, GA's Lab figures): data.mail_base_label says so
+    var base = data.mail_base_label || "Ballots sent";
+    var mn = $("#mail-note"); if (mn) mn.textContent = "returned vs. " + (data.mail_base_label ? "requested" : "sent") + ", by party";
     $("#mail-stats").innerHTML =
-      stat("Ballots sent", fmt(m.requested)) +
+      stat(base, fmt(m.requested)) +
       stat("Returned", fmt(m.returned) + " <span style='font-size:14px;color:var(--muted)'>(" + pctText(m.return_rate) + ")</span>") +
       stat("Still outstanding", fmt(m.outstanding));
     var order = [["rep", "Republican", "var(--rep)"], ["dem", "Democratic", "var(--dem)"],

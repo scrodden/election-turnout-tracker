@@ -18,5 +18,6 @@
     "mail_voted": "Absentee ballots returned",
     "mail_provided": "Absentee ballots outstanding",
     "early_voted": "Early in person"
-  }
+  },
+  "mail_base_label": "Ballots requested"
 }

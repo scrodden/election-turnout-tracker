@@ -298,6 +298,8 @@ def lab_fallback(cfg, src, now, status, row=None):
     note = unassigned_note(gap, n("request_all"))
     if note:
         body["map_note"] = note
+    if cfg.get("mail_base_label"):   # the Lab counts absentee applications, not ballots mailed
+        body["mail_base_label"] = cfg["mail_base_label"]
     snap = dict(body)
     snap["source"] = {"primary": "UF Election Lab early-vote tracker (M. McDonald), from the GA SoS absentee voter file; "
                                  "CC BY-NC-ND 4.0 -- stand-in until the SoS hub loads the general",
