@@ -137,7 +137,10 @@
       "data": "data/me/latest.json",
       "geojson": "assets/me-counties.geojson",
       "history": "data/me/history.jsonl",
-      "source_note": "Source: <a href='https://www.maine.gov/sos/elections-voting/voter-data' target='_blank' rel='noopener'>Maine Secretary of State</a> statewide absentee voter data by party enrollment (town-level, aggregated to county). Absentee voting runs through early November, so figures read zero until then."
+      "source_note": "Source: <a href='https://www.maine.gov/sos/elections-voting/voter-data' target='_blank' rel='noopener'>Maine Secretary of State</a> statewide absentee voter file (every absentee request, by town and enrolled party), grouped into counties using the state's Registered and Enrolled list, which also supplies active registered voters for turnout. Unenrolled voters are shown as NPA; Green Independent and Libertarian as Other. The Districts map groups the same file by each voter's congressional district. District boundaries: U.S. Census Bureau (districts for the 2026 elections).",
+      "partisan": true,
+      "locality_data": "data/me/districts.json",
+      "locality_geojson": "assets/me-cd.geojson"
     },
     {
       "code": "ak",
@@ -164,7 +167,10 @@
       "data": "data/ne/latest.json",
       "geojson": "assets/ne-counties.geojson",
       "history": "data/ne/history.jsonl",
-      "source_note": "Source: <a href='https://sos.nebraska.gov/elections' target='_blank' rel='noopener'>Nebraska Secretary of State</a> early-ballot data by county &amp; registered party. Early voting begins in October, so figures read zero until then."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from a data file the Nebraska Secretary of State provides to the Lab; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Early-voting ballots requested and returned by county and registered party (nonpartisan voters shown as NPA); the Districts map uses the Lab's U.S. House district file. Counties not shown have no requests in the Lab's file yet. District boundaries: U.S. Census Bureau (districts for the 2026 elections).",
+      "partisan": true,
+      "locality_data": "data/ne/districts.json",
+      "locality_geojson": "assets/ne-cd.geojson"
     },
     {
       "code": "nh",
@@ -348,7 +354,8 @@
       "data": "data/wy/latest.json",
       "geojson": "assets/wy-counties.geojson",
       "history": "data/wy/history.jsonl",
-      "source_note": "Source: <a href='https://sos.wyo.gov/elections/' target='_blank' rel='noopener'>Wyoming Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Wyoming Secretary of State data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Absentee ballots requested and returned by county and registered party (unaffiliated voters shown as NPA). Wyoming has a single at-large U.S. House seat, so there is no district map.",
+      "partisan": true
     },
     {
       "code": "al",

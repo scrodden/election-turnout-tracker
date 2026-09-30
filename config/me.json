@@ -3,11 +3,25 @@
   "state_name": "Maine",
   "state_fips": "23",
   "partisan": true,
-  "election": { "date": "2026-11-03", "name": "2026 General" },
-  "general_start": "2026-10-05",
-  "source": {
-    "_comment": "Maine SoS publishes Statewide Absentee Voter Data Files (text) with party enrollment: https://www.maine.gov/sos/elections-voting/voter-data . Data is TOWN-level -> needs a town->county crosswalk to aggregate to Maine's 16 counties. Staged skeleton (reads 0) until the routine wires the parser + crosswalk in Oct.",
-    "page": "https://www.maine.gov/sos/elections-voting/voter-data"
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
   },
-  "method_labels": { "cast": "Absentee ballots", "mail_voted": "Absentee ballots" }
+  "source": {
+    "_comment": "Maine SoS 'Voter Data' page links the Statewide Absentee Voter Data File (pipe-delimited text, one row per request, town-level with party, CG, SS/SR/CC and Status) and the Registered and Enrolled file (xlsx by county/municipality/ward-precinct/CG with active voters by party). me_update.py places towns in counties via the R&E list; township_counties covers unorganized townships the R&E list doesn't name where the district match is ambiguous.",
+    "page": "https://www.maine.gov/sos/elections-voting/voter-data",
+    "file_prefix": "11-3-26",
+    "township_counties": {
+      "T3 ND": "HAN",
+      "T7 SD": "HAN",
+      "T10 SD": "HAN"
+    },
+    "township_counties_source": "Hancock County, 'A Letter to UT Landowners' (https://hancockcountymaine.gov/unorganized-territory/letter-to-landowners/)"
+  },
+  "method_labels": {
+    "cast": "Absentee ballots returned",
+    "mail_voted": "Absentee ballots returned",
+    "mail_provided": "Absentee ballots outstanding"
+  },
+  "mail_base_label": "Ballots requested"
 }
