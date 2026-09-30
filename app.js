@@ -643,7 +643,7 @@
       var gap = (rcActive() && b.margin != null && res != null) ? Math.round((b.margin - res) * 10) / 10 : null;
       return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
                margin: b.margin, turnout: partisan ? cty.turnout_pct : turnoutOf(data.counties[name], b),
-               tqv: cty.tqv_url, source: cty.source,
+               tqv: cty.tqv_url, source: cty.source, srcUrl: cty.source_url, srcLabel: cty.source_label,
                m22: m22, shift: shift, res: res, gap: gap };
     });
     if (filter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(filter) >= 0; });
@@ -661,7 +661,10 @@
       if (r.name === selected) tr.className = "sel";
       var pill = "<span class='pill' style='background:" + colorForMargin(r.margin) + ";color:" +
         (r.margin == null ? "#333" : "#fff") + "'>" + marginText(r.margin) + "</span>";
-      var link = r.tqv ? " <a class='tqv-mini' href='" + r.tqv + "' target='_blank' rel='noopener' title='Live TQV feed for " + r.name + "'>&#8599;</a>" : "";
+      // FL: TQV feed for counties it serves; otherwise the county's own turnout page
+      var href = (r.tqv && r.source === "tqv") ? r.tqv : r.srcUrl;
+      var ttl = (r.tqv && r.source === "tqv") ? "Live TQV feed for " + r.name : (r.srcLabel || "County turnout page") + " (" + r.name + ")";
+      var link = href ? " <a class='tqv-mini' href='" + href + "' target='_blank' rel='noopener' title='" + ttl + "'>&#8599;</a>" : "";
       if (!partisan) {
         tr.innerHTML = "<td class='county'>" + r.name + link + "</td><td>" + fmt(r.total) + "</td>" +
           (showT ? "<td>" + pctText(r.turnout) + "</td>" : "");
@@ -743,7 +746,7 @@
     var links = "";
     // FL: link the live TQV feed only for counties actually served by it
     if (cty.tqv_url && cty.source === "tqv") links += "<a class='tqv-link' href='" + cty.tqv_url + "' target='_blank' rel='noopener'>Live TQV feed &#8599;</a> ";
-    if (cty.source_url) links += "<a class='tqv-link' href='" + cty.source_url + "' target='_blank' rel='noopener'>County vote-by-mail dashboard &#8599;</a> ";
+    if (cty.source_url) links += "<a class='tqv-link' href='" + cty.source_url + "' target='_blank' rel='noopener'>" + (cty.source_label || "County turnout page") + " &#8599;</a> ";
     if (PRECINCT_GEO_URL) links += "<button id='county-precincts' class='mini-btn'>Precinct detail &#9662;</button>";
     $("#county-body").innerHTML = "<div class='table-scroll'><table class='ctytable'>" + rows.join("") + "</table></div>" + extra + (links ? "<p>" + links + "</p>" : "");
     var pb = $("#county-precincts"); if (pb) pb.addEventListener("click", function () { openPrecincts(name); });
@@ -852,7 +855,7 @@
     // the base is ballots mailed in most states, but requests where the source only
     // counts applications (e.g. MS, GA's Lab figures): data.mail_base_label says so
     var base = data.mail_base_label || "Ballots sent";
-    var mn = $("#mail-note"); if (mn) mn.textContent = "returned vs. " + (data.mail_base_label ? "requested" : "sent") + ", by party";
+    var mn = $("#mail-note"); if (mn) mn.textContent = "returned vs. " + (data.mail_base_label ? "requested" : "sent") + (partisan ? ", by party" : "");
     $("#mail-stats").innerHTML =
       stat(base, fmt(m.requested)) +
       stat("Returned", fmt(m.returned) + " <span style='font-size:14px;color:var(--muted)'>(" + pctText(m.return_rate) + ")</span>") +

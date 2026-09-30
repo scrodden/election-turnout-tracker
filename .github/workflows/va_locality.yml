@@ -12,8 +12,8 @@ name: VA locality early-vote (dataset watch)
 # for a new visual), so it runs every 3 hours.
 
 on:
-  schedule:
-    - cron: "20 */3 * * *"
+  # The 10-minute updater (update.yml, timer chain) now runs the locality update;
+  # GitHub's cron was firing this only every several hours. Kept for manual runs.
   workflow_dispatch: {}
 
 permissions:

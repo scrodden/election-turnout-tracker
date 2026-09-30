@@ -62,6 +62,10 @@ jobs:
           pip install --quiet pypdf || true
           python scripts/run_all_states.py || echo "state runner failed (non-fatal)"
 
+      - name: Update VA locality early votes (about hourly; self-throttled)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/va_locality_update.py || echo "va locality update failed (non-fatal)"
+
       - name: Update election results (House / Senate / Governor)
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/results_update.py || echo "results update failed (non-fatal)"

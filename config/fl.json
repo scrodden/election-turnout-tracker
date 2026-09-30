@@ -87,5 +87,12 @@
       "No Party Affiliation": "npa",
       "Other": "oth"
     }
+  },
+  "county_links": {
+    "_comment": "Click-out link for counties not on TQV (county panel + table). Broward: the 'Unofficial Vote By Mail Statistics' dashboard linked from browardvotes.gov; switch to its early-voting page if one is published.",
+    "BRO": {
+      "url": "https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-party",
+      "label": "Broward turnout dashboard"
+    }
   }
 }

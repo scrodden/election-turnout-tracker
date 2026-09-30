@@ -66,6 +66,47 @@ def fetch_topo(cfg):
         return url, None
 
 
+LAB_BASE = "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/"
+
+
+def lab_districts():
+    """VPAP's early-vote figures by U.S. House district as republished by the UF
+    Election Lab (VA_cd.csv: district x locality rows; summed per district).
+    VPAP refreshes its statewide/locality numbers before its district map file,
+    so this is often a day ahead. -> (as_of, {"CD1": {ballots, mail, inperson,
+    requested}}) or ("", {}) if unavailable or it doesn't match the Lab's
+    statewide row."""
+    import csv
+    import io
+
+    def n(r, k):
+        try:
+            return int(float(r.get(k) or 0))
+        except ValueError:
+            return 0
+    try:
+        row = next((r for r in csv.DictReader(io.StringIO(C.http_get(LAB_BASE + "US.csv", no_cache=True)))
+                    if (r.get("state_abbv") or "").upper() == "VA"), None)
+        parts = list(csv.DictReader(io.StringIO(C.http_get(LAB_BASE + "VA_cd.csv", no_cache=True, retries=1))))
+    except Exception as e:  # noqa: BLE001
+        print("  (Election Lab VA_cd.csv unavailable: %s)" % str(e)[:80], file=sys.stderr)
+        return "", {}
+    out = {}
+    for r in parts:
+        cd = str(r.get("cd") or "").strip()
+        if not cd.isdigit():
+            continue
+        d = out.setdefault("CD%d" % int(cd), {"ballots": 0, "mail": 0, "inperson": 0, "requested": 0})
+        d["ballots"] += n(r, "voted_all")
+        d["mail"] += n(r, "accept_all")
+        d["inperson"] += n(r, "inperson_all")
+        d["requested"] += n(r, "request_all")
+    if not row or sum(d["ballots"] for d in out.values()) != n(row, "voted_all"):
+        print("  (Election Lab VA_cd.csv doesn't match its statewide row — not used)", file=sys.stderr)
+        return "", {}
+    return row.get("last_update", ""), out
+
+
 def _block(total):
     return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": int(total),
             "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
@@ -85,8 +126,20 @@ def main():
     reg = None if validate else va_registration.get()
     reg_cd = (reg or {}).get("cd", {})
 
+    # Use whichever VPAP-derived district figures are further along: VPAP's own
+    # district file, or VPAP's numbers as republished by the Lab (ties -> Lab,
+    # which also carries mail requests, so the ballot chase doesn't flicker).
+    vpap_total = sum(int((g.get("properties") or {}).get("ballots") or 0) for g in geoms)
+    lab_asof, lab = ("", {}) if validate else lab_districts()
+    use_lab = bool(lab) and sum(d["ballots"] for d in lab.values()) >= vpap_total
+    meta = {(g.get("properties") or {}).get("district"): g.get("properties") or {} for g in geoms}
+    if use_lab:
+        geoms = [{"properties": dict(meta.get(d, {}), district=d, district_number=int(d[2:]), ballots=v["ballots"],
+                                     mail_ballots=v["mail"], in_person=v["inperson"], requested=v["requested"])}
+                 for d, v in sorted(lab.items(), key=lambda kv: int(kv[0][2:]))]
+
     counties_out = {}
-    cast_total = mail_total = inperson_total = 0
+    cast_total = mail_total = inperson_total = req_total = 0
     for g in geoms:
         p = g.get("properties", {})
         d = p.get("district")
@@ -104,6 +157,12 @@ def main():
         cands = p.get("candidates")
         if cands:
             entry["candidates"] = [{"name": c.get("name"), "party": c.get("party")} for c in cands]
+        if p.get("requested"):
+            entry["mail_provided"] = _block(max(0, int(p["requested"]) - mail))
+            mm = C.compute_mail(entry)
+            if mm:
+                entry["mail"] = mm
+            req_total += int(p["requested"])
         counties_out[d] = entry
         cast_total += ballots; mail_total += mail; inperson_total += inp
 
@@ -132,24 +191,37 @@ def main():
         methods_present.append("mail_voted")
     if inperson_total:
         methods_present.append("early_voted")
+    if req_total:
+        methods_present.append("mail_provided")
 
     reg_total = sum(e["registered"] for e in counties_out.values())
     statewide = {"cast": _block(cast_total), "mail_voted": _block(mail_total),
                  "early_voted": _block(inperson_total), "registered": reg_total,
                  "turnout_pct": (round(100.0 * cast_total / reg_total, 2) if reg_total else None)}
+    if req_total:
+        statewide["mail_provided"] = _block(max(0, req_total - mail_total))
+        mm = C.compute_mail(statewide)
+        if mm:
+            statewide["mail"] = mm
+    primary = ("VPAP early voting by U.S. House district, as republished by the UF Election Lab (VA_cd.csv, as of %s; "
+               "CC BY-NC-ND 4.0) - ahead of VPAP's own district map file (%d ballots)" % (lab_asof, vpap_total)
+               if use_lab else
+               "VPAP early voting by U.S. House district (2026 general; turnout-only, VA has no party registration)")
     snap = {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
         "partisan": False,
         "unit_label": cfg.get("unit_label", "District"),
         "unit_label_plural": cfg.get("unit_label_plural", "Districts"),
-        "source": {"primary": "VPAP early voting by U.S. House district (2026 general; turnout-only, VA has no party registration)",
+        "source": {"primary": primary,
                    "registration": ("VA ELECT active registered voters by district, as of %s" % reg["cd_as_of"]) if reg else ""},
-        "source_compiled": (topo.get("updated") if topo else "") or "",
-        "source_compiled_iso": C.utc_now_iso() if topo else "",
+        "source_compiled": (lab_asof if use_lab else (topo.get("updated") if topo else "")) or "",
+        "source_compiled_iso": C.utc_now_iso() if (topo or use_lab) else "",
         "methods_present": methods_present,
         "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
+    if req_total:   # VA mails ballots on request: the base is applications, not ballots mailed
+        snap["mail_base_label"] = "Ballots requested"
     snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
     snap["generated_at"] = C.utc_now_iso()
 

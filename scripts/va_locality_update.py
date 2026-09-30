@@ -257,6 +257,10 @@ def main():
     loc_cfg = load(LOC_CONFIG, {}) or {}
     prev = load(OUT_PATH, {}) or {}
     total_localities = len(loc_cfg.get("localities", []))
+    # runs in the 10-minute updater; the Lab posts once a day, so check about hourly
+    if not test_url and "--force" not in sys.argv and prev.get("counties") and C.checked_recently(DATA_DIR, "locality"):
+        print("va locality: checked under an hour ago.")
+        return 0
 
     # 1) UF Election Lab locality file (all 133, mail/in-person split, requests)
     lab, lab_asof, lab_unmatched = ({}, "", [])

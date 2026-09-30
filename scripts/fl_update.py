@@ -357,8 +357,12 @@ def compute_mail(ent):
 
 def build_county_entity(county, tqv, dos_methods):
     """Combine TQV (cast methods) + DOS (mail_provided) into one county entity."""
-    ent = {"code": county["code"], "fips": county["fips"],
-           "tqv_url": "https://tqv.vrswebapps.com/?state=FL&county=" + county["code"].lower()}
+    ent = {"code": county["code"], "fips": county["fips"]}
+    link = COUNTY_LINKS.get(county["code"])
+    if link:   # counties not on TQV link their own turnout page instead
+        ent["source_url"], ent["source_label"] = link["url"], link["label"]
+    else:
+        ent["tqv_url"] = "https://tqv.vrswebapps.com/?state=FL&county=" + county["code"].lower()
     iso = (tqv or {}).get("last_updated", "")
     registered = (tqv or {}).get("registered", 0)
 
@@ -446,9 +450,13 @@ def append_history(snap):
     return True
 
 
+COUNTY_LINKS = {}
+
+
 def main():
     force = "--force" in sys.argv
     cfg = load_json(CONFIG_PATH)
+    COUNTY_LINKS.update(cfg.get("county_links", {}))
     counties = load_json(COUNTIES_PATH)["counties"]
     id_cache = {}
     if os.path.exists(IDCACHE_PATH):
@@ -533,7 +541,6 @@ def main():
             bw["turnout_pct"] = C.pct(bw["cast"]["total"], bw.get("registered", 0))
             bw["mail"] = compute_mail(bw)
             bw["source"] = "county-dashboard"
-            bw["source_url"] = cfg["broward_ted"]["view"]
             bw["last_updated"] = iso
             if iso > max_iso:
                 max_iso = iso
