@@ -139,6 +139,9 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
         body["demographics"] = demo
     if cfg.get("mail_base_label"):   # e.g. "Ballots requested" where the Lab's count is applications
         body["mail_base_label"] = cfg["mail_base_label"]
+    for k in ("unit_label", "unit_label_plural"):   # e.g. RI maps cities/towns, not counties
+        if cfg.get(k):
+            body[k] = cfg[k]
     snap = dict(body)
     snap["source"] = {"primary": "UF Election Lab early-vote tracker (M. McDonald), %s; CC BY-NC-ND 4.0 -- %s"
                                  % (row.get("data_source") or "state election office", role),

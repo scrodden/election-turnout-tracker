@@ -7,14 +7,16 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. Mail + early by town (town->county); affiliated/unaffiliated. Source pointer: https://elections.ri.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://elections.ri.gov/"
+    "_comment": "UF Election Lab stand-in (RI_county.csv by city/town, RI_cd.csv), CC BY-NC-ND 4.0. RI's data hub (datahub.sos.ri.gov) has registration only; its ArcGIS turnout tracker (ri-voter-turnout-tracker-ridos.hub.arcgis.com) still shows the primary.",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
-  }
+    "cast": "Ballots returned",
+    "mail_voted": "Mail ballots returned",
+    "mail_provided": "Mail ballots outstanding"
+  },
+  "unit_label": "City/Town",
+  "unit_label_plural": "Cities/Towns",
+  "mail_base_label": "Ballots requested"
 }

@@ -316,9 +316,12 @@
       "name": "Rhode Island",
       "hidden": true,
       "data": "data/ri/latest.json",
-      "geojson": "assets/ri-counties.geojson",
+      "geojson": "assets/ri-towns.geojson",
       "history": "data/ri/history.jsonl",
-      "source_note": "Source: <a href='https://elections.ri.gov/' target='_blank' rel='noopener'>Rhode Island Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Rhode Island Secretary of State data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Mail ballots requested and returned by city/town (Rhode Island runs elections by city and town) and registered party (unaffiliated voters shown as NPA); the Districts map uses the Lab's U.S. House district file. Early in-person voting runs October 14 &ndash; November 2. Boundaries: U.S. Census Bureau.",
+      "partisan": true,
+      "locality_data": "data/ri/districts.json",
+      "locality_geojson": "assets/ri-cd.geojson"
     },
     {
       "code": "sd",
