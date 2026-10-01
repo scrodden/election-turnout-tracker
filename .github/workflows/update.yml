@@ -66,6 +66,10 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/va_locality_update.py || echo "va locality update failed (non-fatal)"
 
+      - name: Update FL district vote-by-mail (prior-day tables; self-throttled)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/fl_districts_update.py || echo "fl districts update failed (non-fatal)"
+
       - name: Update election results (House / Senate / Governor)
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/results_update.py || echo "results update failed (non-fatal)"

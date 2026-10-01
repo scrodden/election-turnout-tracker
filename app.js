@@ -54,7 +54,7 @@
   // U.S. House district with a Localities view; GA's is by county with a Districts
   // view. Once the second file covers most units, a toggle swaps it in; its labels
   // come from the file's unit_label / unit_label_plural.
-  var unitMode = "primary", primaryView = null, locGeo = null;
+  var unitMode = "primary", primaryView = null, altData = {}, altGeo = {};
 
   // ---- utils ---------------------------------------------------------------
   function $(sel) { return document.querySelector(sel); }
@@ -815,18 +815,21 @@
     setTimeout(function () { if (f.parentNode) f.parentNode.removeChild(f); }, 4000);
   }
   function refresh() {
-    if (st && st.locality_data && (localityLinks || localityData)) {
-      getJSON(st.locality_data).then(function (ld) {
-        if (!localityData || ld.data_hash !== localityData.data_hash) {
-          localityData = ld; updateUnitToggle(); renderLocalityLookup();
-          if (unitMode === "locality") { applyLocalityView(); renderAll(); }
+    altViews().forEach(function (v) {
+      getJSON(v.data).then(function (ld) {
+        var cur0 = altData[v.key];
+        if (!cur0 || ld.data_hash !== cur0.data_hash) {
+          altData[v.key] = ld; if (v.key === "loc") localityData = ld;
+          updateUnitToggle(); renderLocalityLookup();
+          if (unitMode === v.key) { applyAltView(v.key); renderAll(); }
         }
       }).catch(function () {});
-    }
+    });
     getJSON(DATA_URL).then(function (nd) {
-      var shown = (unitMode === "locality" && primaryView) ? primaryView.data : data;
+      var inView = unitMode !== "primary" && primaryView;
+      var shown = inView ? primaryView.data : data;
       if (!shown || nd.data_hash !== shown.data_hash) {
-        if (unitMode === "locality" && primaryView) { primaryView.data = nd; applyLocalityView(); } else data = nd;
+        if (inView) { primaryView.data = nd; applyAltView(unitMode); } else data = nd;
         ensureMethodValid(); precinctCache = {}; renderAll();
         if (selected) openPrecincts(selected);
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
@@ -981,7 +984,7 @@
     if (st) parts.push("s=" + st.code);
     parts.push("m=" + method);
     if (mapMode !== "county") parts.push("v=" + mapMode);
-    if (unitMode === "locality") parts.push("u=loc");
+    if (unitMode !== "primary") parts.push("u=" + unitMode);
     if (compare) parts.push("cmp=1");
     if (rcmp) parts.push("rc=1");
     if (selected) parts.push("c=" + encodeURIComponent(selected));
@@ -1042,10 +1045,10 @@
     precinctLoading = false; selected = null; filter = ""; cur = null;
     compare = false; mapMode = "county"; method = "cast";
     rcmp = false; rcData = null;
-    unitMode = "primary"; primaryView = null; locGeo = null;
+    unitMode = "primary"; primaryView = null; altData = {}; altGeo = {};
     var um = $("#unit-mode"); if (um) um.style.display = "none";
-    // read now: updateHash() rewrites the hash before the locality data arrives
-    var wantLocality = !!applyHash && parseHash().u === "loc";
+    // read now: updateHash() rewrites the hash before the view data arrives
+    var wantUnit = applyHash ? parseHash().u : null;
     RCMP_URL = st.data ? st.data.replace(/latest\.json$/, "results_county.json") : null;
     partisan = (st.partisan !== false);
     $("#filter").value = ""; var cb = $("#cmp-2022"); if (cb) cb.checked = false;
@@ -1075,7 +1078,7 @@
         if (h2.c && data.counties[h2.c]) selectCounty(h2.c, true);
       }
       loadTrends();
-      loadLocalityLookup(wantLocality);
+      loadLocalityLookup(wantUnit);
       if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
       if (RCMP_URL) getJSON(RCMP_URL).then(function (rc) {
         rcData = rc; rcRace = (rc.race_types && rc.race_types.indexOf("gov") >= 0) ? "gov" : "sen";
@@ -1095,78 +1098,89 @@
   // (VPAP's Cloudflare-protected pages). We link out per locality, and fill in
   // numbers opportunistically from a best-effort daily scrape when available.
   function resetLocality() {
-    localityLinks = null; localityData = null; localityFilter = "";
+    localityLinks = null; localityData = null; localityFilter = ""; altData = {};
     var s = $("#locality-lookup"); if (s) s.hidden = true;
     var fi = $("#locality-filter"); if (fi) fi.value = "";
   }
-  function loadLocalityLookup(wantLocality) {
-    if (!st || !(st.locality_links || st.locality_data)) { resetLocality(); return; }
-    var dataUrl = st.locality_data || null;
+  function loadLocalityLookup(wantUnit) {
+    var views = altViews();
+    if (!st || !(st.locality_links || views.length)) { resetLocality(); return; }
     var code = st.code;
-    Promise.all([
-      st.locality_links ? getJSON(st.locality_links) : Promise.resolve(null),
-      dataUrl ? getJSON(dataUrl).catch(function () { return null; }) : Promise.resolve(null)
-    ]).then(function (r) {
+    Promise.all([st.locality_links ? getJSON(st.locality_links) : Promise.resolve(null)].concat(
+      views.map(function (v) { return getJSON(v.data).catch(function () { return null; }); })
+    )).then(function (r) {
       if (!st || st.code !== code) return;   // user switched states meanwhile
-      localityLinks = r[0]; localityData = r[1];
+      localityLinks = r[0];
+      views.forEach(function (v, i) { if (r[i + 1]) altData[v.key] = r[i + 1]; });
+      localityData = altData.loc || null;
       var sec = $("#locality-lookup"); if (sec) sec.hidden = !localityLinks;
       var fi = $("#locality-filter");
       if (fi && !fi._wired) { fi._wired = true; fi.addEventListener("input", function (e) { localityFilter = e.target.value.trim().toLowerCase(); renderLocalityLookup(); }); }
       renderLocalityLookup();
       updateUnitToggle();
-      if (wantLocality && localityReady()) setUnit("locality");
+      if (wantUnit && wantUnit !== "primary" && viewReady(wantUnit)) setUnit(wantUnit);
     }).catch(function () { resetLocality(); });
   }
 
-  // ---- second-map toggle (VA Districts | Localities, GA Counties | Districts) --
-  function altLabel(plural) {
-    var d = localityData || {};
+  // ---- alternate map views ---------------------------------------------------
+  // st.views = [{key, label, data, geojson}] (FL: Congressional / FL House /
+  // FL Senate). A state with just locality_data + locality_geojson gets one view
+  // keyed "loc" (VA Localities; GA, NC, NV ... Districts). Labels come from each
+  // file's unit_label / unit_label_plural unless the view names a short label.
+  function altViews() {
+    if (!st) return [];
+    if (st.views && st.views.length) return st.views;
+    return st.locality_data ? [{ key: "loc", data: st.locality_data, geojson: st.locality_geojson }] : [];
+  }
+  function viewOf(key) { return altViews().filter(function (v) { return v.key === key; })[0]; }
+  function altLabel(key, plural) {
+    var d = altData[key] || {};
     return plural ? (d.unit_label_plural || "Localities") : (d.unit_label || "Locality");
   }
-  function localityReady() {
-    var d = localityData, cov = d && d.coverage;
-    return !!(st && st.locality_geojson && d && d.counties && cov && cov.total && cov.ok >= 0.9 * cov.total);
+  function viewReady(key) {
+    var v = viewOf(key), d = altData[key], cov = d && d.coverage;
+    return !!(v && v.geojson && d && d.counties && cov && cov.total && cov.ok >= 0.9 * cov.total);
   }
   function updateUnitToggle() {
     var box = $("#unit-mode"); if (!box) return;
-    var on = localityReady();
-    box.style.display = on ? "" : "none";
-    if (!on && unitMode === "locality") { setUnit("primary"); return; }
-    var bs = box.querySelectorAll("button");
-    for (var i = 0; i < bs.length; i++) {
-      var u = bs[i].getAttribute("data-unit");
-      bs[i].setAttribute("aria-selected", String(u === unitMode));
-      if (u === "primary") bs[i].textContent = primaryView ? primaryView.unitLabelPlural : unitLabelPlural;
-      else bs[i].textContent = altLabel(true);
-    }
+    var ready = altViews().filter(function (v) { return viewReady(v.key); });
+    box.style.display = ready.length ? "" : "none";
+    if (unitMode !== "primary" && !viewReady(unitMode)) { setUnit("primary"); return; }
+    var btns = [{ key: "primary", label: primaryView ? primaryView.unitLabelPlural : unitLabelPlural }]
+      .concat(ready.map(function (v) { return { key: v.key, label: v.label || altLabel(v.key, true) }; }));
+    box.innerHTML = btns.map(function (b) {
+      return "<button data-unit='" + b.key + "' role='tab' aria-selected='" + (b.key === unitMode) + "'>" + b.label + "</button>";
+    }).join("");
   }
-  function applyLocalityView() {
-    var ld = localityData, base = primaryView.data;
+  function applyAltView(key) {
+    var ld = altData[key], base = primaryView.data;
     data = Object.assign({}, base, {
       counties: ld.counties, statewide: ld.statewide,
       methods_present: ld.methods_present || [], method_labels: ld.method_labels || base.method_labels,
-      unit_label: altLabel(false), unit_label_plural: altLabel(true),
+      unit_label: altLabel(key, false), unit_label_plural: altLabel(key, true),
       map_note: ld.map_note || null, statewide_only: false, county_stale: false
     });
-    // the locality file has its own source and as-of date
+    // each view file has its own source and as-of date
     if (ld.source) data.source = { primary: ld.source };
     if (ld.source_compiled_iso) { data.source_compiled_iso = ld.source_compiled_iso; data.source_compiled = ld.source_compiled || ld.as_of; }
     if (ld.data_hash) data.data_hash = ld.data_hash;
   }
   function setUnit(u) {
     if (u === unitMode) return;
-    if (u === "locality") {
-      if (!localityReady()) return;
-      if (!locGeo) { getJSON(st.locality_geojson).then(function (g) { locGeo = g; setUnit("locality"); }).catch(function () {}); return; }
+    if (u !== "primary") {
+      if (!viewReady(u)) return;
+      if (!altGeo[u]) { getJSON(viewOf(u).geojson).then(function (g) { altGeo[u] = g; setUnit(u); }).catch(function () {}); return; }
+      if (mapMode !== "county") setMode("county");   // precinct detail belongs to the county map
       primaryView = primaryView || { geo: geo, data: data, proj: proj, unitLabel: unitLabel, unitLabelPlural: unitLabelPlural };
-      geo = locGeo; proj = buildProjection(locGeo);
-      applyLocalityView();
-      unitLabel = altLabel(false); unitLabelPlural = altLabel(true);
+      geo = altGeo[u]; proj = buildProjection(altGeo[u]);
+      applyAltView(u);
+      unitLabel = altLabel(u, false); unitLabelPlural = altLabel(u, true);
     } else {
       if (!primaryView) return;
       geo = primaryView.geo; data = primaryView.data; proj = primaryView.proj;
       unitLabel = primaryView.unitLabel; unitLabelPlural = primaryView.unitLabelPlural;
     }
+    var mm = $("#map-mode"); if (mm) mm.style.display = (u === "primary" && st && st.precincts) ? "" : "none";
     unitMode = u; selected = null; cur = null;
     if (!methodAvailable(method)) method = "cast";
     var cp = $("#county-panel"); if (cp) cp.hidden = true;
@@ -1340,8 +1354,10 @@
       });
       var modeBtns = $("#map-mode").querySelectorAll("button");
       for (var i = 0; i < modeBtns.length; i++) modeBtns[i].addEventListener("click", function () { setMode(this.getAttribute("data-mode")); });
-      var unitBtns = document.querySelectorAll("#unit-mode button");
-      for (var j = 0; j < unitBtns.length; j++) unitBtns[j].addEventListener("click", function () { setUnit(this.getAttribute("data-unit")); });
+      var unitBox = $("#unit-mode");   // buttons are rebuilt per state, so listen on the box
+      if (unitBox) unitBox.addEventListener("click", function (e) {
+        var b = e.target.closest("button[data-unit]"); if (b) setUnit(b.getAttribute("data-unit"));
+      });
       setInterval(refresh, REFRESH_MS);
       var h = parseHash();
       var code = (h.s && STATES.some(function (s) { return s.code === h.s; })) ? h.s : (reg.default || (STATES[0] && STATES[0].code));

@@ -94,5 +94,11 @@
       "url": "https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-party",
       "label": "Broward turnout dashboard"
     }
+  },
+  "districts_305": {
+    "_comment": "District maps (congressional / FL House / FL Senate) use 305 Data Girl's published district tables, built from the state's county voter-level VBM files, which s. 101.62 F.S. restricts to parties/candidates/committees. Prior-day, credited on the map. Chosen by Sam 2026-10-01.",
+    "base": "https://florida-live-turnout.politicalgrl0318.workers.dev",
+    "index": "/data/general-districts.json",
+    "page": "https://florida-live-turnout.politicalgrl0318.workers.dev/general/districts"
   }
 }

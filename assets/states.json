@@ -11,7 +11,27 @@
       "precinct_data": "data/fl/precincts_all.json",
       "baseline": "data/fl/baseline_2022.json",
       "history": "data/fl/history.jsonl",
-      "source_note": "Primary source: county <a href='https://tqv.vrswebapps.com/?state=FL' target='_blank' rel='noopener'>Turnout Quick View</a> feeds (VR Systems) — county &amp; precinct level with registered-voter counts. Secondary: <a href='https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats' target='_blank' rel='noopener'>FL Division of Elections</a> (mail ballots outstanding + fallback)."
+      "source_note": "Primary source: county <a href='https://tqv.vrswebapps.com/?state=FL' target='_blank' rel='noopener'>Turnout Quick View</a> feeds (VR Systems) — county &amp; precinct level with registered-voter counts. Secondary: <a href='https://countyfilesvbm-ev.floridados.gov/VoteByMailEarlyVotingReports/PublicStats' target='_blank' rel='noopener'>FL Division of Elections</a> (mail ballots outstanding + fallback). The Congressional, FL House and FL Senate maps show vote-by-mail ballots returned by district through the close of the prior day, from <a href='https://florida-live-turnout.politicalgrl0318.workers.dev/general/districts' target='_blank' rel='noopener'>305 Data Girl</a>'s district tables (built from the state's county voter-level vote-by-mail files, which Florida law makes available only to parties, candidates and committees); they are not live like the county map. District boundaries: Florida Senate redistricting office (congressional plan EOGPCRP2026, enacted May 2026; House H000H8013 and Senate S027S8058, 2022).",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/fl/districts_cd.json",
+          "geojson": "assets/fl-cd.geojson"
+        },
+        {
+          "key": "sh",
+          "label": "FL House",
+          "data": "data/fl/districts_sh.json",
+          "geojson": "assets/fl-sh.geojson"
+        },
+        {
+          "key": "ss",
+          "label": "FL Senate",
+          "data": "data/fl/districts_ss.json",
+          "geojson": "assets/fl-ss.geojson"
+        }
+      ]
     },
     {
       "code": "nc",
