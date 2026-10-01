@@ -421,7 +421,8 @@
   function updateMapCaption() {
     var unitLc = unitLabel.toLowerCase();
     var hasT = !partisan && anyTurnout();
-    $("#map-title").textContent = mapMode === "precinct" ? "Turnout by precinct"
+    var outlined = mapMode === "precinct" && unitMode !== "primary";
+    $("#map-title").textContent = mapMode === "precinct" ? "Turnout by precinct" + (outlined ? " · " + unitLabelPlural.toLowerCase() : "")
       : (partisan ? "Partisan lean by " + unitLc : (hasT ? "Early turnout by " : "Early ballots by ") + unitLc);
     $("#map-note").textContent = mapMode === "precinct"
       ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
@@ -431,7 +432,8 @@
           ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). This state does not register voters by party, so no partisan breakdown is available."
           : "Shaded by early-ballot volume in the selected category (darker = more ballots). This state does not register voters by party, so no partisan breakdown is available. Gray = no ballots yet.");
     // e.g. SD: statewide totals from the state, county map from a source that's behind it
-    if (mapMode !== "precinct" && data && data.map_note) $("#map-note").textContent += " ⚠ " + data.map_note;
+    if (outlined) $("#map-note").textContent += " Outlines: " + unitLabelPlural.toLowerCase() + "; the table lists their figures.";
+    if ((mapMode !== "precinct" || outlined) && data && data.map_note) $("#map-note").textContent += " ⚠ " + data.map_note;
   }
 
   function renderCountyMap() {
@@ -500,6 +502,14 @@
       p.addEventListener("mouseleave", hideTip);
       svg.appendChild(p);
     });
+    // district view (e.g. FL Congressional): outline its districts over the precinct shading
+    if (unitMode !== "primary") {
+      geo.features.forEach(function (ft) {
+        var o = svgPath(pathFor(ft.geometry), "none", "dist-outline" + (ft.properties.name === selected ? " sel" : ""));
+        o.setAttribute("data-name", ft.properties.name);
+        svg.appendChild(o);
+      });
+    }
     renderLegend();
   }
 
@@ -702,9 +712,11 @@
   function selectCounty(name, fromMap) {
     selected = (selected === name) ? null : name;
     // update map classes
-    var paths = $("#map").querySelectorAll("path");
+    var paths = $("#map").querySelectorAll("path[data-name]");   // county / district shapes and outlines
     for (var i = 0; i < paths.length; i++) {
-      paths[i].setAttribute("class", paths[i].getAttribute("data-name") === selected ? "sel" : "");
+      var keep = paths[i].classList.contains("dist-outline") ? "dist-outline" : "";
+      var on = paths[i].getAttribute("data-name") === selected;
+      paths[i].setAttribute("class", (keep + (on ? " sel" : "")).trim());
     }
     renderTableBody();
     if (selected && !fromMap) {
@@ -1171,7 +1183,6 @@
     if (u !== "primary") {
       if (!viewReady(u)) return;
       if (!altGeo[u]) { getJSON(viewOf(u).geojson).then(function (g) { altGeo[u] = g; setUnit(u); }).catch(function () {}); return; }
-      if (mapMode !== "county") setMode("county");   // precinct detail belongs to the county map
       primaryView = primaryView || { geo: geo, data: data, proj: proj, unitLabel: unitLabel, unitLabelPlural: unitLabelPlural };
       geo = altGeo[u]; proj = buildProjection(altGeo[u]);
       applyAltView(u);
@@ -1181,7 +1192,6 @@
       geo = primaryView.geo; data = primaryView.data; proj = primaryView.proj;
       unitLabel = primaryView.unitLabel; unitLabelPlural = primaryView.unitLabelPlural;
     }
-    var mm = $("#map-mode"); if (mm) mm.style.display = (u === "primary" && st && st.precincts) ? "" : "none";
     unitMode = u; selected = null; cur = null;
     if (!methodAvailable(method)) method = "cast";
     var cp = $("#county-panel"); if (cp) cp.hidden = true;
