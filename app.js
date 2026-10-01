@@ -649,7 +649,8 @@
     if (filter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(filter) >= 0; });
     rows.sort(function (a, b) {
       var k = sort.key;
-      if (k === "county") return a.name.localeCompare(b.name) * sort.dir;
+      // numeric-aware so district names sort CD2 before CD10 (counties are unaffected)
+      if (k === "county") return a.name.localeCompare(b.name, undefined, { numeric: true }) * sort.dir;
       var av = a[k], bv = b[k];
       if (av == null) av = -Infinity; if (bv == null) bv = -Infinity;
       return (av - bv) * sort.dir;
