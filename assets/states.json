@@ -255,9 +255,10 @@
       "name": "Connecticut",
       "hidden": true,
       "data": "data/ct/latest.json",
-      "geojson": "assets/ct-counties.geojson",
+      "geojson": "assets/ct-towns.geojson",
       "history": "data/ct/history.jsonl",
-      "source_note": "Source: <a href='https://portal.ct.gov/sots/election-services/' target='_blank' rel='noopener'>Connecticut Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Connecticut Secretary of the State data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Statewide absentee ballots requested and returned by registered party (unaffiliated voters shown as NPA). The Lab's local breakdown is by voters' mailing city (villages and post offices as well as towns), which doesn't line up with Connecticut's 169 towns, so no map is shown yet. Early in-person voting runs October 20 &ndash; November 1.",
+      "partisan": true
     },
     {
       "code": "de",
