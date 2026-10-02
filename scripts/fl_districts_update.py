@@ -78,8 +78,10 @@ def main():
     if not src:
         return 0
     probe = os.path.join(DATA_DIR, "districts_cd.json")
-    if not force and os.path.exists(probe) and C.checked_recently(DATA_DIR, "districts305"):
-        print("fl districts: checked under an hour ago.")
+    # they publish once a day (late morning ET, after the state's county files):
+    # check the small index every ~20 minutes, district files only when it changes
+    if not force and os.path.exists(probe) and C.checked_recently(DATA_DIR, "districts305", minutes=20):
+        print("fl districts: checked under 20 minutes ago.")
         return 0
     base = src["base"].rstrip("/")
     try:
@@ -92,6 +94,10 @@ def main():
               % (idx.get("electionNumber"), cfg["tqv"]["fvrs_election_number"]), file=sys.stderr)
         return 0
     through = idx.get("dataThrough", "")
+    prev_cd = load(probe, {}) or {}
+    if not force and idx.get("generatedAt") and idx.get("generatedAt") == prev_cd.get("source_generated"):
+        print("fl districts: NOCHANGE (their tables generated %s, through %s)" % (idx["generatedAt"], through))
+        return 0
     cov = idx.get("coverage") or {}
     sw = idx.get("statewide") or {}
     sw_ret = {"rep": sw.get("repReturned", 0), "dem": sw.get("demReturned", 0),
@@ -148,7 +154,7 @@ def main():
         now = C.utc_now_iso()
         with open(out, "w", encoding="utf-8") as f:
             json.dump(dict(body, source_compiled=through, source_compiled_iso=close_of_day(through) or now, data_hash=h,
-                           generated_at=now), f,
+                           generated_at=now, source_generated=idx.get("generatedAt")), f,
                       separators=(",", ":"))
         print("fl districts %s: CHANGED %d districts, %d returned (through %s)" % (suffix, len(units), in_districts, through))
     return 0
