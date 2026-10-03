@@ -28,8 +28,13 @@
     mail_provided: "Party registration of voters SENT a mail ballot who have not yet returned it (outstanding). From the state file; TQV does not report this."
   };
 
+  function noPartyText() {
+    return (st && st.partisan !== false)
+      ? "The source isn't reporting party for these ballots right now, so this is turnout only."
+      : "This state does not register voters by party, so no partisan breakdown is available.";
+  }
   var TURNOUT_HINTS = {
-    cast: "Total ballots already cast (by mail + in person). This state does not register voters by party, so no partisan breakdown is available.",
+    cast: "Total ballots already cast (by mail + in person).",
     mail_voted: "Ballots returned by mail.",
     early_voted: "Ballots cast in person during early voting.",
     election_day: "Ballots cast on election day."
@@ -241,7 +246,7 @@
       b.addEventListener("click", function () { if (!avail) return; method = m.key; updateHash(); renderAll(); });
       host.appendChild(b);
     });
-    $("#method-hint").textContent = partisan ? (HINTS[method] || "") : (TURNOUT_HINTS[method] || TURNOUT_HINTS.cast);
+    $("#method-hint").textContent = partisan ? (HINTS[method] || "") : (TURNOUT_HINTS[method] || TURNOUT_HINTS.cast) + (method === "cast" ? " " + noPartyText() : "");
   }
 
   function statCard(cls, k, v, d, barParts) {
@@ -429,8 +434,8 @@
       : (partisan
         ? "Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet."
         : hasT
-          ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). This state does not register voters by party, so no partisan breakdown is available."
-          : "Shaded by early-ballot volume in the selected category (darker = more ballots). This state does not register voters by party, so no partisan breakdown is available. Gray = no ballots yet.");
+          ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). " + noPartyText()
+          : "Shaded by early-ballot volume in the selected category (darker = more ballots). " + noPartyText() + " Gray = no ballots yet.");
     // e.g. SD: statewide totals from the state, county map from a source that's behind it
     if (outlined) $("#map-note").textContent += " Outlines: " + unitLabelPlural.toLowerCase() + "; the table lists their figures.";
     if ((mapMode !== "precinct" || outlined) && data && data.map_note) $("#map-note").textContent += " ⚠ " + data.map_note;
@@ -843,6 +848,7 @@
       var shown = inView ? primaryView.data : data;
       if (!shown || nd.data_hash !== shown.data_hash) {
         if (inView) { primaryView.data = nd; applyAltView(unitMode); } else data = nd;
+        partisan = (st.partisan !== false) && nd.partisan !== false;
         ensureMethodValid(); precinctCache = {}; renderAll();
         if (selected) openPrecincts(selected);
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
@@ -1078,6 +1084,8 @@
 
     Promise.all([getJSON(GEO_URL), getJSON(DATA_URL)]).then(function (res) {
       geo = res[0]; data = res[1]; proj = buildProjection(geo); method = pickDefaultMethod();
+      // a partisan state's feed can drop party for a while (e.g. ME's file on 10/2/26): show turnout only
+      partisan = (st.partisan !== false) && data.partisan !== false;
       unitLabel = data.unit_label || "County"; unitLabelPlural = data.unit_label_plural || (unitLabel === "County" ? "Counties" : unitLabel + "s");
       if (applyHash) {
         var h = parseHash();

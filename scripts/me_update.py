@@ -117,12 +117,14 @@ def read_absentee(text, place):
     def acc():
         return {"req": _zero(), "ret": _zero()}
     cty, cd, sw = collections.defaultdict(acc), collections.defaultdict(acc), acc()
-    n = accepted = rejected = unplaced = 0
+    n = accepted = rejected = unplaced = no_party = 0
     for r in csv.DictReader(io.StringIO("\n".join(lines)), delimiter="|", quoting=csv.QUOTE_NONE):
         p = (r.get("P") or "").strip()
         if not (r.get("RES MUNICIPALITY") or "").strip():
             continue
         n += 1
+        if not p:
+            no_party += 1
         status = (r.get("Status") or "").strip()
         if status == "REJ":
             rejected += 1
@@ -150,13 +152,18 @@ def read_absentee(text, place):
     rej_footer = footer.get("Returned & Rejected", 0) + footer.get("Not Returned & Rejected", 0)
     if footer and rej_footer != rejected:
         raise RuntimeError("ME: file footer rejected = %d, rows give %d" % (rej_footer, rejected))
-    return cty, cd, sw, unplaced, footer
+    return cty, cd, sw, unplaced, footer, (no_party < n / 2)
 
 
-def entity(a, reg):
+def entity(a, reg, partisan=True):
+    """partisan=False when the state's file carries no party enrollment: blocks
+    keep only totals (no 0 D / 0 R / 'Even' that would look like real data)."""
     out = {p: max(0, a["req"][p] - a["ret"][p]) for p in a["req"]}
 
     def pb(d):
+        if not partisan:
+            return {"rep": 0, "dem": 0, "oth": 0, "npa": 0, "total": sum(d.values()),
+                    "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
         return C.party_block(d["rep"], d["dem"], d["oth"], d["npa"])
     e = {"mail_voted": pb(a["ret"]), "mail_provided": pb(out), "cast": pb(a["ret"])}
     total_reg = sum(reg.values()) if reg else 0
@@ -199,7 +206,7 @@ def main():
             return manual[t]
         cands = combo.get(((r.get("SS") or "").strip(), (r.get("SR") or "").strip(), (r.get("CC") or "").strip()), set())
         return next(iter(cands)) if len(cands) == 1 else None
-    cty, cd, sw, unplaced, footer = read_absentee(text, place)
+    cty, cd, sw, unplaced, footer, has_party = read_absentee(text, place)
 
     geo = load(GEO_PATH, {"features": []})
     by_code = {f["properties"]["name"][:3].upper(): f["properties"] for f in geo["features"]}
@@ -207,21 +214,27 @@ def main():
     if bad:
         print("ME: unknown county codes %s — keeping previous snapshot." % bad, file=sys.stderr)
         return 0
-    counties = {by_code[c]["name"]: dict(entity(a, reg_cty.get(c)), fips=by_code[c]["fips"]) for c, a in cty.items()}
+    counties = {by_code[c]["name"]: dict(entity(a, reg_cty.get(c), has_party), fips=by_code[c]["fips"])
+                for c, a in cty.items()}
     for c, g in by_code.items():   # counties with no requests yet
-        counties.setdefault(g["name"], dict(entity({"req": _zero(), "ret": _zero()}, reg_cty.get(c)), fips=g["fips"]))
+        counties.setdefault(g["name"], dict(entity({"req": _zero(), "ret": _zero()}, reg_cty.get(c), has_party),
+                                            fips=g["fips"]))
     reg_all = _zero()
     for d in reg_cty.values():
         for p in d:
             reg_all[p] += d[p]
-    statewide = entity(sw, reg_all)
+    statewide = entity(sw, reg_all, has_party)
     note = None
+    if not has_party:
+        note = ("The state's absentee file as of %s leaves voters' party enrollment blank, so Maine is shown as "
+                "turnout only until the party column returns." % as_of)
     if unplaced:
-        note = ("%s absentee requests from unorganized townships couldn't be placed in a county; they're in the "
-                "statewide and district totals." % format(unplaced, ","))
+        note = ((note + " ") if note else "") + (
+            "%s absentee requests from unorganized townships couldn't be placed in a county; they're in the "
+            "statewide and district totals." % format(unplaced, ","))
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Maine"), "election": cfg.get("election", {}),
-        "partisan": True, "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
+        "partisan": has_party, "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
         "method_labels": cfg.get("method_labels", {}), "mail_base_label": cfg.get("mail_base_label", "Ballots requested"),
         "statewide": statewide, "counties": counties,
     }
@@ -245,7 +258,7 @@ def main():
         with open(HISTORY_PATH, "a", encoding="utf-8") as f:
             f.write(json.dumps({"generated_at": now, "statewide": {"cast": [c["rep"], c["dem"], c["oth"], c["npa"],
                                                                             c["total"]]}}, separators=(",", ":")) + "\n")
-    write_districts(cfg, cd, reg_cd, statewide, as_of, force)
+    write_districts(cfg, cd, reg_cd, statewide, as_of, force, has_party, note if not has_party else None)
     m = statewide.get("mail") or {}
     print("%s  ME absentee file as of %s: %d counties | returned=%d of %d requested (R%d D%d U%d O%d) margin=%s%s"
           % ("CHANGED" if changed else "NOCHANGE", as_of, len(counties), c["total"], m.get("requested", 0),
@@ -253,21 +266,24 @@ def main():
     return 0
 
 
-def write_districts(cfg, cd, reg_cd, statewide, as_of, force):
+def write_districts(cfg, cd, reg_cd, statewide, as_of, force, has_party=True, note=None):
     geo = load(CD_GEO_PATH, {"features": []})
     gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
     if not gidx or any(k not in gidx for k in cd):
         print("ME: district file skipped (districts %s vs map %s)" % (sorted(cd), sorted(gidx)), file=sys.stderr)
         return
-    units = {gidx[k]["name"]: dict(entity(cd.get(k, {"req": _zero(), "ret": _zero()}), reg_cd.get(k)), fips=gidx[k]["fips"])
+    units = {gidx[k]["name"]: dict(entity(cd.get(k, {"req": _zero(), "ret": _zero()}), reg_cd.get(k), has_party),
+                                   fips=gidx[k]["fips"])
              for k in sorted(gidx)}
     body = {"state": STATE, "election": cfg.get("election", {}), "unit_label": "District", "unit_label_plural": "Districts",
-            "partisan": True, "source": "Maine Secretary of State statewide absentee voter file, by each voter's "
+            "partisan": has_party, "source": "Maine Secretary of State statewide absentee voter file, by each voter's "
                                         "congressional district (as of %s)" % as_of,
             "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
             "method_labels": cfg.get("method_labels", {}),
             "coverage": {"ok": len(gidx), "total": len(gidx), "unmatched": []},
             "as_of": as_of, "statewide": statewide, "counties": units}
+    if note:
+        body["map_note"] = note
     prev = load(DISTRICTS_PATH, {}) or {}
     h = C.data_hash(body)
     if h == prev.get("data_hash") and not force:
