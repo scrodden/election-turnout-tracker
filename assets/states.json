@@ -267,7 +267,22 @@
       "data": "data/de/latest.json",
       "geojson": "assets/de-counties.geojson",
       "history": "data/de/history.jsonl",
-      "source_note": "Source: <a href='https://elections.delaware.gov/' target='_blank' rel='noopener'>Delaware Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Delaware Department of Elections data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Mail ballots received and counted, by county, state House and Senate district, and registered party. Delaware doesn't publish mail-ballot requests, so there's no outstanding count. Delaware has one at-large U.S. House seat. District boundaries: U.S. Census Bureau.",
+      "partisan": true,
+      "views": [
+        {
+          "key": "sh",
+          "label": "DE House",
+          "data": "data/de/districts_sh.json",
+          "geojson": "assets/de-sh.geojson"
+        },
+        {
+          "key": "ss",
+          "label": "DE Senate",
+          "data": "data/de/districts_ss.json",
+          "geojson": "assets/de-ss.geojson"
+        }
+      ]
     },
     {
       "code": "id",

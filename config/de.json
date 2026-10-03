@@ -7,14 +7,14 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. Small; early voting + mail by county & registered party. Source pointer: https://elections.delaware.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://elections.delaware.gov/"
+    "_comment": "UF Election Lab stand-in (DE_county.csv, DE_sdl.csv, DE_sdu.csv), CC BY-NC-ND 4.0. DE publishes no request counts; elections.delaware.gov has registration totals only.",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
-  }
+    "cast": "Ballots returned",
+    "mail_voted": "Mail ballots received",
+    "early_voted": "Early in person"
+  },
+  "lab_no_requests": true
 }
