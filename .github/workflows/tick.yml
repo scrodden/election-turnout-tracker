@@ -24,10 +24,6 @@ on:
 permissions:
   actions: write
 
-concurrency:
-  group: update-timer
-  cancel-in-progress: false
-
 jobs:
   check:
     # only for restarts: a run that finished without success
@@ -57,6 +53,11 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.check.outputs.go == '1') }}
     runs-on: ubuntu-latest
     environment: update-timer
+    # one timer at a time; on the job (not the workflow) so restart checks that
+    # skip never queue behind, or bump, a real timer
+    concurrency:
+      group: update-timer
+      cancel-in-progress: false
     steps:
       - name: Start the next update run
         env:
