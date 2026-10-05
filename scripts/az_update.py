@@ -17,10 +17,16 @@ returned (outstanding) -> ballot chase; registered -> turnout %.
 Writes data/az/latest.json (counties), districts_cd.json and districts_ld.json
 (Arizona's 30 legislative districts elect both chambers).
 
-Fallback: the UF Election Lab's Arizona files (which republish the same
-tracker). Not used while the tracker works: Maricopa's own ArcGIS feature
-services (services.arcgis.com/ykpntM6e3tHvzKRJ, Maricopa_County_EV_Return_
-Statistics and party layers), which still held the July primary on 10/5.
+Maricopa: the county's own ArcGIS feature services (config source.maricopa;
+early-ballot requests and signature-verified returns for the active election,
+all voters + R + D layers, rest -> NPA) are checked every run once they carry
+the general. Returned-ballot counts only grow, so whichever source reports
+more returned ballots for Maricopa is the more current and is used (ties go to
+the more recent data date, then the county's own feed); the map note says
+which. Registration (turnout %) stays the tracker's; district views stay the
+tracker's.
+
+Fallback: the UF Election Lab's Arizona files (which republish the tracker).
 
 Run:  python scripts/az_update.py [--force]
 """
@@ -28,7 +34,9 @@ import json
 import os
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -67,6 +75,64 @@ def fetch_tracker(url, etag):
         if e.code == 304:
             return None, etag
         raise
+
+
+def _arcgis_sums_by_election(base, service):
+    """Sum Requests / Returns of an ArcGIS feature layer, grouped by
+    ElectionDescription -> {description: (requests, returns)}."""
+    stats = json.dumps([{"statisticType": "sum", "onStatisticField": f, "outStatisticFieldName": f.lower()}
+                        for f in ("Requests", "Returns")])
+    url = ("%s%s/FeatureServer/0/query?where=1%%3D1&groupByFieldsForStatistics=ElectionDescription"
+           "&outStatistics=%s&f=json" % (base, urllib.parse.quote(service), urllib.parse.quote(stats)))
+    j = json.loads(C.http_get(url, no_cache=True))
+    if "error" in j:
+        raise RuntimeError("ArcGIS: %s" % j["error"].get("message"))
+    out = {}
+    for ft in j.get("features", []):
+        a = ft["attributes"]
+        if a.get("ElectionDescription"):
+            out[a["ElectionDescription"].strip()] = (int(a.get("requests") or 0), int(a.get("returns") or 0))
+    return out
+
+
+def maricopa_official(mc):
+    """Maricopa County Elections GIS feature services -> {"ret": parties,
+    "req": parties, "total_ret": n, "as_of": "YYYY-MM-DD HH:MM UTC"} or None
+    while the layers still hold another election (e.g. the July primary)."""
+    if not mc:
+        return None
+    base, layers = mc["arcgis_base"], mc["layers"]
+    tokens = [t.upper() for t in mc.get("election_tokens", [])]
+    sums = {}
+    for key in ("all", "rep", "dem"):
+        hit = [v for d, v in _arcgis_sums_by_election(base, layers[key]).items() if all(t in d.upper() for t in tokens)]
+        if not hit:
+            return None
+        sums[key] = hit[0]
+    (areq, aret), (rreq, rret), (dreq, dret) = sums["all"], sums["rep"], sums["dem"]
+    info = json.loads(C.http_get("%s%s/FeatureServer/0?f=json" % (base, urllib.parse.quote(layers["all"])), no_cache=True))
+    edit = (info.get("editingInfo") or {}).get("lastEditDate")
+    as_of = datetime.fromtimestamp(edit / 1000, timezone.utc).strftime("%Y-%m-%d %H:%M UTC") if edit else ""
+    return {"ret": {"rep": rret, "dem": dret, "oth": 0, "npa": max(0, aret - rret - dret)},
+            "req": {"rep": rreq, "dem": dreq, "oth": 0, "npa": max(0, areq - rreq - dreq)},
+            "total_ret": aret, "as_of": as_of}
+
+
+def maricopa_entity(mc, tracker, page):
+    """Our county entity from the county's own feed; registration from the tracker."""
+    reg = tracker["registered"] if tracker else 0
+
+    def pb(d):
+        return C.party_block(d["rep"], d["dem"], d["oth"], d["npa"])
+    e = {"mail_voted": pb(mc["ret"]), "cast": pb(mc["ret"]),
+         "mail_provided": pb({p: max(0, mc["req"][p] - mc["ret"][p]) for p in mc["ret"]}),
+         "registered": reg, "turnout_pct": C.pct(mc["total_ret"], reg) if reg else None,
+         "last_updated": mc["as_of"][:10], "source": "county-feed", "source_url": page,
+         "source_label": "Maricopa County Elections", "fips": "04013"}
+    m = C.compute_mail(e)
+    if m:
+        e["mail"] = m
+    return e
 
 
 def _parties(d):
@@ -125,7 +191,14 @@ def main():
         print("az: checked under 20 minutes ago.")
         return 0
     try:
-        doc, etag = fetch_tracker(src["data"], None if force else prev.get("source_etag"))
+        mc = maricopa_official(cfg.get("source", {}).get("maricopa"))
+    except Exception as e:  # noqa: BLE001 - the county feed is optional
+        print("AZ: Maricopa feed unavailable: %s" % str(e)[:120], file=sys.stderr)
+        mc = None
+    prev_mc = prev.get("maricopa_official") or {}
+    mc_changed = bool(mc) and (mc["total_ret"], mc["as_of"]) != (prev_mc.get("total_ret"), prev_mc.get("as_of"))
+    try:   # re-fetch the tracker in full when Maricopa's own numbers moved, so the comparison is redone
+        doc, etag = fetch_tracker(src["data"], None if (force or mc_changed) else prev.get("source_etag"))
     except Exception as e:  # noqa: BLE001
         print("AZ tracker unavailable: %s" % str(e)[:140], file=sys.stderr)
         import lab_standin as LAB
@@ -146,6 +219,18 @@ def main():
     if not counties:
         print("AZ: tracker has no reporting counties — keeping the previous snapshot.", file=sys.stderr)
         return 0
+    mc_note = ""
+    if mc:
+        tr = counties.get("Maricopa")
+        tr_ret = tr["cast"]["total"] if tr else -1
+        tr_date = (tr or {}).get("last_updated", "")
+        if mc["total_ret"] > tr_ret or (mc["total_ret"] == tr_ret and mc["as_of"][:10] >= tr_date):
+            counties["Maricopa"] = maricopa_entity(mc, tr, cfg["source"]["maricopa"].get("page"))
+            mc_note = (" Maricopa uses the county's own feed (%s returned, as of %s), which is ahead of or level with "
+                       "the tracker (%s)." % (format(mc["total_ret"], ","), mc["as_of"], format(max(tr_ret, 0), ",")))
+        else:
+            mc_note = (" Maricopa uses the tracker (%s returned), which is ahead of the county's own feed (%s, as of %s)."
+                       % (format(tr_ret, ","), format(mc["total_ret"], ","), mc["as_of"]))
     statewide = total(list(counties.values()))
     waiting = sorted(g["name"] for f, g in gidx.items() if g["name"] not in counties)
     as_of = max(c["last_updated"] for c in counties.values())
@@ -157,6 +242,7 @@ def main():
     note += ". Statewide totals cover the reporting counties."
     if stale:
         note += " Some counties last reported earlier: " + ", ".join(stale) + "."
+    note += mc_note
     source = ("Stealth Analytics, 2026 Arizona ABEV Tracker (stealth-analytics.com/early-ballots), compiled from the "
               "counties' early ballot files; as of %s" % as_of)
     body = {
@@ -167,7 +253,8 @@ def main():
         "source": {"primary": source, "url": src.get("page"), "as_of": as_of},
         "source_compiled": as_of,
     }
-    changed, snap = write(LATEST_PATH, body, prev, {"source_compiled_iso": C.utc_now_iso(), "source_etag": etag})
+    changed, snap = write(LATEST_PATH, body, prev, {"source_compiled_iso": C.utc_now_iso(), "source_etag": etag,
+                                                     "maricopa_official": mc or {}})
     c = statewide["cast"]
     if changed and c["total"]:
         with open(HISTORY_PATH, "a", encoding="utf-8") as f:

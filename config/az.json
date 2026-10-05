@@ -13,7 +13,21 @@
    "data": "https://www.stealth-analytics.com/eb/eb-data.json",
    "page": "https://www.stealth-analytics.com/early-ballots"
   },
-  "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
+  "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/",
+  "maricopa": {
+   "_comment": "Maricopa County Elections GIS public ArcGIS feature services (not behind the recorder site's Cloudflare check): early-ballot Requests and signature-verified Returns by precinct for the active election; all voters + R + D layers. Used for Maricopa when its returned count is ahead of (or level with) the tracker's.",
+   "arcgis_base": "https://services.arcgis.com/ykpntM6e3tHvzKRJ/arcgis/rest/services/",
+   "layers": {
+    "all": "Maricopa_County_EV_Return_Statistics",
+    "rep": "Maricopa_County_Early_Voting_Return_Statistics_(Republican)",
+    "dem": "Maricopa_County_Early_Voting_Returns_Statistics_(Democratic)"
+   },
+   "election_tokens": [
+    "2026",
+    "GENERAL"
+   ],
+   "page": "https://elections.maricopa.gov/"
+  }
  },
  "method_labels": {
   "cast": "Early ballots returned",
