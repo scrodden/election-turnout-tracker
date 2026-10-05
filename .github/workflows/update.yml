@@ -122,8 +122,13 @@ jobs:
           else
             ts=$(date -u '+%Y-%m-%d %H:%M UTC')
             git commit -m "Turnout update $ts"
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
-            git push
+            # another run committed first: drop ours (the next run regenerates the data)
+            if ! git pull --rebase --autostash origin "${GITHUB_REF_NAME}"; then
+              git rebase --abort || true
+              echo "Data conflicted with a newer commit; skipping this push (the next run regenerates it)."
+            else
+              git push || echo "Push rejected; the next run will retry."
+            fi
           fi
 
       - name: Schedule the next run (~10 min) via the timer chain
