@@ -6,11 +6,20 @@ name: Update timer (10-min chain)
 # environment (an 8-minute wait timer set in the repo's Settings -> Environments;
 # no runner is used while it waits) and then starts the next update run.
 # On Election Day it also starts the 2-minute live-results loop each cycle.
-# The cron schedules stay as a backup that restarts the chain if it ever breaks.
-# The chain stops by itself once every state is frozen (update.yml's gate).
+#
+# Self-healing: if an update or timer run ends without success (e.g. GitHub
+# couldn't assign a runner during an Actions incident, so its last step never
+# ran), the workflow_run trigger restarts the chain, unless another update or
+# timer run is already queued or running. GitHub limits workflow_run chains to
+# three levels, so a long outage can't loop; the cron schedules in update.yml
+# remain the last-resort restart. The chain stops once every state is frozen
+# (update.yml's gate).
 
 on:
   workflow_dispatch: {}
+  workflow_run:
+    workflows: ["Update turnout (all states)", "Update timer (10-min chain)"]
+    types: [completed]
 
 permissions:
   actions: write
@@ -20,7 +29,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    # only for restarts: a run that finished without success
+    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.c.outputs.go }}
+    steps:
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          R="${{ github.repository }}"
+          busy=$(gh run list --repo "$R" --workflow update.yml --limit 10 --json status --jq '[.[] | select(.status != "completed")] | length')
+          ticks=$(gh run list --repo "$R" --workflow tick.yml --limit 10 --json databaseId,status \
+                    --jq '[.[] | select(.status != "completed" and .databaseId != ${{ github.run_id }})] | length')
+          if [ "$busy" = "0" ] && [ "$ticks" = "0" ]; then
+            echo "go=1" >> "$GITHUB_OUTPUT"
+            echo "Restarting the chain after a '${{ github.event.workflow_run.conclusion }}' run of '${{ github.event.workflow_run.name }}'."
+          else
+            echo "go=0" >> "$GITHUB_OUTPUT"
+            echo "Chain still alive (updates pending: $busy, timers pending: $ticks)."
+          fi
+
   tick:
+    needs: check
+    if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.check.outputs.go == '1') }}
     runs-on: ubuntu-latest
     environment: update-timer
     steps:
