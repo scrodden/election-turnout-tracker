@@ -238,7 +238,21 @@
       "data": "data/az/latest.json",
       "geojson": "assets/az-counties.geojson",
       "history": "data/az/history.jsonl",
-      "source_note": "Source: Arizona has no statewide early-vote feed, so counties are added one at a time. <a href='https://data-maricopa.opendata.arcgis.com/' target='_blank' rel='noopener'>Maricopa County Elections</a> (about 60% of Arizona voters): early ballots requested and returned (signature-verified) by registered party; NPA here means everyone not registered Republican or Democratic. Other counties show no data until wired. Ballots mail October 7."
+      "source_note": "Source: Stealth Analytics, <a href='https://www.stealth-analytics.com/early-ballots' target='_blank' rel='noopener'>2026 Arizona ABEV Tracker</a> (stealth-analytics.com/early-ballots), compiled from the Arizona counties' own early-ballot files and reconciled against Secretary of State registration; used with attribution as the tracker invites. Early ballots issued and returned, and registered voters, by county, congressional district, legislative district and party (R / D / Other; Other = independents and minor parties, shown as NPA). Counties appear once they start reporting. District boundaries: U.S. Census Bureau.",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/az/districts_cd.json",
+          "geojson": "assets/az-cd.geojson"
+        },
+        {
+          "key": "ld",
+          "label": "Legislative",
+          "data": "data/az/districts_ld.json",
+          "geojson": "assets/az-ld.geojson"
+        }
+      ]
     },
     {
       "code": "ca",

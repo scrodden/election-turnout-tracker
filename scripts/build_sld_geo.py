@@ -8,6 +8,7 @@ Florida's plans come from scripts/build_plan_geo.py instead).
 Feature properties: name "SD<n>" / "HD<n>", district_number, fips (GEOID).
 
 Run once per chamber:  python scripts/build_sld_geo.py de 10 upper
+             (custom name prefix / file suffix: ... az 04 upper LD ld)
 """
 import json
 import os
@@ -26,6 +27,8 @@ CHAMBERS = {"upper": (1, "SD", "ss"), "lower": (2, "HD", "sh")}
 def main():
     st, fips, chamber = sys.argv[1].lower(), sys.argv[2], sys.argv[3].lower()
     layer, prefix, suffix = CHAMBERS[chamber]
+    if len(sys.argv) > 5:   # e.g. Arizona's shared legislative districts: ... upper LD ld
+        prefix, suffix = sys.argv[4], sys.argv[5]
     q = urllib.parse.urlencode({"where": "STATE='%s'" % fips, "outFields": "BASENAME,GEOID,NAME", "returnGeometry": "true",
                                 "outSR": "4326", "f": "geojson", "maxAllowableOffset": "0.002", "geometryPrecision": "4"})
     g = json.loads(C.http_get(BASE % layer + "?" + q, retries=2))

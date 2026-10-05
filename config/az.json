@@ -1,119 +1,24 @@
 {
-  "state": "az",
-  "state_name": "Arizona",
-  "state_fips": "04",
-  "partisan": true,
-  "election": {
-    "date": "2026-11-03",
-    "name": "2026 General"
+ "state": "az",
+ "state_name": "Arizona",
+ "state_fips": "04",
+ "partisan": true,
+ "election": {
+  "date": "2026-11-03",
+  "name": "2026 General"
+ },
+ "source": {
+  "_comment": "Arizona has no statewide by-party early-vote feed; each county recorder publishes separately. az_update.py reads Stealth Analytics' tracker (compiled from the counties' early-ballot files every two hours; 'free to cite and reuse with attribution'), with the UF Election Lab (which republishes it) as fallback. Maricopa's own ArcGIS feature services (services.arcgis.com/ykpntM6e3tHvzKRJ) still held the July primary on 2026-10-05.",
+  "stealth": {
+   "data": "https://www.stealth-analytics.com/eb/eb-data.json",
+   "page": "https://www.stealth-analytics.com/early-ballots"
   },
-  "general_start": "2026-10-07",
-  "source": {
-    "_comment": "Arizona has party registration but NO single statewide by-party early-vote feed: each of the 15 county recorders publishes separately (Maricopa daily ballot-return stats + others), in different formats. az_update.py is a MULTI-COUNTY AGGREGATOR: it iterates `counties`, runs a registered per-county parser (scripts/az_update.py PARSERS[fips]) where one exists, and merges results into the statewide by-party schema. Per-county parsers are added as each county's live feed is confirmed (the routine wires them, biggest-first: Maricopa 04013, Pima 04019, Pinal 04021, Maricopa covers ~60% of AZ voters). Reads 0 for counties without a wired parser.",
-    "counties": [
-      {
-        "name": "Apache",
-        "fips": "04001",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Cochise",
-        "fips": "04003",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Coconino",
-        "fips": "04005",
-        "source": "https://www.coconino.az.gov/126/Elections",
-        "wired": false
-      },
-      {
-        "name": "Gila",
-        "fips": "04007",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Graham",
-        "fips": "04009",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Greenlee",
-        "fips": "04011",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "La Paz",
-        "fips": "04012",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Maricopa",
-        "fips": "04013",
-        "source": "https://data-maricopa.opendata.arcgis.com/ (Maricopa County Elections GIS: 'Early Voting Returns' feature services)",
-        "_comment": "recorder.maricopa.gov / elections.maricopa.gov sit behind a Cloudflare browser challenge; these public ArcGIS feature services (owner MaricopaElectionsGIS) are not. Per precinct: Requests, Returns (signature-verified), ElectionDescription, for 'the currently active election'; all voters + Republican + Democratic layers (rest -> npa). Still held the JULY 21 2026 PRIMARY as of 2026-09-23 — the parser waits until ElectionDescription contains every election_token. Also available (unused): Maricopa_County_Early_Voting_Returns_In_Hand (received, not yet verified) and Maricopa_County_Voter_Totals_By_Voting_Precinct (registration by party; empty on 2026-09-23).",
-        "arcgis_base": "https://services.arcgis.com/ykpntM6e3tHvzKRJ/arcgis/rest/services/",
-        "layers": {
-          "all": "Maricopa_County_EV_Return_Statistics",
-          "rep": "Maricopa_County_Early_Voting_Return_Statistics_(Republican)",
-          "dem": "Maricopa_County_Early_Voting_Returns_Statistics_(Democratic)"
-        },
-        "election_tokens": ["2026", "GENERAL"],
-        "wired": true
-      },
-      {
-        "name": "Mohave",
-        "fips": "04015",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Navajo",
-        "fips": "04017",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Pima",
-        "fips": "04019",
-        "source": "https://www.recorder.pima.gov/",
-        "wired": false
-      },
-      {
-        "name": "Pinal",
-        "fips": "04021",
-        "source": "https://www.pinalcountyaz.gov/Recorder/",
-        "wired": false
-      },
-      {
-        "name": "Santa Cruz",
-        "fips": "04023",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      },
-      {
-        "name": "Yavapai",
-        "fips": "04025",
-        "source": "https://www.yavapaiaz.gov/Departments/Elections",
-        "wired": false
-      },
-      {
-        "name": "Yuma",
-        "fips": "04027",
-        "source": "county recorder (to be identified)",
-        "wired": false
-      }
-    ]
-  },
-  "method_labels": {
-    "cast": "Ballots returned",
-    "mail_voted": "Early ballots returned (signature-verified)",
-    "early_voted": "Early in person"
-  }
+  "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
+ },
+ "method_labels": {
+  "cast": "Early ballots returned",
+  "mail_voted": "Early ballots returned",
+  "mail_provided": "Early ballots outstanding"
+ },
+ "mail_base_label": "Ballots issued"
 }

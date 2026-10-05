@@ -877,7 +877,8 @@
     // the base is ballots mailed in most states, but requests where the source only
     // counts applications (e.g. MS, GA's Lab figures): data.mail_base_label says so
     var base = data.mail_base_label || "Ballots sent";
-    var mn = $("#mail-note"); if (mn) mn.textContent = "returned vs. " + (data.mail_base_label ? "requested" : "sent") + (partisan ? ", by party" : "");
+    var baseWord = base.replace(/^ballots\s+/i, "").toLowerCase();   // "sent", "requested", "issued"
+    var mn = $("#mail-note"); if (mn) mn.textContent = "returned vs. " + baseWord + (partisan ? ", by party" : "");
     $("#mail-stats").innerHTML =
       stat(base, fmt(m.requested)) +
       stat("Returned", fmt(m.returned) + " <span style='font-size:14px;color:var(--muted)'>(" + pctText(m.return_rate) + ")</span>") +

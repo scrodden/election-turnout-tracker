@@ -1,24 +1,34 @@
 #!/usr/bin/env python3
-"""Arizona turnout by county and registered party — MULTI-COUNTY AGGREGATOR.
+"""Arizona early ballots (ABEV) by county, congressional and legislative
+district, and registered party.
 
-Arizona has party registration but no single statewide by-party early-vote feed:
-each of the 15 county recorders publishes separately (Maricopa's daily
-ballot-return stats + others), in different formats. This connector iterates the
-counties in config/az.json and runs a registered per-county parser from PARSERS
-(keyed by county FIPS) where one exists, merging the results into the statewide
-by-party schema. Counties without a wired parser read 0.
+Source: Stealth Analytics' "2026 Arizona ABEV Tracker" (stealth-analytics.com/
+early-ballots; "free to cite and reuse with attribution"), compiled every two
+hours from the counties' own early-ballot files and reconciled against Arizona
+Secretary of State registration. Its data file (config source.stealth.data)
+has, per county / congressional district / legislative district: registered
+voters, early ballots issued, and a daily cumulative series of ballots
+returned, each split R / D / Other (Other = independents and minor parties ->
+shown as NPA). Only counties that have started reporting appear; the map note
+names the rest. Fetched with If-None-Match, so unchanged checks cost a 304.
 
-To wire a county: write parse_<county>(county_cfg) -> {method: {rep,dem,oth,npa}}
-using method keys mail_voted / early_voted (/ election_day), register it in
-PARSERS, and set "wired": true in config/az.json. Start with the biggest:
-Maricopa (04013, ~60% of AZ voters), then Pima (04019), Pinal (04021).
+mail_voted = returned (newest day in the series); mail_provided = issued -
+returned (outstanding) -> ballot chase; registered -> turnout %.
+Writes data/az/latest.json (counties), districts_cd.json and districts_ld.json
+(Arizona's 30 legislative districts elect both chambers).
+
+Fallback: the UF Election Lab's Arizona files (which republish the same
+tracker). Not used while the tracker works: Maricopa's own ArcGIS feature
+services (services.arcgis.com/ykpntM6e3tHvzKRJ, Maricopa_County_EV_Return_
+Statistics and party layers), which still held the July primary on 10/5.
 
 Run:  python scripts/az_update.py [--force]
 """
+import json
 import os
 import sys
-import json
-import urllib.parse
+import urllib.error
+import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -31,144 +41,162 @@ GEO_PATH = os.path.join(ROOT, "assets", "az-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
-METHODS = ["mail_voted", "early_voted", "election_day", "mail_provided"]
-VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]
+PARTY = {"R": "rep", "D": "dem", "Other": "npa"}
+VIEWS = {"cd": ("az-cd", "CD", "Congressional District", "Congressional Districts"),
+         "ld": ("az-ld", "LD", "Legislative District", "Legislative Districts")}
 
 
-def load(p):
-    with open(p, encoding="utf-8") as f:
-        return json.load(f)
+def load(p, d=None):
+    try:
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return d
 
 
-# --- per-county parsers -------------------------------------------------------
-# Each takes the county's config entry and returns {method_key: {rep,dem,oth,npa}}
-# or None if unavailable. Wire these as each county's live feed is confirmed.
+def fetch_tracker(url, etag):
+    """-> (data or None if unchanged, etag)."""
+    headers = {"User-Agent": C.USER_AGENT, "Accept": "application/json"}
+    if etag:
+        headers["If-None-Match"] = etag
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=120,
+                                    context=C._SSL_CTX) as r:
+            return json.loads(r.read().decode("utf-8")), r.headers.get("ETag", "")
+    except urllib.error.HTTPError as e:
+        if e.code == 304:
+            return None, etag
+        raise
 
-def _stub(_county):
-    return None
 
-
-def _arcgis_sums_by_election(base, service):
-    """Sum Requests/Returns of an ArcGIS feature layer, grouped by
-    ElectionDescription -> {description: (requests, returns)}."""
-    stats = json.dumps([{"statisticType": "sum", "onStatisticField": f, "outStatisticFieldName": f.lower()}
-                        for f in ("Requests", "Returns")])
-    url = ("%s%s/FeatureServer/0/query?where=1%%3D1&groupByFieldsForStatistics=ElectionDescription"
-           "&outStatistics=%s&f=json" % (base, urllib.parse.quote(service), urllib.parse.quote(stats)))
-    j = json.loads(C.http_get(url, no_cache=True))
-    if "error" in j:
-        raise RuntimeError("ArcGIS: %s" % j["error"].get("message"))
-    out = {}
-    for ft in j.get("features", []):
-        a = ft["attributes"]
-        if a.get("ElectionDescription"):
-            out[a["ElectionDescription"].strip()] = (int(a.get("requests") or 0), int(a.get("returns") or 0))
+def _parties(d):
+    out = {"rep": 0, "dem": 0, "oth": 0, "npa": 0}
+    for k, v in (d or {}).items():
+        out[PARTY.get(k, "npa")] += int(v or 0)
     return out
 
 
-def parse_maricopa(county):
-    """Maricopa County Elections GIS publishes early-ballot requests & returns
-    (signature-verified) by precinct for 'the currently active election' as
-    public ArcGIS feature services: all voters + a Republican and a Democratic
-    layer. Not behind the recorder site's Cloudflare challenge. Rest of the
-    electorate (independents/PND + minor parties) = all - R - D -> npa.
-    Only returns data once a layer's ElectionDescription matches the general
-    (county['election_tokens']), so the July primary never leaks in."""
-    base, layers = county["arcgis_base"], county["layers"]
-    tokens = [t.upper() for t in county.get("election_tokens", [])]
-    sums = {}
-    for key in ("all", "rep", "dem"):
-        by_elec = _arcgis_sums_by_election(base, layers[key])
-        hit = [v for d, v in by_elec.items() if all(t in d.upper() for t in tokens)]
-        if not hit:
-            print("  maricopa: %s layer holds %s — waiting for the general" % (key, sorted(by_elec) or "nothing"))
-            return None
-        sums[key] = hit[0]
-    (areq, aret), (rreq, rret), (dreq, dret) = sums["all"], sums["rep"], sums["dem"]
-    ret = {"rep": rret, "dem": dret, "oth": 0, "npa": max(0, aret - rret - dret)}
-    req = {"rep": rreq, "dem": dreq, "oth": 0, "npa": max(0, areq - rreq - dreq)}
-    return {"mail_voted": ret, "mail_provided": {p: max(0, req[p] - ret[p]) for p in req}}
+def unit(rec):
+    """Tracker record {registered, issued, series{date: {R, D, Other}}, lastUpdated} -> our entity."""
+    series = rec.get("series") or {}
+    ret = _parties(series[max(series)]) if series else _parties({})
+    iss = _parties(rec.get("issued"))
+    reg = sum(_parties(rec.get("registered")).values())
 
-
-PARSERS = {
-    "04013": parse_maricopa,   # ~60% of AZ voters
-    # "04019": parse_pima,
-    # "04021": parse_pinal,
-}
-
-
-def county_entity(fips, methods):
-    ent = {"fips": fips}
-    for mkey, s in methods.items():
-        if s:
-            ent[mkey] = C.party_block(s.get("rep", 0), s.get("dem", 0), s.get("oth", 0), s.get("npa", 0))
-    voted = [ent[m] for m in VOTED_METHODS if ent.get(m)]
-    ent["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
-    m = C.compute_mail(ent)
+    def pb(d):
+        return C.party_block(d["rep"], d["dem"], d["oth"], d["npa"])
+    e = {"mail_voted": pb(ret), "mail_provided": pb({k: max(0, iss[k] - ret[k]) for k in ret}), "cast": pb(ret),
+         "registered": reg, "turnout_pct": C.pct(sum(ret.values()), reg) if reg else None,
+         "last_updated": rec.get("lastUpdated", "")}
+    m = C.compute_mail(e)
     if m:
-        ent["mail"] = m
-    return ent
+        e["mail"] = m
+    return e
+
+
+def total(units):
+    keys = ("mail_voted", "mail_provided", "cast")
+    sw = {k: C.add_blocks(*[u[k] for u in units]) for k in keys} if units else {k: C.party_block(0, 0, 0, 0) for k in keys}
+    sw["registered"] = sum(u["registered"] for u in units)
+    sw["turnout_pct"] = C.pct(sw["cast"]["total"], sw["registered"]) if sw["registered"] else None
+    m = C.compute_mail(sw)
+    if m:
+        sw["mail"] = m
+    return sw
+
+
+def write(path, body, prev, extra):
+    h = C.data_hash(body)
+    changed = h != (prev or {}).get("data_hash")
+    now = C.utc_now_iso()
+    out = dict(body, data_hash=h, generated_at=now if changed else (prev or {}).get("generated_at", now), **extra)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(out, f, separators=(",", ":"))
+    return changed, out
 
 
 def main():
     force = "--force" in sys.argv
-    cfg = load(CONFIG_PATH)
-
-    counties_out = {}
-    wired = 0
-    for county in cfg["source"]["counties"]:
-        parser = PARSERS.get(county["fips"], _stub)
-        try:
-            methods = parser(county)
-        except Exception as e:  # noqa: BLE001 - a bad county parser must not sink the rest
-            print("  ! %s parser failed: %s" % (county["name"], str(e)[:60]), file=sys.stderr)
-            methods = None
-        if methods:
-            counties_out[county["name"]] = county_entity(county["fips"], methods)
-            wired += 1
-
-    statewide = {}
-    for mkey in METHODS:
-        blocks = [counties_out[n][mkey] for n in counties_out if counties_out[n].get(mkey)]
-        if blocks:
-            statewide[mkey] = C.add_blocks(*blocks)
-    voted = [statewide[m] for m in VOTED_METHODS if statewide.get(m)]
-    statewide["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
-    m = C.compute_mail(statewide)
-    if m:
-        statewide["mail"] = m
-    methods_present = sorted({m for c in counties_out.values() for m in METHODS if c.get(m)})
-
-    snap = {
-        "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
-        "partisan": True,
-        "source": {"primary": "Arizona county recorders (aggregated), by registered party; Maricopa via its Elections GIS early-ballot feature services"},
-        "source_compiled": "", "source_compiled_iso": (C.utc_now_iso() if counties_out else ""),
-        "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
-        "statewide": statewide, "counties": counties_out,
-    }
-    snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
-    snap["generated_at"] = C.utc_now_iso()
-
-    prev = None
-    if os.path.exists(LATEST_PATH):
-        try:
-            prev = load(LATEST_PATH).get("data_hash")
-        except (ValueError, OSError):
-            pass
-    changed = force or (snap["data_hash"] != prev)
+    cfg = load(CONFIG_PATH, {}) or {}
+    src = cfg.get("source", {}).get("stealth", {})
+    prev = load(LATEST_PATH, {}) or {}
     os.makedirs(DATA_DIR, exist_ok=True)
-    if changed:
-        with open(LATEST_PATH, "w", encoding="utf-8") as f:
-            json.dump(snap, f, separators=(",", ":"))
-        cast = statewide["cast"]
-        if cast["total"]:
-            with open(HISTORY_PATH, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"generated_at": snap["generated_at"], "data_hash": snap["data_hash"],
-                                    "cast": cast["total"], "margin": cast["margin"]}, separators=(",", ":")) + "\n")
-        print("CHANGED  counties wired=%d/%d  cast=%s margin=%s" % (wired, len(cfg["source"]["counties"]), cast["total"], cast["margin"]))
-    else:
-        print("NOCHANGE  (hash %s)  counties wired=%d" % ((prev or "")[:12], wired))
+    if not force and prev.get("counties") and C.checked_recently(DATA_DIR, "stealth", minutes=20):
+        print("az: checked under 20 minutes ago.")
+        return 0
+    try:
+        doc, etag = fetch_tracker(src["data"], None if force else prev.get("source_etag"))
+    except Exception as e:  # noqa: BLE001
+        print("AZ tracker unavailable: %s" % str(e)[:140], file=sys.stderr)
+        import lab_standin as LAB
+        LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force,
+                role="stand-in while the Stealth Analytics tracker is unreachable")
+        return 0
+    if doc is None:
+        print("NOCHANGE  (tracker file unchanged)")
+        return 0
+
+    geo = load(GEO_PATH, {"features": []})
+    gidx = {f["properties"]["fips"]: f["properties"] for f in geo["features"]}
+    series = doc.get("SERIES", {})
+    counties = {}
+    for fips, rec in (series.get("counties") or {}).items():
+        if fips in gidx:
+            counties[gidx[fips]["name"]] = dict(unit(rec), fips=fips)
+    if not counties:
+        print("AZ: tracker has no reporting counties — keeping the previous snapshot.", file=sys.stderr)
+        return 0
+    statewide = total(list(counties.values()))
+    waiting = sorted(g["name"] for f, g in gidx.items() if g["name"] not in counties)
+    as_of = max(c["last_updated"] for c in counties.values())
+    stale = sorted("%s %s" % (n, c["last_updated"][5:].replace("-", "/")) for n, c in counties.items()
+                   if c["last_updated"] and c["last_updated"] < as_of)
+    note = "%d of %d counties reporting so far" % (len(counties), len(gidx))
+    if waiting:
+        note += "; not yet reporting (gray, not zero): " + ", ".join(waiting)
+    note += ". Statewide totals cover the reporting counties."
+    if stale:
+        note += " Some counties last reported earlier: " + ", ".join(stale) + "."
+    source = ("Stealth Analytics, 2026 Arizona ABEV Tracker (stealth-analytics.com/early-ballots), compiled from the "
+              "counties' early ballot files; as of %s" % as_of)
+    body = {
+        "state": STATE, "state_name": cfg.get("state_name", "Arizona"), "election": cfg.get("election", {}),
+        "partisan": True, "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
+        "method_labels": cfg.get("method_labels", {}), "mail_base_label": cfg.get("mail_base_label", "Ballots issued"),
+        "statewide": statewide, "counties": counties, "map_note": note,
+        "source": {"primary": source, "url": src.get("page"), "as_of": as_of},
+        "source_compiled": as_of,
+    }
+    changed, snap = write(LATEST_PATH, body, prev, {"source_compiled_iso": C.utc_now_iso(), "source_etag": etag})
+    c = statewide["cast"]
+    if changed and c["total"]:
+        with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"generated_at": snap["generated_at"], "statewide": {
+                "cast": [c["rep"], c["dem"], c["oth"], c["npa"], c["total"]]}}, separators=(",", ":")) + "\n")
+
+    for kind, (geo_name, prefix, label, plural) in VIEWS.items():
+        dgeo = load(os.path.join(ROOT, "assets", geo_name + ".geojson"), {"features": []})
+        didx = {f["properties"]["district_number"]: f["properties"] for f in dgeo["features"]}
+        units = {}
+        for k, rec in (series.get(kind) or {}).items():
+            if str(k).isdigit() and int(k) in didx:
+                units[didx[int(k)]["name"]] = dict(unit(rec), fips=didx[int(k)]["fips"])
+        if not units:
+            continue
+        dsw = total(list(units.values()))
+        dbody = {"state": STATE, "election": cfg.get("election", {}), "unit_label": label, "unit_label_plural": plural,
+                 "partisan": True, "source": source,
+                 "methods_present": body["methods_present"], "method_labels": body["method_labels"],
+                 "mail_base_label": body["mail_base_label"],
+                 "coverage": {"ok": len(didx), "total": len(didx), "unmatched": []},
+                 "as_of": as_of, "statewide": dsw, "counties": units,
+                 "map_note": "District totals include only the %d counties reporting so far." % len(counties)}
+        path = os.path.join(DATA_DIR, "districts_%s.json" % kind)
+        write(path, dbody, load(path, {}), {"source_compiled": as_of, "source_compiled_iso": C.utc_now_iso()})
+    print("%s  AZ tracker as of %s: %d counties | returned=%d of %d issued (R%d D%d Other%d) margin=%s | turnout %s%%"
+          % ("CHANGED" if changed else "NOCHANGE", as_of, len(counties), c["total"],
+             (statewide.get("mail") or {}).get("requested", 0), c["rep"], c["dem"], c["npa"], c["margin"],
+             statewide["turnout_pct"]))
     return 0
 
 
