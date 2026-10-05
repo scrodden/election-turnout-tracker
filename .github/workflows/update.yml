@@ -21,18 +21,27 @@ on:
   push:                       # a code/config change (e.g. a newly wired state) runs it right away
     branches: [main]
     paths: ["scripts/**", "config/**", ".github/workflows/update.yml"]
+  workflow_run:               # self-heal: a timer run that failed (e.g. never got a runner) restarts the chain
+    workflows: ["Update timer (10-min chain)"]
+    types: [completed]
 
 permissions:
   contents: write
   actions: write    # to start the next run via the timer chain (tick.yml)
 
-concurrency:
-  group: update-fl
-  cancel-in-progress: false
-
 jobs:
   update:
+    # timer runs that succeeded (they start the next update themselves) or were
+    # skipped don't trigger an update; failed / cancelled / timed-out ones do
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion != 'success' && github.event.workflow_run.conclusion != 'skipped')
     runs-on: ubuntu-latest
+    # one update at a time; on the job so skipped workflow_run runs never take
+    # (or bump) a place in line
+    concurrency:
+      group: update-fl
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
