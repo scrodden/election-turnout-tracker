@@ -7,18 +7,18 @@ name: Update timer (10-min chain)
 # no runner is used while it waits) and then starts the next update run.
 # On Election Day it also starts the 2-minute live-results loop each cycle.
 #
-# Self-healing: if an update or timer run ends without success (e.g. GitHub
-# couldn't assign a runner during an Actions incident, so its last step never
-# ran), the workflow_run trigger restarts the chain, unless another update or
-# timer run is already queued or running. GitHub limits workflow_run chains to
-# three levels, so a long outage can't loop; the cron schedules in update.yml
-# remain the last-resort restart. The chain stops once every state is frozen
+# Self-healing: if an update run ends without success (e.g. GitHub couldn't
+# assign a runner during an Actions incident, so its last step never ran), the
+# workflow_run trigger restarts the chain, unless another update or timer run
+# is already queued or running. (A workflow can't listen to itself, so a timer
+# run that never gets a runner is left to update.yml's cron schedules, the
+# last-resort restart.) The chain stops once every state is frozen
 # (update.yml's gate).
 
 on:
   workflow_dispatch: {}
   workflow_run:
-    workflows: ["Update turnout (all states)", "Update timer (10-min chain)"]
+    workflows: ["Update turnout (all states)"]
     types: [completed]
 
 permissions:
