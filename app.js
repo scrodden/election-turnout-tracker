@@ -29,9 +29,9 @@
   };
 
   function noPartyText() {
-    return (st && st.partisan !== false)
-      ? "The source isn't reporting party for these ballots right now, so this is turnout only."
-      : "This state does not register voters by party, so no partisan breakdown is available.";
+    if (st && st.partisan !== false) return "The source isn't reporting party for these ballots right now, so this is turnout only.";
+    if (st && st.party_registration) return "This state registers voters by party, but its ballot report has no party breakdown, so this is turnout only.";
+    return "This state does not register voters by party, so no partisan breakdown is available.";
   }
   var TURNOUT_HINTS = {
     cast: "Total ballots already cast (by mail + in person).",

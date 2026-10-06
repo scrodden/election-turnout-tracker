@@ -7,13 +7,19 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. All-mail; California registers by party but a free daily by-party return feed is not available, so this is turnout-only. Source pointer: https://www.sos.ca.gov/elections . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.sos.ca.gov/elections"
+    "_comment": "California SoS 'VBM Ballot Statistics' workbook (by county, no party) linked from the 2026 general election page; registration from the SoS Report of Registration county workbook (15-day when posted, else 60-day). UF Election Lab statewide row as fallback.",
+    "page": "https://www.sos.ca.gov/elections/upcoming-elections/general-election-november-3-2026",
+    "vbm_xlsx": "https://elections.cdn.sos.ca.gov/statewide-elections/2026-general/bsr-statistics.xlsx",
+    "registration": [
+      "https://elections.cdn.sos.ca.gov/ror/15day-gen-2026/county.xlsx",
+      "https://elections.cdn.sos.ca.gov/ror/60day-gen-2026/county.xlsx"
+    ]
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
-  }
+    "cast": "Mail ballots returned",
+    "mail_voted": "Mail ballots returned",
+    "mail_provided": "Mail ballots outstanding"
+  },
+  "mail_base_label": "Ballots issued"
 }
