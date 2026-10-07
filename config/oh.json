@@ -17,7 +17,7 @@
     "election_description": "2026 NOV GENERAL",
     "refresh_after_utc_hour": 15,
     "county_reports": {
-      "_comment": "County boards' own early-vote data, used where ahead of the state's daily dashboard. 'parser' names a function in scripts/oh_county_reports.py PARSERS. Voter-level lists are reduced to counts in memory (no PII kept). Not usable (checked 2026-10-07): the 61 counties on the state-hosted boe.ohio.gov platform and the lookup.boe.ohio.gov absentee reports sit behind a Cloudflare browser challenge; the Hamilton, Summit, Lucas, Stark, Portage, Knox, Perry and Montgomery sites return 403 to scripts; Cuyahoga's vote-by-mail list download requires reCAPTCHA.",
+      "_comment": "County boards' own early-vote data, used where ahead of the state's daily dashboard. 'parser' names a function in scripts/oh_county_reports.py PARSERS. Voter-level lists are reduced to counts in memory (no PII kept). Not usable (checked 2026-10-07): the 61 counties on the state-hosted boe.ohio.gov platform and the lookup.boe.ohio.gov absentee reports sit behind a Cloudflare browser challenge; the Summit, Lucas, Stark, Portage, Knox, Perry and Montgomery sites return 403 to scripts (Hamilton's HTML pages too, but its daily PDF files are served normally); Cuyahoga's vote-by-mail list download requires reCAPTCHA.",
       "Cuyahoga": {
         "parser": "cuyahoga",
         "label": "Cuyahoga County BOE daily reports",
@@ -99,6 +99,12 @@
         "label": "Ottawa County BOE daily absentee request list",
         "page": "https://boe.ottawa.oh.gov/absentee-ballot-requests/",
         "link": "Absentee-Request-.*\\.xlsx"
+      },
+      "Hamilton": {
+        "parser": "hamilton_pdf",
+        "label": "Hamilton County BOE daily absentee ballots issued and returned by party (PDF)",
+        "page": "https://votehamiltoncountyohio.gov/",
+        "pattern": "https://votehamiltoncountyohio.gov/wp-content/uploads/{yyyy}/{mm}/Absentee-Ballots-Issued-and-Returned-By-District-and-Voter-Party-Affiliation_{date}.pdf"
       }
     }
   },

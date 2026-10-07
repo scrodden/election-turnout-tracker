@@ -310,9 +310,23 @@ def apply_reports(state, reports):
             bump("mail_provided", old, c["mail_provided"])
             used.append("ballots sent %s (state %s)" % (format(_total(sent), ","), format(state_sent, ",")))
             partisan = True
+        old_cast = c.get("cast") or zero
+        if used:
+            c["cast"] = C.add_blocks(c.get("mail_voted"), c.get("early_voted"))
+        cast = rep.get("cast")   # all methods, from a source with no method split
+        if cast is not None and _total(cast) > (c.get("cast") or zero)["total"]:
+            b = c.get("cast") or zero
+            if isinstance(cast, dict):
+                c["cast"] = C.party_block(cast["rep"], cast["dem"], cast["oth"], cast["npa"])
+                partisan = True
+            else:
+                known = b["rep"] + b["dem"] + b["oth"] + b["npa"]
+                c["cast"] = C.party_block(b["rep"], b["dem"], b["oth"], b["npa"], unk=cast - known)
+            used.append("ballots returned, any method %s (state %s)" % (format(_total(cast), ","), format(old_cast["total"], ",")))
+            c["cast_note"] = "all methods; the county's report doesn't split mail and in person"
         if not used:
             continue
-        c["cast"] = C.add_blocks(c.get("mail_voted"), c.get("early_voted"))
+        bump("cast", old_cast, c["cast"])
         m = C.compute_mail(c)
         if m:
             c["mail"] = m
@@ -327,7 +341,6 @@ def apply_reports(state, reports):
         b = statewide.get(key) or zero
         statewide[key] = C.party_block(*(b[p] + d[p] for p in PS), unk=b.get("unk", 0) + d["unk"])
     if delta:
-        statewide["cast"] = C.add_blocks(statewide.get("mail_voted"), statewide.get("early_voted"))
         m = C.compute_mail(statewide)
         if m:
             statewide["mail"] = m

@@ -21,6 +21,9 @@ registered in PARSERS and listed per county in config/oh.json county_reports
   clermont_tool Clermont's public candidate tool: absentee list (Excel, with
                 party, filterable by procedure) + returned/voted ballots report
   request_list_xlsx  Ottawa's daily absentee-request list (.xlsx; no party)
+  hamilton_pdf  Hamilton's daily "Absentee Ballots Issued and Returned by District
+                and Voter Party Affiliation" PDF (all absentee types, so no
+                mail / in-person split): ballots returned by party -> cast
 
 Voter-level files are reduced to counts in memory: no names, addresses or IDs
 are kept, logged or written anywhere.
@@ -31,6 +34,8 @@ dict {"rep","dem","oth","npa"}:
   sent          mail ballots sent to date
   mail_returned valid mail ballots returned to date
   eip           early in-person ballots cast to date
+  cast          all ballots returned to date, any method (only when a source
+                has no method split)
 plus  as_of     the data's own time stamp ("YYYY-MM-DD HH:MM", Ohio time)
       label     how the source is described on the site
       stamp     a change marker (file stamp / URL) so unchanged files are
@@ -462,9 +467,72 @@ def request_list_xlsx(cfg, prev):
             "as_of": ("%04d-%02d-%02d" % (y, m, d)) if y else ""}
 
 
+# ------------------------------------------------- Hamilton daily party PDF
+def _ham_candidates(pattern, today):
+    """Daily file names carry a date (the day before the data's own stamp,
+    e.g. _2026-10-06 holds requests processed through 10/7 6:32 AM) in the
+    WordPress upload folder of the month it was posted."""
+    seen = []
+    for back in range(-1, 5):
+        d = today - timedelta(days=back)
+        for up in (d, d + timedelta(days=1)):
+            u = pattern.format(date=d.strftime("%Y-%m-%d"), yyyy=up.strftime("%Y"), mm=up.strftime("%m"))
+            if u not in seen:
+                seen.append(u)
+    return seen
+
+
+def hamilton_pdf(cfg, prev):
+    """Hamilton County BOE PDF (the site's HTML pages sit behind a Cloudflare
+    check; the PDF files themselves are served normally). The 'ALL PRCS' row
+    holds ISSUED / RETURNED for DEM, REP, UNA, LIB, OTHER and TOTAL. ISSUED
+    counts every absentee type including in-person voters, so it isn't used
+    as 'requests'; RETURNED (any method) is the county's ballots cast."""
+    import pypdf
+    today = _et(_utcnow()).date()
+    url, lm = None, ""
+    for u in _ham_candidates(cfg["pattern"], today):
+        req = urllib.request.Request(u, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
+        try:
+            with urllib.request.urlopen(req, context=C._SSL_CTX, timeout=30) as r:
+                if "pdf" in (r.headers.get("Content-Type") or "").lower():
+                    url, lm = u, r.headers.get("Last-Modified", "")
+                    break
+        except Exception:  # noqa: BLE001 - not posted (404) or unreachable
+            continue
+    if not url:
+        raise RuntimeError("no Hamilton PDF found for the last few days")
+    stamp = [url, lm]
+    if prev and prev.get("stamp") == stamp:
+        return prev
+    raw = C.http_get(url, binary=True, retries=2, timeout=120)
+    text = "\n".join(p.extract_text(extraction_mode="layout") for p in pypdf.PdfReader(io.BytesIO(raw)).pages)
+    head = next((l for l in text.splitlines() if re.search(r"\bDEM\b.*\bREP\b.*\bTOTAL\b", l)), "")
+    order = re.findall(r"[A-Z]{3,5}", head)
+    row = re.search(r"^\s*ALL PRCS\s+((?:[\d,]+\s+){11}[\d,]+)\s*$", text, re.M)
+    if not row or len(order) != 6 or order[-1] != "TOTAL":
+        raise RuntimeError("Hamilton: 'ALL PRCS' row or party header not found")
+    nums = [C.parse_number(x) for x in row.group(1).split()]
+    issued = {p: nums[2 * i] for i, p in enumerate(order)}
+    returned = {p: nums[2 * i + 1] for i, p in enumerate(order)}
+    for d in (issued, returned):
+        if sum(v for k, v in d.items() if k != "TOTAL") != d["TOTAL"]:
+            raise RuntimeError("Hamilton: party columns don't add up to TOTAL")
+
+    def split(d):
+        out = _zero()
+        for k, v in d.items():
+            if k != "TOTAL":
+                out[_party(k if k != "UNA" else "unaffiliated")] += v
+        return out
+    m = re.search(r"processed through:?\s*(\d{1,2}/\d{1,2}/20\d{2})\s+(\d{1,2}:\d{2}:\d{2})\s*([AP]M)", text, re.I)
+    as_of = datetime.strptime("%s %s%s" % m.groups(), "%m/%d/%Y %I:%M:%S%p").strftime("%Y-%m-%d %H:%M") if m else ""
+    return {"cast": split(returned), "issued_all_types": split(issued), "as_of": as_of, "stamp": stamp, "url": url}
+
+
 PARSERS = {"cuyahoga": cuyahoga, "election_vault": election_vault, "avlist_xls": avlist_xls,
            "trumbull_csv": trumbull_csv, "sheet_returned": sheet_returned, "clermont_tool": clermont_tool,
-           "request_list_xlsx": request_list_xlsx}
+           "request_list_xlsx": request_list_xlsx, "hamilton_pdf": hamilton_pdf}
 
 
 def fetch_all(reports_cfg, prev=None):
@@ -488,7 +556,8 @@ def fetch_all(reports_cfg, prev=None):
                 continue
         try:
             got = fn(cfg, old)
-            out[county] = dict(got, url=cfg.get("page", ""), label=cfg.get("label", "%s County BOE reports" % county),
+            out[county] = dict(got, url=got.get("url") or cfg.get("page", ""),
+                               label=cfg.get("label", "%s County BOE reports" % county),
                                fetched=_utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"))
         except Exception as e:  # noqa: BLE001
             print("OH: %s county data unavailable: %s" % (county, str(e)[:160]), file=sys.stderr)
