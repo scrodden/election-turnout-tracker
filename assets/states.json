@@ -148,7 +148,8 @@
       "data": "data/nm/latest.json",
       "geojson": "assets/nm-counties.geojson",
       "history": "data/nm/history.jsonl",
-      "source_note": "Source: <a href='https://electionresults.sos.state.nm.us/VoterTurnoutDetails.aspx' target='_blank' rel='noopener'>New Mexico Secretary of State</a> voter turnout — early/absentee ballots by county &amp; registered party. Early voting opens in October, so figures read zero until then."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from New Mexico Secretary of State data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Absentee ballots requested and accepted, and early in-person ballots, by county and registered party. The Secretary of State's own <a href='https://electionresults.sos.state.nm.us/VoterTurnoutDetails.aspx' target='_blank' rel='noopener'>voter turnout portal</a> couldn't be reached by our updater.",
+      "partisan": true
     },
     {
       "code": "me",

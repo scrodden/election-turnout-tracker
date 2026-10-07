@@ -3,11 +3,19 @@
   "state_name": "New Mexico",
   "state_fips": "35",
   "partisan": true,
-  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
   "general_start": "2026-10-07",
   "source": {
-    "_comment": "NM SoS Voter Turnout portal shows early/absentee turnout by county and party. It is an ASPX dashboard (no confirmed flat file off-season). CHECKED 2026-10-07: the old electionresults.sos.nm.gov domain now redirects to the generic sos.nm.gov site; the real portal (linked from that redirect page) is electionresults.sos.state.nm.us. Could not reach that domain this run (this runner's egress proxy rejects the CONNECT to electionresults.sos.state.nm.us with a 502 -- unverified, not confirmed down). Staged skeleton: reads 0 until the live data endpoint is confirmed reachable and parsed. NM early voting opens ~Oct 7.",
-    "portal": "https://electionresults.sos.state.nm.us/VoterTurnoutDetails.aspx"
+    "_comment": "UF Election Lab stand-in (US.csv NM row + NM_county.csv; Lab source: NM Secretary of State), CC BY-NC-ND 4.0, unaltered and attributed. Official SoS Voter Turnout portal electionresults.sos.state.nm.us (same server as electionresults.sos.nm.gov, 72.19.3.83) resets the TLS handshake for scripts and the browser pane (checked 2026-10-07) -- not worked around. Wire it in nm_update.py if it becomes reachable.",
+    "portal": "https://electionresults.sos.state.nm.us/VoterTurnoutDetails.aspx",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
   },
-  "method_labels": { "cast": "Early + absentee ballots", "early_voted": "Early in person", "mail_voted": "Absentee / mail" }
+  "method_labels": {
+    "cast": "Ballots cast (absentee + early in person)",
+    "mail_voted": "Absentee ballots accepted",
+    "early_voted": "Early in person"
+  }
 }

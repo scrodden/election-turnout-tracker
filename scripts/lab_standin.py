@@ -24,6 +24,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 
 import common as C
 
@@ -38,7 +39,8 @@ ALIASES = {"oglalalakota": "shannon"}   # SD: Shannon County renamed Oglala Lako
 
 
 def _norm(s):
-    n = re.sub(r"[^a-z0-9]", "", str(s).lower().replace("&", "and"))
+    s = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()   # Doña Ana == Dona Ana
+    n = re.sub(r"[^a-z0-9]", "", s.lower().replace("&", "and"))
     return ALIASES.get(n, n)
 
 
