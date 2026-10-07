@@ -39,6 +39,12 @@ def main():
     reg = json.load(open(os.path.join(ROOT, "assets", "states.json"), encoding="utf-8"))
     codes = [s["code"] for s in reg.get("states", [])]
     health = {}
+    prev_health = {}
+    try:
+        with open(os.path.join(ROOT, "data", "_health.json"), encoding="utf-8") as f:
+            prev_health = json.load(f).get("states", {})
+    except (OSError, ValueError):
+        pass
     ok = changed = errors = frozen = 0
     for code in codes:
         if os.path.exists(os.path.join(ROOT, "data", code, "_frozen.json")):
@@ -53,7 +59,15 @@ def main():
             with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
                 rc = mod.main()
             after = latest_hash(code)
-            if rc in (0, None):
+            out = buf.getvalue()
+            skipped = any(m in out for m in ("checked under", "next check not due", "next window not reached"))
+            last = prev_health.get(code) or {}
+            if rc in (0, None) and skipped and last.get("status") == "error":
+                # a throttled run didn't check the source: keep the last real result visible
+                rec.update(status="error", error=last.get("error", ""), last_error_at=last.get("last_error_at",
+                                                                                              last.get("checked_at")))
+                errors += 1
+            elif rc in (0, None):
                 rec["status"] = "ok"; ok += 1
             else:
                 rec["status"] = "error"; rec["error"] = "exit %s" % rc; errors += 1
@@ -61,7 +75,7 @@ def main():
             if rec["changed"]:
                 changed += 1
         except Exception as e:  # noqa: BLE001 - one bad connector must not sink the rest
-            rec["status"] = "error"; rec["error"] = str(e)[:200]; errors += 1
+            rec["status"] = "error"; rec["error"] = str(e)[:200]; rec["last_error_at"] = rec["checked_at"]; errors += 1
             print("!! %s failed: %s" % (code, str(e)[:140]), file=sys.stderr)
         health[code] = rec
     with open(os.path.join(ROOT, "data", "_health.json"), "w", encoding="utf-8") as f:
