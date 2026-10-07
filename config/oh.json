@@ -17,11 +17,72 @@
     "election_description": "2026 NOV GENERAL",
     "refresh_after_utc_hour": 15,
     "county_reports": {
-      "_comment": "County boards' own daily early-vote reports (no party), used where ahead of the state's daily data. Parsers in scripts/oh_county_reports.py PARSERS.",
+      "_comment": "County boards' own early-vote data, used where ahead of the state's daily dashboard. 'parser' names a function in scripts/oh_county_reports.py PARSERS. Voter-level lists are reduced to counts in memory (no PII kept). Not usable (checked 2026-10-07): the 61 counties on the state-hosted boe.ohio.gov platform and the lookup.boe.ohio.gov absentee reports sit behind a Cloudflare browser challenge; the Hamilton, Summit, Lucas, Stark, Portage, Knox, Perry and Montgomery sites return 403 to scripts; Cuyahoga's vote-by-mail list download requires reCAPTCHA.",
       "Cuyahoga": {
+        "parser": "cuyahoga",
+        "label": "Cuyahoga County BOE daily reports",
         "page": "https://boe.cuyahogacounty.gov/elections/current-election",
         "vbm_pdf": "https://boe.cuyahogacounty.gov/docs/default-source/boe/elections/2026-11-03_vbm_daily_update.pdf",
         "eip_pdf": "https://boe.cuyahogacounty.gov/docs/default-source/boe/elections/2026-11-03-eip-daily-update.pdf"
+      },
+      "Franklin": {
+        "parser": "election_vault",
+        "label": "Franklin County BOE absentee voter lists (Election Vault)",
+        "page": "https://electionlink.franklincountyohio.gov/portals/ElectionVault/PublicRecords.aspx",
+        "mail_file": "Absentee by Mail Voter List (Current Election).txt",
+        "in_person_file": "Absentee In-Person Voter List (Current Election).txt",
+        "cols": {
+          "party": "PARTY",
+          "mailed": "DATE MAILED",
+          "returned": "DATE RETURNED",
+          "status": "VAL/REJECTED"
+        },
+        "in_person_voted": "DATE VOTED"
+      },
+      "Butler": {
+        "parser": "election_vault",
+        "label": "Butler County BOE absentee voter lists (Election Vault)",
+        "page": "https://electionlink.bcohio.gov/portals/ElectionVault/PublicRecords.aspx",
+        "mail_file": "Absentee by Mail Voter List (Current Election).csv",
+        "in_person_file": "Absentee In-Person Voter List (Current Election).csv",
+        "cols": {
+          "party": "Party",
+          "mailed": "Ballot Mailed",
+          "returned": "Ballot Returned",
+          "status": "Challenge Code"
+        },
+        "in_person_voted": "Ballot Returned"
+      },
+      "Morrow": {
+        "parser": "avlist_xls",
+        "label": "Morrow County BOE cumulative absentee/early vote list",
+        "page": "https://boe.morrowcountyohio.gov/",
+        "link": "absent voter details.*\\.xls"
+      },
+      "Crawford": {
+        "parser": "avlist_xls",
+        "label": "Crawford County BOE cumulative absentee/early voter list",
+        "page": "https://crawfordcountyohioboe.gov/",
+        "link": "av-list-.*\\.xls"
+      },
+      "Henry": {
+        "parser": "avlist_xls",
+        "label": "Henry County BOE absentee reports",
+        "page": "https://henrycountyohio.gov/327/Absentee-Reports-and-Labels",
+        "link": "Absentee-Early-Voting-XLS",
+        "returned_pdfs": "Absentee-Early-Voting-Returned"
+      },
+      "Trumbull": {
+        "parser": "trumbull_csv",
+        "label": "Trumbull County BOE absentee voter download",
+        "page": "https://boe.co.trumbull.oh.gov/",
+        "csv": "https://boe.co.trumbull.oh.gov/pdfs/Absentee%20Voter%20Download_CSV.csv"
+      },
+      "Hancock": {
+        "parser": "sheet_returned",
+        "label": "Hancock County BOE returned-absentee list",
+        "page": "https://hancockcountyohioelections.gov/absentee-lists/",
+        "csv": "https://docs.google.com/spreadsheets/d/1uOAou2vLNPgqPdI4JfIkTDY15LsDgShubuyBE0PmZqg/export?format=csv"
       }
     }
   },

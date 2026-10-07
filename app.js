@@ -763,10 +763,13 @@
       mlist.forEach(function (m) { if (m.key !== "cast" && !cty[m.key]) return; rows.push("<tr><td>" + m.label + "</td><td>" + fmt(block(cty, m.key).total) + "</td></tr>"); });
     }
     var extra = "";
-    if (cty.county_report && cty.county_report.used)
-      extra += "<p class='dim'>From the county's own daily report" + (cty.county_report.as_of ? " (as of " + cty.county_report.as_of + ")" : "") +
-        ", ahead of the state: " + cty.county_report.used.join("; ") + ". Ballots beyond the state's count have no party yet" +
-        ((cty.cast || {}).unk ? " (" + fmt(cty.cast.unk) + " cast)" : "") + ".</p>";
+    if (cty.county_report && cty.county_report.used) {
+      var cr = cty.county_report;
+      extra += "<p class='dim'>From " + (cr.label ? "the " + cr.label : "the county's own reports") + (cr.as_of ? " (as of " + cr.as_of + ")" : "") +
+        ", ahead of the state: " + cr.used.join("; ") + "." +
+        (cr.partisan ? " Each voter's party comes from the county's list." :
+          " Ballots beyond the state's count have no party yet" + ((cty.cast || {}).unk ? " (" + fmt(cty.cast.unk) + " cast)" : "") + ".") + "</p>";
+    }
     if (cty.registered) extra += "<p class='dim'>Registered: " + fmt(cty.registered) + " · Turnout: " + pctText(cty.turnout_pct) + "</p>";
     if (cty.mail && cty.mail.return_rate != null) extra += "<p class='dim'>Mail returned: " + pctText(cty.mail.return_rate) + "</p>";
     var b0 = block(cty, method);

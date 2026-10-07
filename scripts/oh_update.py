@@ -29,12 +29,15 @@ The SoS refreshes once a day (~noon ET) and stamps REFRESH_DATE, so this only
 polls when a newer refresh could exist (see due()) and only pulls the county
 rows once the stamp moves; the result is cached in data/oh/state_snapshot.json.
 
-County boards publish their own daily reports, hours (or a day) ahead of the
-state; scripts/oh_county_reports.py reads them (config source.county_reports,
-checked ~every 20 minutes, cached in data/oh/county_reports.json). Where a
-county's report is ahead for requests, mail returned or early in person, its
-total is used; the excess has no party (common.party_block unk) so party
-shares and lean stay on the state's party-known ballots.
+County boards publish their own data hours (or a day) ahead of the state:
+summary reports (Cuyahoga) and voter-level absentee lists with each voter's
+party (Franklin and Butler Election Vault, Morrow, Crawford, Henry, Trumbull,
+Hancock). scripts/oh_county_reports.py reads them (config
+source.county_reports, checked ~every 20 minutes, cached counts in
+data/oh/county_reports.json -- never voter-level rows). Where a county's figure
+is ahead for requests, ballots sent, mail returned or early in person, it is
+used: list sources replace the state's party split; totals-only reports count
+the excess as party not reported (common.party_block unk).
 
 Run:  python scripts/oh_update.py [--force]
 """
@@ -59,6 +62,7 @@ LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 
 PARTY = {"republican": "rep", "democratic": "dem", "unaffiliated": "npa"}
+PS = ("rep", "dem", "oth", "npa")
 SUMS = ["BALLOTS_SENT_NO_EIP", "BALLOTS_RECEIVED_NO_EIP", "BALLOTS_SENT_INCL_EIP", "BALLOTS_RECEIVED_INCL_EIP"]
 
 
@@ -257,46 +261,91 @@ def state_refresh(cfg, src, cached, force):
     return state
 
 
+def _total(v):
+    return sum(v.values()) if isinstance(v, dict) else v
+
+
 def apply_reports(state, reports):
-    """Where a county's own report is ahead of the state's figure for that
-    county, use the report's total; the excess has no party ('unk')."""
+    """Where a county's own data is ahead of the state's figure for that
+    county, use it. Voter-list sources carry each voter's party, so their
+    party split replaces the state's; summary reports (totals only) count the
+    excess as party not reported ('unk'). Ballots sent (voter lists) reset the
+    outstanding count (sent - returned) used by the mail chase."""
     counties = json.loads(json.dumps(state["counties"]))
     statewide = json.loads(json.dumps(state["statewide"]))
-    extra = {k: 0 for k, _, _ in REPORT_FIELDS}
-    notes = []
+    zero = C.party_block(0, 0, 0, 0)
+    delta = {}
+    notes, with_party, no_party = [], [], []
+
+    def bump(key, old, new):
+        d = delta.setdefault(key, dict.fromkeys(PS + ("unk",), 0))
+        for p in PS:
+            d[p] += new[p] - old[p]
+        d["unk"] += new.get("unk", 0) - old.get("unk", 0)
+
     for county, rep in sorted(reports.items()):
         c = counties.get(county)
         if not c:
             continue
-        used = []
+        state_sent = (c.get("mail_provided") or zero)["total"] + (c.get("mail_voted") or zero)["total"]
+        used, partisan = [], False
         for key, field, label in REPORT_FIELDS:
             n = rep.get(field)
-            b = c.get(key) or C.party_block(0, 0, 0, 0)
-            known = b["rep"] + b["dem"] + b["oth"] + b["npa"]
-            if n is None or n <= b["total"]:
+            b = c.get(key) or zero
+            if n is None or _total(n) <= b["total"]:
                 continue
-            c[key] = C.party_block(b["rep"], b["dem"], b["oth"], b["npa"], unk=n - known)
-            extra[key] += n - b["total"]
-            used.append("%s %s (state %s)" % (label, format(n, ","), format(b["total"], ",")))
-        if used:
-            c["cast"] = C.add_blocks(c.get("mail_voted"), c.get("early_voted"))
-            c["county_report"] = {"as_of": rep.get("as_of", ""), "url": rep.get("url", ""), "used": used}
-            c["source_url"], c["source_label"] = rep.get("url", ""), "%s County BOE daily reports" % county
-            when = rep.get("as_of", "")
-            notes.append("%s: county's own daily reports%s - %s" % (
-                county, (" (as of %s)" % when) if when else "", "; ".join(used)))
-    for key, n in extra.items():
-        if n:
-            b = statewide.get(key) or C.party_block(0, 0, 0, 0)
-            statewide[key] = C.party_block(b["rep"], b["dem"], b["oth"], b["npa"], unk=b.get("unk", 0) + n)
-    if any(extra.values()):
+            if isinstance(n, dict):
+                c[key] = C.party_block(n["rep"], n["dem"], n["oth"], n["npa"])
+                partisan = True
+            else:
+                known = b["rep"] + b["dem"] + b["oth"] + b["npa"]
+                c[key] = C.party_block(b["rep"], b["dem"], b["oth"], b["npa"], unk=n - known)
+            bump(key, b, c[key])
+            used.append("%s %s (state %s)" % (label, format(_total(n), ","), format(b["total"], ",")))
+        sent = rep.get("sent")
+        if isinstance(sent, dict) and _total(sent) > state_sent:
+            mv = c.get("mail_voted") or zero
+            old = c.get("mail_provided") or zero
+            c["mail_provided"] = C.party_block(*(max(0, sent[p] - mv[p]) for p in PS))
+            bump("mail_provided", old, c["mail_provided"])
+            used.append("ballots sent %s (state %s)" % (format(_total(sent), ","), format(state_sent, ",")))
+            partisan = True
+        if not used:
+            continue
+        c["cast"] = C.add_blocks(c.get("mail_voted"), c.get("early_voted"))
+        m = C.compute_mail(c)
+        if m:
+            c["mail"] = m
+        label = rep.get("label") or "%s County BOE reports" % county
+        c["county_report"] = {"as_of": rep.get("as_of", ""), "url": rep.get("url", ""), "used": used,
+                              "label": label, "partisan": partisan}
+        c["source_url"], c["source_label"] = rep.get("url", ""), label
+        (with_party if partisan else no_party).append(county)
+        when = rep.get("as_of", "")
+        notes.append("%s%s: %s" % (county, (" (as of %s)" % when) if when else "", "; ".join(used)))
+    for key, d in delta.items():
+        b = statewide.get(key) or zero
+        statewide[key] = C.party_block(*(b[p] + d[p] for p in PS), unk=b.get("unk", 0) + d["unk"])
+    if delta:
         statewide["cast"] = C.add_blocks(statewide.get("mail_voted"), statewide.get("early_voted"))
+        m = C.compute_mail(statewide)
+        if m:
+            statewide["mail"] = m
     note = None
     if notes:
-        note = ("County boards' own daily reports run ahead of the state's daily data; where a county's report is "
-                "higher, its total is used and the extra ballots count in totals but not party shares. " +
-                " ".join(n + "." for n in notes))
+        note = "County boards' own data runs ahead of the state's daily dashboard; where a county's figure is higher, it is used."
+        if with_party:
+            note += (" %s publish%s voter-level lists that include each voter's party, so %s party splits are used too."
+                     % (_join(with_party), "es" if len(with_party) == 1 else "", "its" if len(with_party) == 1 else "their"))
+        if no_party:
+            note += (" %s report%s totals only, so the extra ballots count in totals but not party shares."
+                     % (_join(no_party), "s" if len(no_party) == 1 else ""))
+        note += " " + " ".join(n + "." for n in notes)
     return counties, statewide, note
+
+
+def _join(names):
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
 
 
 def main():
@@ -308,10 +357,11 @@ def main():
     if not state:
         print("OH: no state data yet.")
         return 0
-    reports = load(REPORTS_CACHE, {}) or {}
-    if src.get("county_reports") and (force or not C.checked_recently(DATA_DIR, "county_reports", minutes=20)):
+    report_cfg = src.get("county_reports") or {}
+    reports = {k: v for k, v in (load(REPORTS_CACHE, {}) or {}).items() if k in report_cfg}
+    if report_cfg and (force or not C.checked_recently(DATA_DIR, "county_reports", minutes=20)):
         import oh_county_reports
-        reports = dict(reports, **oh_county_reports.fetch_all(src["county_reports"]))
+        reports = oh_county_reports.fetch_all(report_cfg, reports)
         with open(REPORTS_CACHE, "w", encoding="utf-8") as f:
             json.dump(reports, f, separators=(",", ":"))
     counties, statewide, note = apply_reports(state, reports)
@@ -325,6 +375,8 @@ def main():
         "source": {"primary": "Ohio SoS Absentee and Early Voting Data dashboard (Power BI); ballots by county & "
                               "voter-affiliated party" + ("; county boards' daily reports where ahead" if note else ""),
                    "election_description": src["election_description"], "data_last_updated": refreshed},
+        "county_sources": {k: {"label": v.get("label", ""), "url": v.get("url", ""), "as_of": v.get("as_of", "")}
+                           for k, v in sorted(reports.items())},
         "source_compiled": newest,
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "mail_base_label": "Ballots sent",
