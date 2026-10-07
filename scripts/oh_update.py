@@ -27,7 +27,14 @@ ballot), by county and party.
 
 The SoS refreshes once a day (~noon ET) and stamps REFRESH_DATE, so this only
 polls when a newer refresh could exist (see due()) and only pulls the county
-rows once the stamp moves -- no request churn, no empty commits.
+rows once the stamp moves; the result is cached in data/oh/state_snapshot.json.
+
+County boards publish their own daily reports, hours (or a day) ahead of the
+state; scripts/oh_county_reports.py reads them (config source.county_reports,
+checked ~every 20 minutes, cached in data/oh/county_reports.json). Where a
+county's report is ahead for requests, mail returned or early in person, its
+total is used; the excess has no party (common.party_block unk) so party
+shares and lean stay on the state's party-known ballots.
 
 Run:  python scripts/oh_update.py [--force]
 """
@@ -168,36 +175,37 @@ def _blk(d):
     return C.party_block(d["rep"], d["dem"], d["oth"], d["npa"])
 
 
-def main():
-    force = "--force" in sys.argv
-    cfg = load(CONFIG_PATH, {}) or {}
-    src = cfg.get("source", {})
-    prev = load(LATEST_PATH, {}) or {}
-    have = (prev.get("source") or {}).get("data_last_updated", "") if prev.get("counties") else ""
-    if not force and not due(have, int(src.get("refresh_after_utc_hour", 15))):
-        print("oh: holding the %s refresh; next one not due yet — skipping." % have)
-        return 0
+STATE_CACHE = os.path.join(DATA_DIR, "state_snapshot.json")
+REPORTS_CACHE = os.path.join(DATA_DIR, "county_reports.json")
+REPORT_FIELDS = (("mail_requested", "requested", "requests"), ("mail_voted", "mail_returned", "mail returned"),
+                 ("early_voted", "eip", "early in person"))
 
+
+def state_refresh(cfg, src, cached, force):
+    """The SoS dashboard's county x party figures. Queried only when a newer
+    daily refresh could exist; otherwise the cached result (data/oh/
+    state_snapshot.json) is returned. -> {"refreshed", "counties", "statewide"} or {}."""
+    have = cached.get("refreshed", "")
+    if cached and not force and not due(have, int(src.get("refresh_after_utc_hour", 15))):
+        return cached
     geo = load(GEO_PATH, {"features": []})
     gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}
-
     where = {"Election Ballot Return Date Range": ["true"], "VALID_DATE_BOOL_AGG": ["true"],
              "Election_Description": ["'%s'" % src["election_description"]]}
     try:
         pbi = PowerBI(src["pbi_api"], src["pbi_resource_key"])
         stamp = pbi.query(src["pbi_entity"], [], [], where, aggs=[("REFRESH_DATE", 4)])  # Max
         refreshed = datetime.fromtimestamp(stamp[0][0] / 1000, timezone.utc).strftime("%Y-%m-%d") if stamp and stamp[0][0] else ""
-        if not force and refreshed and refreshed == have:
-            print("NOCHANGE  (still the %s refresh)" % have)
-            return 0
+        if cached and not force and refreshed and refreshed == have:
+            return cached
         rows = pbi.query(src["pbi_entity"], ["County_Name", "Voter_Party_Bucketed"], SUMS, where)
         req_rows = pbi.query(src["pbi_entity"], ["County_Name", "Voter_Party_Bucketed"], ["Requested_Count"], where)
     except Exception as e:  # noqa: BLE001
         print("OH Power BI fetch failed: %s" % str(e)[:160], file=sys.stderr)
-        return 0
+        return cached
     if not rows:
-        print("OH: no rows for %r — keeping previous snapshot." % src["election_description"])
-        return 0
+        print("OH: no rows for %r — keeping the previous state data." % src["election_description"])
+        return cached
 
     # raw[county][measure] -> party dict of the four source sums; the statewide
     # entity is built from its own totals so it matches the dashboard exactly
@@ -213,7 +221,6 @@ def main():
         for m, v in zip(SUMS, vals):
             r[m][p] += int(v or 0)
             sw_raw[m][p] += int(v or 0)
-
     req, sw_req = {}, _zero()
     for county, party, n in req_rows:
         g = gidx.get(_norm(county or ""))
@@ -240,26 +247,95 @@ def main():
     counties = {name: dict(entity(r, req.get(name)), fips=r["fips"]) for name, r in raw.items()}
     for name, rq in req.items():   # counties with requests but nothing sent yet
         if name not in counties:
-            g = gidx[_norm(name)]
-            counties[name] = dict(entity({m: _zero() for m in SUMS}, rq), fips=g["fips"])
-    statewide = entity(sw_raw, sw_req)
+            counties[name] = dict(entity({m: _zero() for m in SUMS}, rq), fips=gidx[_norm(name)]["fips"])
+    state = {"refreshed": refreshed, "counties": counties, "statewide": entity(sw_raw, sw_req)}
+    if unmatched:
+        print("  unmatched:", unmatched[:10])
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(STATE_CACHE, "w", encoding="utf-8") as f:
+        json.dump(state, f, separators=(",", ":"))
+    return state
 
+
+def apply_reports(state, reports):
+    """Where a county's own report is ahead of the state's figure for that
+    county, use the report's total; the excess has no party ('unk')."""
+    counties = json.loads(json.dumps(state["counties"]))
+    statewide = json.loads(json.dumps(state["statewide"]))
+    extra = {k: 0 for k, _, _ in REPORT_FIELDS}
+    notes = []
+    for county, rep in sorted(reports.items()):
+        c = counties.get(county)
+        if not c:
+            continue
+        used = []
+        for key, field, label in REPORT_FIELDS:
+            n = rep.get(field)
+            b = c.get(key) or C.party_block(0, 0, 0, 0)
+            known = b["rep"] + b["dem"] + b["oth"] + b["npa"]
+            if n is None or n <= b["total"]:
+                continue
+            c[key] = C.party_block(b["rep"], b["dem"], b["oth"], b["npa"], unk=n - known)
+            extra[key] += n - b["total"]
+            used.append("%s %s (state %s)" % (label, format(n, ","), format(b["total"], ",")))
+        if used:
+            c["cast"] = C.add_blocks(c.get("mail_voted"), c.get("early_voted"))
+            c["county_report"] = {"as_of": rep.get("as_of", ""), "url": rep.get("url", ""), "used": used}
+            c["source_url"], c["source_label"] = rep.get("url", ""), "%s County BOE daily reports" % county
+            when = rep.get("as_of", "")
+            notes.append("%s: county's own daily reports%s - %s" % (
+                county, (" (as of %s)" % when) if when else "", "; ".join(used)))
+    for key, n in extra.items():
+        if n:
+            b = statewide.get(key) or C.party_block(0, 0, 0, 0)
+            statewide[key] = C.party_block(b["rep"], b["dem"], b["oth"], b["npa"], unk=b.get("unk", 0) + n)
+    if any(extra.values()):
+        statewide["cast"] = C.add_blocks(statewide.get("mail_voted"), statewide.get("early_voted"))
+    note = None
+    if notes:
+        note = ("County boards' own daily reports run ahead of the state's daily data; where a county's report is "
+                "higher, its total is used and the extra ballots count in totals but not party shares. " +
+                " ".join(n + "." for n in notes))
+    return counties, statewide, note
+
+
+def main():
+    force = "--force" in sys.argv
+    cfg = load(CONFIG_PATH, {}) or {}
+    src = cfg.get("source", {})
+    prev = load(LATEST_PATH, {}) or {}
+    state = state_refresh(cfg, src, load(STATE_CACHE, {}) or {}, force)
+    if not state:
+        print("OH: no state data yet.")
+        return 0
+    reports = load(REPORTS_CACHE, {}) or {}
+    if src.get("county_reports") and (force or not C.checked_recently(DATA_DIR, "county_reports", minutes=20)):
+        import oh_county_reports
+        reports = dict(reports, **oh_county_reports.fetch_all(src["county_reports"]))
+        with open(REPORTS_CACHE, "w", encoding="utf-8") as f:
+            json.dump(reports, f, separators=(",", ":"))
+    counties, statewide, note = apply_reports(state, reports)
+    refreshed = state["refreshed"]
+    newest = max([refreshed] + [r.get("as_of", "") for r in reports.values()])
     methods_present = [k for k in ("mail_voted", "early_voted", "mail_requested")
                        if (statewide.get(k) or {}).get("total")]
-    snap = {
+    body = {
         "state": STATE, "state_name": cfg.get("state_name", "Ohio"),
         "election": cfg.get("election", {}), "partisan": True,
-        "source": {"primary": "Ohio SoS Absentee and Early Voting Data dashboard (Power BI); ballots by county & voter-affiliated party",
+        "source": {"primary": "Ohio SoS Absentee and Early Voting Data dashboard (Power BI); ballots by county & "
+                              "voter-affiliated party" + ("; county boards' daily reports where ahead" if note else ""),
                    "election_description": src["election_description"], "data_last_updated": refreshed},
-        "source_compiled": refreshed, "source_compiled_iso": C.utc_now_iso(),
+        "source_compiled": newest,
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "mail_base_label": "Ballots sent",
         "statewide": statewide, "counties": counties,
     }
-    snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
-    snap["generated_at"] = C.utc_now_iso()
-
-    changed = force or snap["data_hash"] != prev.get("data_hash")
+    if note:
+        body["map_note"] = note
+    h = C.data_hash(body)
+    changed = force or h != prev.get("data_hash")
+    now = C.utc_now_iso()
+    snap = dict(body, data_hash=h, source_compiled_iso=now, generated_at=now if changed else prev.get("generated_at", now))
     os.makedirs(DATA_DIR, exist_ok=True)
     cast = statewide["cast"]
     if changed:
@@ -267,17 +343,14 @@ def main():
             json.dump(snap, f, separators=(",", ":"))
         if cast["total"]:
             with open(HISTORY_PATH, "a", encoding="utf-8") as f:
-                f.write(json.dumps({"generated_at": snap["generated_at"],
-                                    "statewide": {"cast": [cast["rep"], cast["dem"], cast["oth"], cast["npa"], cast["total"]]}},
+                f.write(json.dumps({"generated_at": now, "statewide": {"cast": [cast["rep"], cast["dem"], cast["oth"],
+                                                                                cast["npa"], cast["total"]]}},
                                    separators=(",", ":")) + "\n")
-        print("CHANGED  counties=%d  cast=%d  sent=%s  requested=%s  (R%s D%s NPA%s margin=%s)  as of %s"
-              % (len(counties), cast["total"], (statewide.get("mail") or {}).get("requested"),
-                 (statewide.get("mail_requested") or {}).get("total"),
-                 cast["rep"], cast["dem"], cast["npa"], cast["margin"], refreshed))
+        print("CHANGED  counties=%d  cast=%d (party not reported %d)  requested=%s  state data %s, newest report %s"
+              % (len(counties), cast["total"], cast.get("unk", 0), (statewide.get("mail_requested") or {}).get("total"),
+                 refreshed, newest))
     else:
-        print("NOCHANGE  (cast=%d, %d counties, as of %s)" % (cast["total"], len(counties), refreshed))
-    if unmatched:
-        print("  unmatched:", unmatched[:10])
+        print("NOCHANGE  (cast=%d, state data %s, newest report %s)" % (cast["total"], refreshed, newest))
     return 0
 
 

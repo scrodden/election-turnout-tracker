@@ -134,19 +134,25 @@ def pct(n, d):
     return round(100.0 * n / d, 2) if d else None
 
 
-def party_block(rep, dem, oth, npa, compiled="", compiled_iso=""):
+def party_block(rep, dem, oth, npa, compiled="", compiled_iso="", unk=0):
     """Build one party-breakdown block with shares and partisan margin.
     margin > 0 means a Republican lean; margin < 0 means Democratic.
-    `compiled` is the raw display stamp; `compiled_iso` is a sortable form."""
-    total = rep + dem + oth + npa
-    rp, dp = pct(rep, total), pct(dem, total)
-    return {
-        "rep": rep, "dem": dem, "oth": oth, "npa": npa, "total": total,
+    `compiled` is the raw display stamp; `compiled_iso` is a sortable form.
+    `unk` = ballots whose party isn't reported (e.g. an Ohio county's own daily
+    report running ahead of the state's party data): counted in `total`, while
+    shares and margin use only the party-known ballots. Omitted when zero."""
+    known = rep + dem + oth + npa
+    rp, dp = pct(rep, known), pct(dem, known)
+    b = {
+        "rep": rep, "dem": dem, "oth": oth, "npa": npa, "total": known + unk,
         "rep_pct": rp, "dem_pct": dp,
-        "oth_pct": pct(oth, total), "npa_pct": pct(npa, total),
+        "oth_pct": pct(oth, known), "npa_pct": pct(npa, known),
         "margin": (round(rp - dp, 2) if (rp is not None and dp is not None) else None),
         "compiled": compiled, "compiled_iso": compiled_iso,
     }
+    if unk:
+        b["unk"] = unk
+    return b
 
 
 def compute_mail(ent):
@@ -174,17 +180,18 @@ def compute_mail(ent):
 def add_blocks(*blocks):
     """Sum several party_blocks (ignoring None/empty) into one, keeping the
     latest compile stamp (compared via the sortable ISO form)."""
-    rep = dem = oth = npa = 0
+    rep = dem = oth = npa = unk = 0
     compiled, compiled_iso = "", ""
     for b in blocks:
         if not b:
             continue
         rep += b.get("rep", 0); dem += b.get("dem", 0)
         oth += b.get("oth", 0); npa += b.get("npa", 0)
+        unk += b.get("unk", 0)
         if b.get("compiled_iso", "") > compiled_iso:
             compiled_iso = b.get("compiled_iso", "")
             compiled = b.get("compiled", "")
-    return party_block(rep, dem, oth, npa, compiled, compiled_iso)
+    return party_block(rep, dem, oth, npa, compiled, compiled_iso, unk)
 
 
 # --- town/municipality -> county aggregation (for MCD states: ME/NH/VT/MA/RI/CT/WI) ---

@@ -15,7 +15,15 @@
     "pbi_resource_key": "77b7dd4e-7c38-4f79-9992-fdb5502cd2e9",
     "pbi_entity": "absentee v_detailed_grouped",
     "election_description": "2026 NOV GENERAL",
-    "refresh_after_utc_hour": 15
+    "refresh_after_utc_hour": 15,
+    "county_reports": {
+      "_comment": "County boards' own daily early-vote reports (no party), used where ahead of the state's daily data. Parsers in scripts/oh_county_reports.py PARSERS.",
+      "Cuyahoga": {
+        "page": "https://boe.cuyahogacounty.gov/elections/current-election",
+        "vbm_pdf": "https://boe.cuyahogacounty.gov/docs/default-source/boe/elections/2026-11-03_vbm_daily_update.pdf",
+        "eip_pdf": "https://boe.cuyahogacounty.gov/docs/default-source/boe/elections/2026-11-03-eip-daily-update.pdf"
+      }
+    }
   },
   "method_labels": {
     "cast": "Ballots returned (mail + early in person)",

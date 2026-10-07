@@ -298,7 +298,10 @@
     host.appendChild(statCard("dem", "Democratic", fmt(b.dem), pctText(b.dem_pct)));
     host.appendChild(statCard("", "No party / Other", fmt(b.npa + b.oth),
       pctText(b.npa_pct == null ? null : Math.round((b.npa_pct + b.oth_pct) * 10) / 10)));
-    var mc = statCard("", "Partisan lean", marginText(b.margin), total ? "of ballots in this category" : "no ballots yet");
+    // e.g. OH: a county's own daily report ahead of the state's party data -> ballots without a party yet
+    if (b.unk) host.appendChild(statCard("", "Party not reported", fmt(b.unk), "county reports ahead of state data"));
+    var mc = statCard("", "Partisan lean", marginText(b.margin),
+      total ? (b.unk ? "of ballots with a known party" : "of ballots in this category") : "no ballots yet");
     mc.querySelector(".v").style.color = b.margin == null ? "var(--muted)" : (b.margin > 0 ? "var(--rep)" : b.margin < 0 ? "var(--dem)" : "var(--ink)");
     host.appendChild(mc);
 
@@ -760,6 +763,10 @@
       mlist.forEach(function (m) { if (m.key !== "cast" && !cty[m.key]) return; rows.push("<tr><td>" + m.label + "</td><td>" + fmt(block(cty, m.key).total) + "</td></tr>"); });
     }
     var extra = "";
+    if (cty.county_report && cty.county_report.used)
+      extra += "<p class='dim'>From the county's own daily report" + (cty.county_report.as_of ? " (as of " + cty.county_report.as_of + ")" : "") +
+        ", ahead of the state: " + cty.county_report.used.join("; ") + ". Ballots beyond the state's count have no party yet" +
+        ((cty.cast || {}).unk ? " (" + fmt(cty.cast.unk) + " cast)" : "") + ".</p>";
     if (cty.registered) extra += "<p class='dim'>Registered: " + fmt(cty.registered) + " · Turnout: " + pctText(cty.turnout_pct) + "</p>";
     if (cty.mail && cty.mail.return_rate != null) extra += "<p class='dim'>Mail returned: " + pctText(cty.mail.return_rate) + "</p>";
     var b0 = block(cty, method);
