@@ -57,7 +57,8 @@
         "parser": "avlist_xls",
         "label": "Morrow County BOE cumulative absentee/early vote list",
         "page": "https://boe.morrowcountyohio.gov/",
-        "link": "absent voter details.*\\.xls"
+        "link": "absent voter details.*\\.xls",
+        "_note": "Works from a home connection but boe.morrowcountyohio.gov returns 403 to GitHub-hosted runners (seen 2026-10-07); not worked around. Kept so it lights up if that block is lifted; failures show in latest.json county_source_errors."
       },
       "Crawford": {
         "parser": "avlist_xls",
