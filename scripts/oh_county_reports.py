@@ -482,52 +482,102 @@ def _ham_candidates(pattern, today):
     return seen
 
 
-def hamilton_pdf(cfg, prev):
-    """Hamilton County BOE PDF (the site's HTML pages sit behind a Cloudflare
-    check; the PDF files themselves are served normally). The 'ALL PRCS' row
-    holds ISSUED / RETURNED for DEM, REP, UNA, LIB, OTHER and TOTAL. ISSUED
-    counts every absentee type including in-person voters, so it isn't used
-    as 'requests'; RETURNED (any method) is the county's ballots cast."""
-    import pypdf
-    today = _et(_utcnow()).date()
-    url, lm = None, ""
-    for u in _ham_candidates(cfg["pattern"], today):
+def _ham_find(pattern):
+    """Newest posted file for a dated name pattern -> (url, Last-Modified)."""
+    for u in _ham_candidates(pattern, _et(_utcnow()).date()):
         req = urllib.request.Request(u, method="HEAD", headers={"User-Agent": "Mozilla/5.0"})
         try:
             with urllib.request.urlopen(req, context=C._SSL_CTX, timeout=30) as r:
                 if "pdf" in (r.headers.get("Content-Type") or "").lower():
-                    url, lm = u, r.headers.get("Last-Modified", "")
-                    break
+                    return u, r.headers.get("Last-Modified", "")
         except Exception:  # noqa: BLE001 - not posted (404) or unreachable
             continue
-    if not url:
-        raise RuntimeError("no Hamilton PDF found for the last few days")
-    stamp = [url, lm]
-    if prev and prev.get("stamp") == stamp:
-        return prev
+    return None, ""
+
+
+def _ham_text(url):
+    import pypdf
     raw = C.http_get(url, binary=True, retries=2, timeout=120)
-    text = "\n".join(p.extract_text(extraction_mode="layout") for p in pypdf.PdfReader(io.BytesIO(raw)).pages)
+    return "\n".join(p.extract_text(extraction_mode="layout") for p in pypdf.PdfReader(io.BytesIO(raw)).pages)
+
+
+def _ham_order(text):
     head = next((l for l in text.splitlines() if re.search(r"\bDEM\b.*\bREP\b.*\bTOTAL\b", l)), "")
     order = re.findall(r"[A-Z]{3,5}", head)
-    row = re.search(r"^\s*ALL PRCS\s+((?:[\d,]+\s+){11}[\d,]+)\s*$", text, re.M)
-    if not row or len(order) != 6 or order[-1] != "TOTAL":
-        raise RuntimeError("Hamilton: 'ALL PRCS' row or party header not found")
-    nums = [C.parse_number(x) for x in row.group(1).split()]
-    issued = {p: nums[2 * i] for i, p in enumerate(order)}
-    returned = {p: nums[2 * i + 1] for i, p in enumerate(order)}
-    for d in (issued, returned):
-        if sum(v for k, v in d.items() if k != "TOTAL") != d["TOTAL"]:
-            raise RuntimeError("Hamilton: party columns don't add up to TOTAL")
+    if not order or order[-1] != "TOTAL" or "DATE" in order:
+        order = [o for o in order if o != "DATE"]
+    if len(order) != 6 or order[-1] != "TOTAL":
+        raise RuntimeError("Hamilton: party header not found")
+    return order
 
-    def split(d):
-        out = _zero()
-        for k, v in d.items():
-            if k != "TOTAL":
-                out[_party(k if k != "UNA" else "unaffiliated")] += v
-        return out
-    m = re.search(r"processed through:?\s*(\d{1,2}/\d{1,2}/20\d{2})\s+(\d{1,2}:\d{2}:\d{2})\s*([AP]M)", text, re.I)
-    as_of = datetime.strptime("%s %s%s" % m.groups(), "%m/%d/%Y %I:%M:%S%p").strftime("%Y-%m-%d %H:%M") if m else ""
-    return {"cast": split(returned), "issued_all_types": split(issued), "as_of": as_of, "stamp": stamp, "url": url}
+
+def _ham_split(d):
+    out = _zero()
+    for k, v in d.items():
+        if k != "TOTAL":
+            out[_party(k if k != "UNA" else "unaffiliated")] += v
+    if sum(out.values()) != d["TOTAL"]:
+        raise RuntimeError("Hamilton: party columns don't add up to TOTAL")
+    return out
+
+
+def _ham_stamp(text, label):
+    m = re.search(label + r":?\s*(\d{1,2}/\d{1,2}/20\d{2})\s+(\d{1,2}:\d{2}:\d{2})\s*([AP]M)", text, re.I)
+    return datetime.strptime("%s %s%s" % m.groups(), "%m/%d/%Y %I:%M:%S%p").strftime("%Y-%m-%d %H:%M") if m else ""
+
+
+def hamilton_pdf(cfg, prev):
+    """Hamilton County BOE daily PDFs (the site's HTML pages sit behind a
+    Cloudflare check; the PDF files themselves are served normally):
+      * Absentee Ballots Issued and Returned by District and Voter Party
+        Affiliation -- 'ALL PRCS' row, ISSUED / RETURNED for DEM, REP, UNA,
+        LIB, OTHER, TOTAL. ISSUED counts every absentee type including
+        in-person voters, so it isn't used as 'requests'; RETURNED (any
+        method) is the county's ballots cast.
+      * In-office Early Voting by Day -- one row per day by party; summed
+        (or the TOTALS row) = early in person.
+    Mail returns come from the state (not derived by subtracting reports
+    with different time stamps)."""
+    found = {k: _ham_find(cfg[k]) for k in ("pattern", "eip_pattern") if cfg.get(k)}
+    if not any(u for u, _ in found.values()):
+        raise RuntimeError("no Hamilton PDF found for the last few days")
+    stamp = [x for k in sorted(found) for x in found[k]]
+    if prev and prev.get("stamp") == stamp:
+        return prev
+    out, stamps = {"stamp": stamp}, {}
+    url, _ = found.get("pattern", (None, ""))
+    if url:
+        text = _ham_text(url)
+        order = _ham_order(text)
+        row = re.search(r"^\s*ALL PRCS\s+((?:[\d,]+\s+){11}[\d,]+)\s*$", text, re.M)
+        if not row:
+            raise RuntimeError("Hamilton: 'ALL PRCS' row not found")
+        nums = [C.parse_number(x) for x in row.group(1).split()]
+        out["cast"] = _ham_split({p: nums[2 * i + 1] for i, p in enumerate(order)})
+        out["issued_all_types"] = _ham_split({p: nums[2 * i] for i, p in enumerate(order)})
+        stamps["absentee issued/returned"] = _ham_stamp(text, "processed through")
+        out["url"] = url
+    eurl, _ = found.get("eip_pattern", (None, ""))
+    if eurl:
+        text = _ham_text(eurl)
+        order = _ham_order(text)
+        days = [[C.parse_number(x) for x in m.group(1).split()] for m in
+                re.finditer(r"^\s*\d{1,2}/\d{1,2}/20\d{2}\s+((?:[\d,]+\s+){5}[\d,]+)\s*$", text, re.M)]
+        tot = re.search(r"^\s*TOTALS:?\s+((?:[\d,]+\s+){5}[\d,]+)\s*$", text, re.M)
+        summed = [sum(col) for col in zip(*days)] if days else None
+        if tot:
+            nums = [C.parse_number(x) for x in tot.group(1).split()]
+            if summed and nums != summed:
+                raise RuntimeError("Hamilton: early-vote TOTALS row doesn't match its days")
+        else:
+            nums = summed
+        if nums:
+            out["eip"] = _ham_split(dict(zip(order, nums)))
+            stamps["early in person"] = _ham_stamp(text, "current through")
+        out.setdefault("url", eurl)
+    out["as_of_by_report"] = stamps
+    out["as_of"] = max([v for v in stamps.values() if v] or [""])
+    return out
 
 
 PARSERS = {"cuyahoga": cuyahoga, "election_vault": election_vault, "avlist_xls": avlist_xls,

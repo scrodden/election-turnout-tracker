@@ -102,9 +102,10 @@
       },
       "Hamilton": {
         "parser": "hamilton_pdf",
-        "label": "Hamilton County BOE daily absentee ballots issued and returned by party (PDF)",
+        "label": "Hamilton County BOE daily absentee and early-vote reports by party (PDF)",
         "page": "https://votehamiltoncountyohio.gov/",
-        "pattern": "https://votehamiltoncountyohio.gov/wp-content/uploads/{yyyy}/{mm}/Absentee-Ballots-Issued-and-Returned-By-District-and-Voter-Party-Affiliation_{date}.pdf"
+        "pattern": "https://votehamiltoncountyohio.gov/wp-content/uploads/{yyyy}/{mm}/Absentee-Ballots-Issued-and-Returned-By-District-and-Voter-Party-Affiliation_{date}.pdf",
+        "eip_pattern": "https://votehamiltoncountyohio.gov/wp-content/uploads/{yyyy}/{mm}/In-office-Early-Voting-By-Day_{date}.pdf"
       }
     }
   },
