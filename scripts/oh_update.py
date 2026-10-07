@@ -358,12 +358,14 @@ def main():
         print("OH: no state data yet.")
         return 0
     report_cfg = src.get("county_reports") or {}
-    reports = {k: v for k, v in (load(REPORTS_CACHE, {}) or {}).items() if k in report_cfg}
+    reports = {k: v for k, v in (load(REPORTS_CACHE, {}) or {}).items() if k in report_cfg or k == "_errors"}
     if report_cfg and (force or not C.checked_recently(DATA_DIR, "county_reports", minutes=20)):
         import oh_county_reports
         reports = oh_county_reports.fetch_all(report_cfg, reports)
         with open(REPORTS_CACHE, "w", encoding="utf-8") as f:
             json.dump(reports, f, separators=(",", ":"))
+    errors = reports.get("_errors") or {}
+    reports = {k: v for k, v in reports.items() if not k.startswith("_")}
     counties, statewide, note = apply_reports(state, reports)
     refreshed = state["refreshed"]
     newest = max([refreshed] + [r.get("as_of", "") for r in reports.values()])
@@ -377,6 +379,7 @@ def main():
                    "election_description": src["election_description"], "data_last_updated": refreshed},
         "county_sources": {k: {"label": v.get("label", ""), "url": v.get("url", ""), "as_of": v.get("as_of", "")}
                            for k, v in sorted(reports.items())},
+        "county_source_errors": {k: v.get("error", "") for k, v in sorted(errors.items())},
         "source_compiled": newest,
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "mail_base_label": "Ballots sent",

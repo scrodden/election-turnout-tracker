@@ -469,9 +469,10 @@ PARSERS = {"cuyahoga": cuyahoga, "election_vault": election_vault, "avlist_xls":
 
 def fetch_all(reports_cfg, prev=None):
     """-> {county: figures}; a county whose source fails keeps its previous
-    figures (or is left out), so the state's data stands."""
+    figures (or is left out), so the state's data stands. Failures are listed
+    under "_errors" {county: {"error", "at"}} (the runner swallows stderr)."""
     prev = prev or {}
-    out = {}
+    out, errors = {}, {}
     for county, cfg in (reports_cfg or {}).items():
         if county.startswith("_"):
             continue
@@ -491,6 +492,9 @@ def fetch_all(reports_cfg, prev=None):
                                fetched=_utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"))
         except Exception as e:  # noqa: BLE001
             print("OH: %s county data unavailable: %s" % (county, str(e)[:160]), file=sys.stderr)
+            errors[county] = {"error": "%s: %s" % (type(e).__name__, str(e)[:200]), "at": _utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")}
             if county in prev:
                 out[county] = prev[county]
+    if errors:
+        out["_errors"] = errors
     return out
