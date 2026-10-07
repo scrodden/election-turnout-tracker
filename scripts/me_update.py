@@ -50,6 +50,7 @@ LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
 PARTY = {"D": "dem", "R": "rep", "U": "npa", "G": "oth", "L": "oth"}
+REJECTED = ("REJ", "RNC")   # RNC counts toward the file footer's rejected totals
 REG_COLS = {"D": "dem", "R": "rep", "U": "npa", "G": "oth", "L": "oth"}
 
 
@@ -126,7 +127,7 @@ def read_absentee(text, place):
         if not p:
             no_party += 1
         status = (r.get("Status") or "").strip()
-        if status == "REJ":
+        if status in REJECTED:
             rejected += 1
             continue
         party = PARTY.get(p, "oth")
@@ -145,14 +146,21 @@ def read_absentee(text, place):
                 t["ret"][party] += 1
         if status == "ACT":
             accepted += 1
-    checks = {"Number of Records": n, "Returned & Accepted": accepted}
-    for k, v in checks.items():
-        if k in footer and footer[k] != v:
-            raise RuntimeError("ME: file footer says %s = %d, rows give %d" % (k, footer[k], v))
+    # the file's own footer totals: tiny differences happen (10-6-26: 7 rows marked
+    # accepted without a received date, footer 6 lower), so allow 0.5% / 25 and
+    # note it; anything bigger means a broken file and keeps the previous snapshot
     rej_footer = footer.get("Returned & Rejected", 0) + footer.get("Not Returned & Rejected", 0)
-    if footer and rej_footer != rejected:
-        raise RuntimeError("ME: file footer rejected = %d, rows give %d" % (rej_footer, rejected))
-    return cty, cd, sw, unplaced, footer, (no_party < n / 2)
+    checks = {"Number of Records": (footer.get("Number of Records"), n),
+              "Returned & Accepted": (footer.get("Returned & Accepted"), accepted),
+              "Rejected": (rej_footer if footer else None, rejected)}
+    diffs = []
+    for k, (want, got) in checks.items():
+        if want is None or want == got:
+            continue
+        if abs(want - got) > max(25, want // 200):
+            raise RuntimeError("ME: file footer says %s = %d, rows give %d" % (k, want, got))
+        diffs.append("%s: file total %s, rows %s" % (k.lower(), format(want, ","), format(got, ",")))
+    return cty, cd, sw, unplaced, footer, (no_party < n / 2), diffs
 
 
 def entity(a, reg, partisan=True):
@@ -206,7 +214,7 @@ def main():
             return manual[t]
         cands = combo.get(((r.get("SS") or "").strip(), (r.get("SR") or "").strip(), (r.get("CC") or "").strip()), set())
         return next(iter(cands)) if len(cands) == 1 else None
-    cty, cd, sw, unplaced, footer, has_party = read_absentee(text, place)
+    cty, cd, sw, unplaced, footer, has_party, diffs = read_absentee(text, place)
 
     geo = load(GEO_PATH, {"features": []})
     by_code = {f["properties"]["name"][:3].upper(): f["properties"] for f in geo["features"]}
@@ -228,10 +236,14 @@ def main():
     if not has_party:
         note = ("The state's absentee file as of %s leaves voters' party enrollment blank, so Maine is shown as "
                 "turnout only until the party column returns." % as_of)
+    if diffs:
+        note = ((note + " ") if note else "") + ("The state's file is slightly off from its own summary line (%s); "
+                                                  "rows are counted as listed." % "; ".join(diffs))
     if unplaced:
         note = ((note + " ") if note else "") + (
-            "%s absentee requests from unorganized townships couldn't be placed in a county; they're in the "
-            "statewide and district totals." % format(unplaced, ","))
+            "%s absentee request%s from unorganized townships couldn't be placed in a county; %s in the "
+            "statewide and district totals." % (format(unplaced, ","), "" if unplaced == 1 else "s",
+                                                "it's" if unplaced == 1 else "they're"))
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Maine"), "election": cfg.get("election", {}),
         "partisan": has_party, "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
