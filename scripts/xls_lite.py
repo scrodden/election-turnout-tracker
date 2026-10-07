@@ -1,14 +1,21 @@
 #!/usr/bin/env python3
-"""Minimal stdlib reader for legacy binary Excel (.xls, BIFF8/BIFF5 inside an
-OLE2 compound file) -- enough for the plain data exports county election
-offices post (ES&S "Absent Voter Details" and the like): cell text and numbers
-by sheet. No formatting, no formulas beyond their cached results.
+"""Minimal stdlib readers for Excel files -- legacy binary .xls (BIFF8/BIFF5
+inside an OLE2 compound file) and .xlsx (zipped SpreadsheetML) -- enough for
+the plain data exports county election offices post (ES&S "Absent Voter
+Details", candidate-tool downloads and the like): cell text and numbers by
+sheet. No formatting, no formulas beyond their cached results.
 
     sheets = read_xls(raw_bytes)          # [(sheet_name, rows)]
+    sheets = read_xlsx(raw_bytes)
+    sheets = read_any(raw_bytes)          # picks by the file's magic bytes
     rows -> list of lists (str | float | bool | None), ragged-right trimmed
     excel_date(serial) -> datetime.date
 """
+import io
+import re
 import struct
+import zipfile
+import xml.etree.ElementTree as ET
 from datetime import date, timedelta
 
 _END = 0xFFFFFFFE
@@ -268,3 +275,87 @@ def read_xls(raw):
 
 def excel_date(serial):
     return date(1899, 12, 30) + timedelta(days=int(serial))
+
+
+def _local(tag):
+    return tag.rsplit("}", 1)[-1]
+
+
+def _col_index(ref):
+    n = 0
+    for ch in ref:
+        if not ch.isalpha():
+            break
+        n = n * 26 + ord(ch.upper()) - 64
+    return n - 1
+
+
+def read_xlsx(raw):
+    """Worksheets of an .xlsx in workbook order; namespace-prefix agnostic."""
+    z = zipfile.ZipFile(io.BytesIO(raw))
+    names = set(z.namelist())
+    shared = []
+    if "xl/sharedStrings.xml" in names:
+        for _, el in ET.iterparse(z.open("xl/sharedStrings.xml")):
+            if _local(el.tag) == "si":
+                shared.append("".join(t.text or "" for t in el.iter() if _local(t.tag) == "t"))
+                el.clear()
+    sheets = []
+    try:
+        wb = ET.fromstring(z.read("xl/workbook.xml"))
+        rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+        target = {r.get("Id"): r.get("Target") for r in rels.iter() if _local(r.tag) == "Relationship"}
+        for sh in wb.iter():
+            if _local(sh.tag) == "sheet":
+                rid = next((v for k, v in sh.attrib.items() if _local(k) == "id"), None)
+                t = (target.get(rid) or "").lstrip("/")
+                sheets.append((sh.get("name"), t if t.startswith("xl/") else "xl/" + t))
+    except (KeyError, ET.ParseError):
+        pass
+    if not sheets:
+        sheets = [(n.rsplit("/", 1)[-1], n) for n in sorted(names) if re.match(r"xl/worksheets/sheet\d+\.xml$", n)]
+    out = []
+    for name, path in sheets:
+        if path not in names:
+            continue
+        rows = []
+        for _, el in ET.iterparse(z.open(path)):
+            if _local(el.tag) != "row":
+                continue
+            r = int(el.get("r") or len(rows) + 1) - 1
+            while len(rows) <= r:
+                rows.append([])
+            row = rows[r]
+            for c in el:
+                if _local(c.tag) != "c":
+                    continue
+                kind = c.get("t")
+                v = next((x.text for x in c if _local(x.tag) == "v"), None)
+                if kind == "s" and v is not None:
+                    val = shared[int(v)]
+                elif kind == "inlineStr":
+                    val = "".join(t.text or "" for t in c.iter() if _local(t.tag) == "t")
+                elif kind in ("str", "e"):
+                    val = v
+                elif kind == "b":
+                    val = v == "1"
+                elif v is not None:
+                    try:
+                        val = float(v)
+                    except ValueError:
+                        val = v
+                else:
+                    val = None
+                ci = _col_index(c.get("r") or "") if c.get("r") else len(row)
+                if len(row) <= ci:
+                    row.extend([None] * (ci + 1 - len(row)))
+                row[ci] = val
+            el.clear()
+        out.append((name, rows))
+    return out
+
+
+def read_any(raw):
+    if raw[:2] == b"PK":
+        return read_xlsx(raw)
+    return read_xls(raw)

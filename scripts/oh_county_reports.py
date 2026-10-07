@@ -18,6 +18,9 @@ registered in PARSERS and listed per county in config/oh.json county_reports
                 category/org, returned date and party
   trumbull_csv  Trumbull's absentee voter download (CSV, one row per voter)
   sheet_returned  Hancock's returned-ballots list (Google Sheets CSV export)
+  clermont_tool Clermont's public candidate tool: absentee list (Excel, with
+                party, filterable by procedure) + returned/voted ballots report
+  request_list_xlsx  Ottawa's daily absentee-request list (.xlsx; no party)
 
 Voter-level files are reduced to counts in memory: no names, addresses or IDs
 are kept, logged or written anywhere.
@@ -41,15 +44,19 @@ import re
 import sys
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import common as C
 
 PS = ("rep", "dem", "oth", "npa")
 PARTY = {"r": "rep", "rep": "rep", "republican": "rep",
          "d": "dem", "dem": "dem", "democrat": "dem", "democratic": "dem",
-         "u": "npa", "np": "npa", "nopty": "npa", "unaffiliated": "npa", "--": "npa", "non": "npa"}
-IN_PERSON = {"OFF", "EV", "EVOFF", "OFFICE", "INP", "IP"}
+         "u": "npa", "np": "npa", "nopty": "npa", "no party": "npa", "unaffiliated": "npa", "--": "npa", "non": "npa"}
+IN_PERSON = {"OFF", "EV", "EVOFF", "OFFICE", "INP", "IP", "CURB", "IN PERSON"}
+
+
+def _utcnow():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 def _zero():
@@ -363,8 +370,101 @@ def sheet_returned(cfg, prev):
     return out
 
 
+# ------------------------------------------------- Clermont candidate tool
+def clermont_tool(cfg, prev):
+    """clermontcountyohio.gov/BOECandidateTool (public, no login): the
+    absentee mailing-list export (all procedures, and in-office only) gives
+    requests by party; the 'Returned, Voted, and Processed Ballots' export
+    gives returned ballots by org (OFF/CURB = in person, else by mail)."""
+    import xls_lite
+    base = cfg["tool"].rstrip("/")
+    q = {"SelectedElection": cfg["election_id"], "SelectedParty": "", "ShowPartyAffiliation": " 1",
+         "SelectedStartDate": "2025-01-01", "SelectedEndDate": "2026-12-31", "SelectedDistrict": cfg.get("district", "538"),
+         "ReportFormat": "excel"}
+
+    def sheet(path, params):
+        raw = C.http_get(base + path + "?" + urllib.parse.urlencode(params), binary=True, retries=2, timeout=180)
+        rows = xls_lite.read_any(raw)[0][1]
+        if not rows:
+            return [], {}
+        return rows[1:], {str(v).strip(): i for i, v in enumerate(rows[0]) if v is not None}
+
+    def by_party(rows, cols):
+        out = _zero()
+        for r in rows:
+            if len(r) > cols["Party"]:
+                out[_party(r[cols["Party"]])] += 1
+        return out
+    rows, cols = sheet("/Home/GenerateAbsenteeMailing", dict(q, SelectedProcedure=""))
+    if "Party" not in cols:
+        raise RuntimeError("Clermont: absentee export has no Party column")
+    every = by_party(rows, cols)
+    off = by_party(*sheet("/Home/GenerateAbsenteeMailing", dict(q, SelectedProcedure="OFF")))
+    req = {p: max(0, every[p] - off[p]) for p in PS}
+    rows, cols = sheet("/Home/GenerateBallotTracking", {"SelectedElection": cfg["election_id"],
+                                                         "SelectedStartDate": "2025-01-01", "SelectedEndDate": "2026-12-31"})
+    ret, eip = _zero(), _zero()
+    for r in rows:
+        if len(r) <= max(cols["Party"], cols["Org"], cols["Returned"]) or r[cols["Returned"]] in (None, ""):
+            continue
+        org = str(r[cols["Org"]] or "").strip().upper()
+        (eip if org in IN_PERSON else ret)[_party(r[cols["Party"]])] += 1
+    now = _et(_utcnow()).strftime("%Y-%m-%d %H:%M")
+    return {"requested": req, "mail_returned": ret, "eip": eip, "as_of": now}
+
+
+# ------------------------------------------------- Ottawa daily request list
+def request_list_xlsx(cfg, prev):
+    """Ottawa: a page of daily links to the cumulative absentee-request list
+    (.xlsx; columns App Received, Ballot Sent, Ballot Returned, Method). No
+    party column, so totals only."""
+    import xls_lite
+    hits, h = _find_link(cfg["page"], cfg["link"])
+    months = {m: i for i, m in enumerate(("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
+
+    def when(u):
+        """The page labels each link with its day ('Oct. 6 - 2,722'); the file
+        name's date can be older than its contents. Year from the upload path."""
+        tail = u.rsplit("/", 1)[-1]
+        i = h.find(tail) if tail in h else h.find(urllib.parse.unquote(tail))
+        before = re.sub(r"<[^>]+>", " ", H.unescape(h[max(0, i - 400):i])) if i > 0 else ""
+        lab = re.findall(r"\b([A-Z][a-z]{2,8})\.?\s+(\d{1,2})\b", before)
+        y = re.search(r"/(20\d{2})/\d{2}/", u)
+        if lab and y and lab[-1][0][:3].lower() in months:
+            return (int(y.group(1)), months[lab[-1][0][:3].lower()], int(lab[-1][1]))
+        m = re.search(r"(\d{1,2})-(\d{1,2})-(20\d{2})", tail)
+        return (int(m.group(3)), int(m.group(1)), int(m.group(2))) if m else (0, 0, 0)
+    url = max(hits, key=lambda ut: (when(ut[0]), hits.index(ut)))[0]
+    y, m, d = when(url)
+    url = _quote(url)
+    if prev and prev.get("stamp") == url:
+        return prev
+    rows = xls_lite.read_any(C.http_get(url, binary=True, retries=2, timeout=120))[0][1]
+    cols = {str(v).strip(): i for i, v in enumerate(rows[0]) if v is not None}
+    for need in ("Ballot Sent", "Ballot Returned", "Method"):
+        if need not in cols:
+            raise RuntimeError("Ottawa: no %r column" % need)
+
+    def val(r, k):
+        i = cols[k]
+        return r[i] if i < len(r) and r[i] not in (None, "") else None
+    req = sent = ret = eip = 0
+    for r in rows[1:]:
+        if not any(v not in (None, "") for v in r):
+            continue
+        if str(val(r, "Method") or "").strip().upper() in IN_PERSON:
+            eip += 1 if val(r, "Ballot Returned") is not None else 0
+            continue
+        req += 1
+        sent += 1 if val(r, "Ballot Sent") is not None else 0
+        ret += 1 if val(r, "Ballot Returned") is not None else 0
+    return {"requested": req, "sent": sent, "mail_returned": ret, "eip": eip, "stamp": url,
+            "as_of": ("%04d-%02d-%02d" % (y, m, d)) if y else ""}
+
+
 PARSERS = {"cuyahoga": cuyahoga, "election_vault": election_vault, "avlist_xls": avlist_xls,
-           "trumbull_csv": trumbull_csv, "sheet_returned": sheet_returned}
+           "trumbull_csv": trumbull_csv, "sheet_returned": sheet_returned, "clermont_tool": clermont_tool,
+           "request_list_xlsx": request_list_xlsx}
 
 
 def fetch_all(reports_cfg, prev=None):
@@ -378,9 +478,17 @@ def fetch_all(reports_cfg, prev=None):
         fn = PARSERS.get(cfg.get("parser", county.lower()))
         if not fn:
             continue
+        old = prev.get(county)
+        every = cfg.get("every_minutes")
+        if old and every and old.get("fetched"):
+            age = _utcnow() - datetime.strptime(old["fetched"], "%Y-%m-%dT%H:%M:%SZ")
+            if age < timedelta(minutes=every):
+                out[county] = old
+                continue
         try:
-            got = fn(cfg, prev.get(county))
-            out[county] = dict(got, url=cfg.get("page", ""), label=cfg.get("label", "%s County BOE reports" % county))
+            got = fn(cfg, old)
+            out[county] = dict(got, url=cfg.get("page", ""), label=cfg.get("label", "%s County BOE reports" % county),
+                               fetched=_utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"))
         except Exception as e:  # noqa: BLE001
             print("OH: %s county data unavailable: %s" % (county, str(e)[:160]), file=sys.stderr)
             if county in prev:

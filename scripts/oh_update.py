@@ -30,9 +30,9 @@ polls when a newer refresh could exist (see due()) and only pulls the county
 rows once the stamp moves; the result is cached in data/oh/state_snapshot.json.
 
 County boards publish their own data hours (or a day) ahead of the state:
-summary reports (Cuyahoga) and voter-level absentee lists with each voter's
-party (Franklin and Butler Election Vault, Morrow, Crawford, Henry, Trumbull,
-Hancock). scripts/oh_county_reports.py reads them (config
+summary reports (Cuyahoga), voter-level absentee lists with each voter's
+party (Franklin and Butler Election Vault, Clermont's candidate tool, Morrow,
+Crawford, Henry, Trumbull, Hancock) and Ottawa's request list (no party). scripts/oh_county_reports.py reads them (config
 source.county_reports, checked ~every 20 minutes, cached counts in
 data/oh/county_reports.json -- never voter-level rows). Where a county's figure
 is ahead for requests, ballots sent, mail returned or early in person, it is

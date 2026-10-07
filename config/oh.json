@@ -83,6 +83,21 @@
         "label": "Hancock County BOE returned-absentee list",
         "page": "https://hancockcountyohioelections.gov/absentee-lists/",
         "csv": "https://docs.google.com/spreadsheets/d/1uOAou2vLNPgqPdI4JfIkTDY15LsDgShubuyBE0PmZqg/export?format=csv"
+      },
+      "Clermont": {
+        "parser": "clermont_tool",
+        "label": "Clermont County BOE candidate tool (absentee list + returned ballots report)",
+        "page": "https://boe.clermontcountyohio.gov/candidate_tools/vote-by-mail_tracking.php",
+        "tool": "https://clermontcountyohio.gov/BOECandidateTool",
+        "election_id": "140",
+        "district": "538",
+        "every_minutes": 60
+      },
+      "Ottawa": {
+        "parser": "request_list_xlsx",
+        "label": "Ottawa County BOE daily absentee request list",
+        "page": "https://boe.ottawa.oh.gov/absentee-ballot-requests/",
+        "link": "Absentee-Request-.*\\.xlsx"
       }
     }
   },
