@@ -148,7 +148,7 @@
       "data": "data/nm/latest.json",
       "geojson": "assets/nm-counties.geojson",
       "history": "data/nm/history.jsonl",
-      "source_note": "Source: <a href='https://electionresults.sos.nm.gov/VoterTurnoutDetails.aspx' target='_blank' rel='noopener'>New Mexico Secretary of State</a> voter turnout — early/absentee ballots by county &amp; registered party. Early voting opens in October, so figures read zero until then."
+      "source_note": "Source: <a href='https://electionresults.sos.state.nm.us/VoterTurnoutDetails.aspx' target='_blank' rel='noopener'>New Mexico Secretary of State</a> voter turnout — early/absentee ballots by county &amp; registered party. Early voting opens in October, so figures read zero until then."
     },
     {
       "code": "me",

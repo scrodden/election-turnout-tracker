@@ -9,8 +9,9 @@
   },
   "general_start": "2026-10-14",
   "source": {
-    "_comment": "Kansas registers voters by party -> partisan. KS SoS publishes advance-voting statistics by county and party during elections. UPGRADEABLE if a persistent by-county-by-party file is confirmed; STAGED SKELETON for now (routine wires live feed in Oct).",
-    "portal": "https://sos.ks.gov/elections/elections.html"
+    "_comment": "Kansas registers voters by party -> partisan. CHECKED 2026-10-07: sos.ks.gov/elections/advance-voting-data.html embeds a Power BI Gov dashboard ('AdvanceVotingCountsDashboard', resourceKey de3b6e3c-b94e-419a-8d9c-9435eba72780 on the wabi-us-gov-virginia-api cluster) but it only has a statewide DATE/sent/returned/in-person time series -- no county or party breakdown. Not usable for this page's schema. STAGED SKELETON; still needs a real by-county-by-party source (maybe individual county clerks once advance voting opens 2026-10-14).",
+    "portal": "https://sos.ks.gov/elections/elections.html",
+    "dashboard_checked": "https://sos.ks.gov/elections/advance-voting-data.html"
   },
   "method_labels": {
     "cast": "Ballots cast",

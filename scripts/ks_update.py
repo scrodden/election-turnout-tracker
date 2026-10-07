@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """Kansas turnout by county and registered party.
 
-Source: Iowa SoS "Absentee Ballot Statistics" PDF, by county and party
-(requested / issued / received). "Received" (returned) by party = ballots cast.
-The 2024 file persists, so this is upgradeable to a real pypdf parser (like
-LA/MD). STAGED SKELETON for now: writes an empty (0) partisan snapshot until the
-parser is wired against the live 2026 file (the Friday rollout routine does this
-in Oct). See config/ia.json for the exact URLs.
+Investigated 2026-10-07: sos.ks.gov/elections/advance-voting-data.html embeds
+a Power BI (US Gov cloud) report "AdvanceVotingCountsDashboard"
+(resourceKey de3b6e3c-b94e-419a-8d9c-9435eba72780, tenant
+dcae8101-c92d-480c-bc43-c6761ccccc5a, reachable via the
+wabi-us-gov-virginia-api cluster -- see oh_update.PowerBI / registration_update
+parse_ri for the client). Its only table, "ADVANCE VOTE COUNTS 2026", has
+columns DATE / ADVANCE VOTING BALLOTS SENT / ADVANCE VOTING BALLOTS RETURNED /
+IN PERSON ADVANCE -- a statewide daily time series with NO county and NO party
+breakdown. That doesn't support this page's by-county-by-party schema (Kansas
+registers by party -> partisan), so there is still no usable live source.
+STAGED SKELETON: writes an empty (0) partisan snapshot until a real
+by-county-by-party feed is found (county clerks may publish their own
+advance-ballot reports once advance voting opens mid-October; none confirmed
+yet).
 
-Run:  python scripts/ia_update.py [--force]
+Run:  python scripts/ks_update.py [--force]
 """
 import os
 import sys
