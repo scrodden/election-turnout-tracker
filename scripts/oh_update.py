@@ -20,7 +20,10 @@ affiliated party (from partisan-primary ballot history). Republican->rep,
 Democratic->dem, Unaffiliated->npa, Minor Party + blank->oth.
 cast = received incl. early in person; mail_voted = received by mail;
 early_voted = the in-person difference; mail_provided = mail sent - received
-(outstanding) -> partisan mail chase via common.compute_mail.
+(outstanding) -> partisan mail chase via common.compute_mail (its base is
+ballots SENT so far, not requests). mail_requested = Requested_Count, the
+dashboard's "Total Requests Reported" (voters who have requested an absentee
+ballot), by county and party.
 
 The SoS refreshes once a day (~noon ET) and stamps REFRESH_DATE, so this only
 polls when a newer refresh could exist (see due()) and only pulls the county
@@ -188,6 +191,7 @@ def main():
             print("NOCHANGE  (still the %s refresh)" % have)
             return 0
         rows = pbi.query(src["pbi_entity"], ["County_Name", "Voter_Party_Bucketed"], SUMS, where)
+        req_rows = pbi.query(src["pbi_entity"], ["County_Name", "Voter_Party_Bucketed"], ["Requested_Count"], where)
     except Exception as e:  # noqa: BLE001
         print("OH Power BI fetch failed: %s" % str(e)[:160], file=sys.stderr)
         return 0
@@ -210,22 +214,38 @@ def main():
             r[m][p] += int(v or 0)
             sw_raw[m][p] += int(v or 0)
 
-    def entity(r):
+    req, sw_req = {}, _zero()
+    for county, party, n in req_rows:
+        g = gidx.get(_norm(county or ""))
+        if not g:
+            continue
+        p = PARTY.get((party or "").strip().lower(), "oth")
+        req.setdefault(g["name"], _zero())[p] += int(n or 0)
+        sw_req[p] += int(n or 0)
+
+    def entity(r, requested=None):
         s_mail, r_mail, s_all, r_all = (r[m] for m in SUMS)
         ps = ("rep", "dem", "oth", "npa")
         ent = {"mail_voted": _blk(r_mail),
                "mail_provided": _blk({p: max(0, s_mail[p] - r_mail[p]) for p in ps}),
                "early_voted": _blk({p: max(0, r_all[p] - r_mail[p]) for p in ps}),
                "cast": _blk(r_all), "registered": 0, "turnout_pct": None}
+        if requested and sum(requested.values()):
+            ent["mail_requested"] = _blk(requested)
         m = C.compute_mail(ent)
         if m:
             ent["mail"] = m
         return ent
 
-    counties = {name: dict(entity(r), fips=r["fips"]) for name, r in raw.items()}
-    statewide = entity(sw_raw)
+    counties = {name: dict(entity(r, req.get(name)), fips=r["fips"]) for name, r in raw.items()}
+    for name, rq in req.items():   # counties with requests but nothing sent yet
+        if name not in counties:
+            g = gidx[_norm(name)]
+            counties[name] = dict(entity({m: _zero() for m in SUMS}, rq), fips=g["fips"])
+    statewide = entity(sw_raw, sw_req)
 
-    methods_present = [k for k in ("mail_voted", "early_voted") if statewide[k]["total"]]
+    methods_present = [k for k in ("mail_voted", "early_voted", "mail_requested")
+                       if (statewide.get(k) or {}).get("total")]
     snap = {
         "state": STATE, "state_name": cfg.get("state_name", "Ohio"),
         "election": cfg.get("election", {}), "partisan": True,
@@ -233,6 +253,7 @@ def main():
                    "election_description": src["election_description"], "data_last_updated": refreshed},
         "source_compiled": refreshed, "source_compiled_iso": C.utc_now_iso(),
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
+        "mail_base_label": "Ballots sent",
         "statewide": statewide, "counties": counties,
     }
     snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
@@ -249,8 +270,9 @@ def main():
                 f.write(json.dumps({"generated_at": snap["generated_at"],
                                     "statewide": {"cast": [cast["rep"], cast["dem"], cast["oth"], cast["npa"], cast["total"]]}},
                                    separators=(",", ":")) + "\n")
-        print("CHANGED  counties=%d  cast=%d  requested=%s  (R%s D%s NPA%s margin=%s)  as of %s"
+        print("CHANGED  counties=%d  cast=%d  sent=%s  requested=%s  (R%s D%s NPA%s margin=%s)  as of %s"
               % (len(counties), cast["total"], (statewide.get("mail") or {}).get("requested"),
+                 (statewide.get("mail_requested") or {}).get("total"),
                  cast["rep"], cast["dem"], cast["npa"], cast["margin"], refreshed))
     else:
         print("NOCHANGE  (cast=%d, %d counties, as of %s)" % (cast["total"], len(counties), refreshed))

@@ -17,6 +17,7 @@
     { key: "early_voted", label: "Voted early" },
     { key: "election_day", label: "Election day" },
     { key: "provisional", label: "Provisional" },
+    { key: "mail_requested", label: "Mail requested", optional: true },   // shown only where a state reports requests (OH)
     { key: "mail_provided", label: "Mail outstanding" }
   ];
   var HINTS = {
@@ -25,7 +26,8 @@
     early_voted: "Party registration of voters who cast a ballot in person during early voting.",
     election_day: "Party registration of voters who cast a ballot on election day.",
     provisional: "Party registration of voters who cast a provisional ballot.",
-    mail_provided: "Party registration of voters SENT a mail ballot who have not yet returned it (outstanding). From the state file; TQV does not report this."
+    mail_provided: "Party registration of voters SENT a mail ballot who have not yet returned it (outstanding). From the state file; TQV does not report this.",
+    mail_requested: "Party of voters who have requested an absentee (mail) ballot - applications, not ballots cast."
   };
 
   function noPartyText() {
@@ -37,7 +39,8 @@
     cast: "Total ballots already cast (by mail + in person).",
     mail_voted: "Ballots returned by mail.",
     early_voted: "Ballots cast in person during early voting.",
-    election_day: "Ballots cast on election day."
+    election_day: "Ballots cast on election day.",
+    mail_requested: "Voters who have requested an absentee (mail) ballot - applications, not ballots cast."
   };
 
   var geo = null, data = null;
@@ -241,6 +244,7 @@
       b.textContent = m.label;
       b.setAttribute("role", "tab");
       var avail = methodAvailable(m.key);
+      if (m.optional && !avail) return;   // e.g. "Mail requested" only where reported
       b.setAttribute("aria-selected", String(m.key === method));
       if (!avail) { b.disabled = true; b.title = "No data yet"; b.style.opacity = ".45"; b.style.cursor = "not-allowed"; }
       b.addEventListener("click", function () { if (!avail) return; method = m.key; updateHash(); renderAll(); });

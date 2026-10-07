@@ -20,6 +20,7 @@
   "method_labels": {
     "cast": "Ballots returned (mail + early in person)",
     "mail_voted": "Returned by mail",
-    "early_voted": "Early in person"
+    "early_voted": "Early in person",
+    "mail_requested": "Absentee ballots requested"
   }
 }
