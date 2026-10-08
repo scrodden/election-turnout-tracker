@@ -10,8 +10,11 @@ NV is all-mail; we report mail_voted (received), mail_provided (sent-received =
 outstanding), early_voted, and cast = mail_voted + early_voted, by party.
 
 Between elections the feeds keep the last one (the 2026 primary until the SoS
-launches its general-election dashboards), so data dated before
-`general_start` is ignored. Until the feeds carry the general, Nevada shows the
+launches its general-election dashboards). In-person days dated before
+`general_start` are ignored; the mail feed has no election field and its
+generatedAt / lastUpdated stamps are refreshed daily (on 2026-10-08 the
+primary's final counts reappeared stamped that day), so it is checked by
+content against config primary_fingerprint (is_primary_snapshot). Until the feeds carry the general, Nevada shows the
 UF Election Lab's county-by-party figures (built from the SoS's daily Voter
 List & Ballot Status files, which sit behind a bot check we don't script),
 used unaltered under CC BY-NC-ND 4.0. The Districts map always comes from the
@@ -47,8 +50,31 @@ def load(p):
 
 
 def party_of(code):
+    """VIVID party codes: DEM, REP, NP (nonpartisan -- Nevada's largest group),
+    and minor parties (IAP, LPN, GRN, NPP, OTH...)."""
     c = str(code).strip().upper()
-    return "dem" if c == "DEM" else "rep" if c == "REP" else "oth"
+    return {"DEM": "dem", "REP": "rep", "NP": "npa"}.get(c, "oth")
+
+
+def is_primary_snapshot(b, fp):
+    """The mail feed keeps the last election's figures between elections and
+    its generatedAt / lastUpdated stamps are refreshed daily anyway, so the
+    stamp can't tell the primary from the general. Compare the content with
+    the primary's final figures (config primary_fingerprint): received by
+    party within 1% each and ballots sent within 2% -> still the primary."""
+    if not fp:
+        return False
+    rec, sent = {}, 0
+    for row in b.get("rows", []):
+        stages = row.get("rawByPartyCode", {}) or {}
+        for code, n in (stages.get("received") or {}).items():
+            rec[code] = rec.get(code, 0) + int(n or 0)
+        sent += sum(int(n or 0) for n in (stages.get("sent") or {}).values())
+
+    def near(a, b, tol):
+        return b and abs(a - b) <= tol * b
+    return (all(near(rec.get(code, 0), n, 0.01) for code, n in fp["received"].items())
+            and near(sent, fp["sent_total"], 0.02))
 
 
 def main():
@@ -92,7 +118,10 @@ def main():
     try:
         b = json.loads(C.http_get(cfg["source"]["ballot_seed"], referer=ref, no_cache=True))
         gen = (b.get("generatedAt") or "")[:10]
-        if ignore_gate or gen >= gstart:
+        primary = is_primary_snapshot(b, cfg.get("primary_fingerprint"))
+        if primary and not ignore_gate:
+            print("nv: mail feed still holds the primary (matches primary_fingerprint) -- not used.")
+        if ignore_gate or (gen >= gstart and not primary):
             for row in b.get("rows", []):
                 county = row.get("county")
                 stages = row.get("rawByPartyCode", {})

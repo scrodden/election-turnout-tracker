@@ -21,5 +21,14 @@
     "early_voted": "Voted early in person",
     "mail_provided": "Mail ballots outstanding"
   },
-  "_general_start_comment": "VIVID data dated before this is the primary. UOCAVA ballots for the general went out Sept 19, 2026, so anything from Sept 15 on is the general."
+  "_general_start_comment": "VIVID data dated before this is the primary. UOCAVA ballots for the general went out Sept 19, 2026, so anything from Sept 15 on is the general.",
+  "primary_fingerprint": {
+    "_comment": "2026 primary final mail figures as the VIVID ballot-seed still carried them on 2026-10-08 (statewide received by party code; total sent). While the feed matches these it is the primary.",
+    "received": {
+      "DEM": 124829,
+      "REP": 99663,
+      "NP": 53331
+    },
+    "sent_total": 2054808
+  }
 }
