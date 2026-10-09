@@ -17,5 +17,6 @@
     "cast": "Ballots cast (absentee + early in person)",
     "mail_voted": "Absentee ballots accepted",
     "early_voted": "Early in person"
-  }
+  },
+  "mail_base_label": "Ballots requested"
 }
