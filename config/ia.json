@@ -3,13 +3,29 @@
   "state_name": "Iowa",
   "state_fips": "19",
   "partisan": true,
-  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
   "general_start": "2026-10-01",
   "source": {
-    "_comment": "Iowa SoS 'Absentee Ballot Statistics' PDF. Hierarchical: a county line (name + Requested Issued Received), then per-party lines (Democrat/Republican/No Party/Libertarian/Other + Req Issued Received), then receipt-method sub-lines. We take each party's RECEIVED (returned) as ballots cast; a county's Received equals the sum of its parties' Received. Iowa early voting IS absentee (in-person at the office/satellite + mail), so this is the whole early-vote electorate by party. No registration totals in the file -> no turnout%. The 2026 file publishes under /elections/pdf/2026/general/; validation_url is the persisted 2024 file used by --validate. Requires pypdf (IA workflow step installs it).",
-    "url": "https://sos.iowa.gov/elections/pdf/2026/general/AbsenteeCounty2026.pdf",
+    "_comment": "Official: Iowa SoS 'Daily Absentee Statistics - By County' PDF linked from stats_page (site moved in 2026; the June primary file is sites/default/files/2026-06/ABS Counties 2026.pdf; the general file isn't posted as of 2026-10-09). Hierarchical: county line (Requested Issued Received), then party lines (Democrat/Republican/No Party/Libertarian/Other), then receipt-method lines; party RECEIVED = ballots cast. Until it posts: UF Election Lab stand-in (IA_county.csv + IA_cd/IA_sdl/IA_sdu, source Iowa SoS), CC BY-NC-ND 4.0. validation_url = persisted 2024 file.",
     "validation_url": "https://sos.iowa.gov/elections/pdf/2024/general/AbsenteeCounty2024.pdf",
-    "party_map": { "Democrat": "dem", "Republican": "rep", "No Party": "npa", "Libertarian": "oth", "Other": "oth", "Green": "oth" }
+    "party_map": {
+      "Democrat": "dem",
+      "Republican": "rep",
+      "No Party": "npa",
+      "Libertarian": "oth",
+      "Other": "oth",
+      "Green": "oth"
+    },
+    "stats_page": "https://sos.iowa.gov/iowans/election-results-statistics",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
   },
-  "method_labels": { "cast": "Absentee ballots returned" }
+  "method_labels": {
+    "cast": "Ballots cast (absentee by mail + in person)",
+    "mail_voted": "Absentee ballots returned by mail",
+    "early_voted": "Absentee in person",
+    "mail_provided": "Absentee ballots outstanding"
+  }
 }

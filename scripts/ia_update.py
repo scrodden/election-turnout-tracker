@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Iowa turnout by county and registered party.
 
-Source: Iowa SoS "Absentee Ballot Statistics" PDF. Hierarchical layout:
+Official source: Iowa SoS "Daily Absentee Statistics - By County" PDF, linked
+from sos.iowa.gov/iowans/election-results-statistics (the SoS site moved in
+2026: the 2026 primary file is sites/default/files/2026-06/ABS Counties
+2026.pdf; the old /elections/pdf/<year>/general/ path holds 2024 and earlier).
+Hierarchical layout:
   <County>  Requested Issued Received
     <Party> Requested Issued Received      (Democrat/Republican/No Party/Libertarian/Other)
       <Receipt Method> ...                 (Counter/In-Office, Mail, Drop Box, ...)
@@ -11,9 +15,11 @@ absentee (in-person at the office/satellite + mail), so this is the full
 early-vote electorate by party. The file has no registration totals, so there is
 no turnout%.
 
-The 2026 general file publishes under /elections/pdf/2026/general/; until then
-this writes an empty snapshot (reads 0) and lights up automatically. Requires
-pypdf (the IA workflow step installs it).
+Until the general-election file is posted (a 'Daily Absentee Statistics - By
+County' link under a 2026 Sept-Dec upload folder or /2026/general/), Iowa shows
+the UF Election Lab's figures (built from the SoS's absentee file; IA_county.csv
+plus IA_cd / IA_sdl / IA_sdu for the district maps), used unaltered under
+CC BY-NC-ND 4.0. Requires pypdf for the official file.
 
 Run:  python scripts/ia_update.py [--force]
       python scripts/ia_update.py --validate   (parse the persisted 2024 file to prove the parser)
@@ -34,6 +40,7 @@ GEO_PATH = os.path.join(ROOT, "assets", "ia-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
+GENERAL_LINK = re.compile(r"/2026-(0[89]|1[0-2])/|/2026/general/", re.I)
 ROW_RE = re.compile(r"^(.+?)\s+(\d+)\s+(\d+)\s+(\d+)$")
 
 
@@ -103,6 +110,26 @@ def read_pdf_text(raw):
     return "\n".join(p.extract_text() for p in pypdf.PdfReader(io.BytesIO(raw)).pages)
 
 
+def find_general_file(cfg):
+    """The general-election 'Daily Absentee Statistics - By County' PDF, if
+    posted: a link on the SoS statistics page under a Sept-Dec 2026 upload
+    folder or /2026/general/ (the June primary's file is in 2026-06)."""
+    page = cfg["source"]["stats_page"]
+    try:
+        h = C.http_get(page, retries=2, timeout=60)
+    except Exception as e:  # noqa: BLE001
+        print("IA statistics page unavailable: %s" % str(e)[:80])
+        return None
+    import html as H
+    import urllib.parse
+    for href, txt in re.findall(r'<a[^>]+href="([^"#]+)"[^>]*>(.*?)</a>', h, re.S | re.I):
+        t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", H.unescape(txt))).strip()
+        u = urllib.parse.urljoin(page, H.unescape(href))
+        if re.search(r"daily absentee statistics\W+by county", t, re.I) and GENERAL_LINK.search(u):
+            return u
+    return None
+
+
 def main():
     force = "--force" in sys.argv
     validate = "--validate" in sys.argv
@@ -123,17 +150,31 @@ def main():
               % (sw["total"], sw["rep"], sw["dem"], sw["npa"], sw["oth"], sw["margin"]))
         return 0
 
+    import lab_standin as LAB
+    os.makedirs(DATA_DIR, exist_ok=True)
+    for kind, suffix in (("cd", "cd"), ("sdl", "sh"), ("sdu", "ss")):   # district maps, ~hourly
+        LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "ia-%s.geojson" % suffix),
+                      os.path.join(DATA_DIR, "districts_%s.json" % suffix), partisan=True, force=force, kind=kind)
+
     counties = {}
     src_label = ""
-    try:
-        raw = C.http_get(cfg["source"]["url"], binary=True, no_cache=True, retries=2)
-        counties, _ = parse_absentee(read_pdf_text(raw), idx, party_map)
-        if counties:
-            src_label = cfg["election"]["name"]
-    except Exception as e:  # noqa: BLE001 - file not posted yet -> empty snapshot
-        print("no live file yet: %s" % str(e)[:70])
+    url = find_general_file(cfg)
+    if url:
+        try:
+            raw = C.http_get(url, binary=True, no_cache=True, retries=2)
+            counties, _ = parse_absentee(read_pdf_text(raw), idx, party_map)
+            if counties:
+                src_label = cfg["election"]["name"]
+        except Exception as e:  # noqa: BLE001
+            print("IA official file unreadable: %s" % str(e)[:90])
+    if not counties:
+        if not LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force,
+                       role="stand-in until the SoS posts its general-election daily absentee statistics"):
+            print("ia: no official file and no Election Lab figures yet.")
+        return 0
 
     snap = build_snapshot(cfg, counties, src_label)
+    snap["source"]["url"] = url
     snap["data_hash"] = C.data_hash(snap)
     snap["generated_at"] = C.utc_now_iso()
 

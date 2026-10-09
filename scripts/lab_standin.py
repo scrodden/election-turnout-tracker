@@ -188,6 +188,19 @@ KIND_LABELS = {   # Lab file suffix / column -> (unit label, plural, description
 }
 
 
+def _dnum(v):
+    """District number from a Lab district cell: '7', '07', or a label like
+    'United States Representative District 1' / 'State Senator District 02'
+    (Iowa). None for 'NA' / blank."""
+    v = str(v or "").strip()
+    if not v or v.upper().startswith("NA"):
+        return None
+    if v.isdigit():
+        return int(v)
+    m = re.search(r"District\s+0*(\d+)\s*$", v, re.I)
+    return int(m.group(1)) if m else None
+
+
 def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"):
     """District view for the site's map toggle from the Lab's <ST>_<kind>.csv
     (kind cd = U.S. House, sdl / sdu = state house / senate), whose rows are
@@ -214,12 +227,12 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     partisan = partisan and any(_n(row, k) for k in ("request_dem", "accept_dem", "request_rep", "accept_rep"))
     geo = _load(cd_geo_path, {"features": []})
     gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
-    placed = [r for r in parts if str(r.get(kind) or "").strip().isdigit()]
+    placed = [r for r in parts if _dnum(r.get(kind)) is not None]
     ok, gap, cast_gap = reconcile(placed, row, code)
     sums = {}
-    unknown = sorted({int(r[kind]) for r in placed if int(r[kind]) not in gidx})
+    unknown = sorted({_dnum(r[kind]) for r in placed if _dnum(r[kind]) not in gidx})
     for r in placed:
-        acc = sums.setdefault(int(r[kind]), {})
+        acc = sums.setdefault(_dnum(r[kind]), {})
         for k, v in r.items():
             if k not in ("cd", "sdl", "sdu", "county", "return_rate"):
                 acc[k] = acc.get(k, 0) + _n(r, k)

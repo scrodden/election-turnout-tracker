@@ -139,7 +139,28 @@
       "data": "data/ia/latest.json",
       "geojson": "assets/ia-counties.geojson",
       "history": "data/ia/history.jsonl",
-      "source_note": "Source: <a href='https://sos.iowa.gov/elections/electioninfo/General/index.html' target='_blank' rel='noopener'>Iowa Secretary of State</a> absentee ballot statistics — ballots returned by county &amp; registered party. Iowa's absentee/early period runs through early November, so figures read zero until then."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Iowa Secretary of State data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Absentee ballots requested and returned (by mail and in person), by county, congressional and legislative district, and registered party. Switches to the <a href='https://sos.iowa.gov/iowans/election-results-statistics' target='_blank' rel='noopener'>Iowa Secretary of State</a>'s daily absentee statistics once they're posted for the general. District boundaries: U.S. Census Bureau.",
+      "partisan": true,
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/ia/districts_cd.json",
+          "geojson": "assets/ia-cd.geojson"
+        },
+        {
+          "key": "sh",
+          "label": "IA House",
+          "data": "data/ia/districts_sh.json",
+          "geojson": "assets/ia-sh.geojson"
+        },
+        {
+          "key": "ss",
+          "label": "IA Senate",
+          "data": "data/ia/districts_ss.json",
+          "geojson": "assets/ia-ss.geojson"
+        }
+      ]
     },
     {
       "code": "nm",
