@@ -96,6 +96,7 @@ jobs:
         run: |
           pip install --quiet pypdf || true
           python scripts/registration_update.py || echo "registration update failed (non-fatal)"
+          python scripts/registered_totals_update.py || echo "registered totals update failed (non-fatal)"
 
       - name: Build daily summary
         if: steps.gate.outputs.frozen != '1'

@@ -31,6 +31,8 @@ def main():
     health = (load(os.path.join(ROOT, "data", "_health.json"), {}) or {}).get("states", {})
     # registration totals for states whose turnout feed carries none (the party-registration table)
     regtab = (load(os.path.join(ROOT, "data", "registration.json"), {}) or {}).get("states", {}) or {}
+    # ... and registered-voter totals for states without party registration
+    regtot = (load(os.path.join(ROOT, "data", "registered_totals.json"), {}) or {}).get("states", {}) or {}
     out_states = []
     live = 0
     for s in reg.get("states", []):
@@ -47,10 +49,11 @@ def main():
         registered = int(sw.get("registered", 0) or 0)
         turnout_pct = sw.get("turnout_pct")
         reg_src = "feed" if registered else ""
-        rt = regtab.get(code) or {}
-        if not registered and rt.get("total"):
-            registered, reg_src = int(rt["total"]), "registration table (as of %s)" % rt.get("as_of", "?")
-            turnout_pct = round(100.0 * cast / registered, 2) if cast else None
+        for tab, what in ((regtab, "registration table"), (regtot, "registered-voter totals")):
+            rt = tab.get(code) or {}
+            if not registered and rt.get("total"):
+                registered, reg_src = int(rt["total"]), "%s (as of %s)" % (what, rt.get("as_of", "?"))
+                turnout_pct = round(100.0 * cast / registered, 2) if cast else None
         out_states.append({
             "code": code, "name": s.get("name"), "partisan": s.get("partisan", True) is not False,
             "hidden": bool(s.get("hidden")), "has_data": has_data, "frozen": frozen,

@@ -77,8 +77,10 @@
     });
     var totP = R + D + N + O, natMargin = totP ? Math.round((100 * R / totP - 100 * D / totP) * 10) / 10 : null;   // total-based, matching per-state margins
     var to = reg ? (100 * regCast / reg).toFixed(1) + "%" : "—";
-    var missing = noReg.length ? "No registration total for: " + noReg.sort().join(", ") + " (no party registration" +
-      (noReg.indexOf("North Dakota") >= 0 ? "; North Dakota has no voter registration" : "") + ")" : "";
+    var nd = noReg.indexOf("North Dakota") >= 0, others = noReg.filter(function (n) { return n !== "North Dakota"; }).sort();
+    var missing = noReg.length ? "Not included: " + (others.length ? others.join(", ") +
+      " (official registration counts couldn't be read by our updater)" : "") +
+      (nd ? (others.length ? "; " : "") + "North Dakota (no voter registration)" : "") + "." : "";
     var cards = [
       ["Ballots cast (national)", fmt(totCast)],
       ["States reporting", (c.live || tReport) + " of " + (c.total || s.length)],
