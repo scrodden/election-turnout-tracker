@@ -66,14 +66,14 @@
 
   function renderCards() {
     var s = mf.states || [], c = mf.counts || {};
-    var totCast = 0, reg = 0, regCast = 0, regN = 0, noReg = [], R = 0, D = 0, N = 0, O = 0, pReport = 0, tReport = 0;
+    var totCast = 0, reg = 0, regCast = 0, regN = 0, noReg = [], elig = [], R = 0, D = 0, N = 0, O = 0, pReport = 0, tReport = 0;
     s.forEach(function (x) {
       totCast += x.cast || 0;
       if (x.partisan && x.has_data) { R += x.rep || 0; D += x.dem || 0; N += x.npa || 0; O += x.oth || 0; pReport++; }
       if (!x.has_data) return;
       tReport++;
       // registration and turnout over the SAME states: reporting states that have a registration total
-      if (x.registered) { reg += x.registered; regCast += x.cast || 0; regN++; } else noReg.push(x.name);
+      if (x.registered) { reg += x.registered; regCast += x.cast || 0; regN++; if (/^eligible/.test(x.registered_source || "")) elig.push(x.name); } else noReg.push(x.name);
     });
     var totP = R + D + N + O, natMargin = totP ? Math.round((100 * R / totP - 100 * D / totP) * 10) / 10 : null;   // total-based, matching per-state margins
     var to = reg ? (100 * regCast / reg).toFixed(1) + "%" : "—";
@@ -81,11 +81,13 @@
     var missing = noReg.length ? "Not included: " + (others.length ? others.join(", ") +
       " (official registration counts couldn't be read by our updater)" : "") +
       (nd ? (others.length ? "; " : "") + "North Dakota (no voter registration)" : "") + "." : "";
+    if (elig.length) missing = (missing ? missing + " " : "") + elig.join(", ") + " counted by eligible voters (" +
+      (elig.length > 1 ? "no voter registration" : "it has no voter registration") + "; Secretary of State estimate).";
     var cards = [
       ["Ballots cast (national)", fmt(totCast)],
       ["States reporting", (c.live || tReport) + " of " + (c.total || s.length)],
       ["Early-vote lean (party-reg states)", marginText(natMargin)],
-      ["Registered (" + regN + " of " + tReport + " reporting states)", fmt(reg), missing],
+      [(elig.length ? "Registered + eligible" : "Registered") + " (" + regN + " of " + tReport + " reporting states)", fmt(reg), missing],
       ["Turnout (those " + regN + " states)", to, regN ? fmt(regCast) + " ballots of " + fmt(reg) + " registered. " + missing : ""]
     ];
     $("#cards").innerHTML = cards.map(function (k) {

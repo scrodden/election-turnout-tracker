@@ -53,6 +53,8 @@ def main():
             rt = tab.get(code) or {}
             if not registered and rt.get("total"):
                 registered, reg_src = int(rt["total"]), "%s (as of %s)" % (what, rt.get("as_of", "?"))
+                if rt.get("kind") == "eligible":   # North Dakota: no voter registration
+                    reg_src = "eligible voters (as of %s)" % rt.get("as_of", "?")
                 turnout_pct = round(100.0 * cast / registered, 2) if cast else None
         out_states.append({
             "code": code, "name": s.get("name"), "partisan": s.get("partisan", True) is not False,

@@ -30,8 +30,14 @@ Official figures read by hand from pages scripts can't reach (Cloudflare /
 403) live in config/registered_totals_manual.json (OH: certified 2026 primary
 press release; MS: monthly Active Voter Count report; MN: the counts page's
 monthly county table). A manual entry is used when no parser covers the state
-or when it is newer than the parsed figure. North Dakota has no voter
-registration.
+or when it is newer than the parsed figure.
+
+  nd  North Dakota has no voter registration, so its turnout denominator is
+      the Secretary of State's ELIGIBLE-voter estimate (from U.S. Census
+      data), as the SoS itself uses: the sum of county 'Voters' on its results
+      web service (results.sos.nd.gov -> resultsws ResultsAjax.svc/
+      GetVoterTurnoutData) for the election currently loaded there; labelled
+      from the SoS 'Election Statistics 1980-Present' table when it matches.
 
 Refreshes about daily (registration moves slowly). Run:
   python scripts/registered_totals_update.py [--force]
@@ -249,8 +255,35 @@ def parse_mn():
             "source": "https://www.sos.mn.gov/election-administration-campaigns/data-maps/voter-registration-counts/"}
 
 
+def parse_nd():
+    import io
+    import pypdf
+    rows = json.loads(C.http_get("https://resultsws.sos.nd.gov/ResultsAjax.svc/GetVoterTurnoutData?", retries=2,
+                                 timeout=60, referer="https://results.sos.nd.gov/"))
+    total = sum(int(r.get("Voters") or 0) for r in rows)
+    if len(rows) != 53 or not total:
+        raise RuntimeError("ND: expected 53 counties, got %d" % len(rows))
+    as_of = "the election currently on the SoS results site"
+    try:   # name the election from the SoS statistics table when its estimate matches
+        raw = C.http_get("https://www.sos.nd.gov/sites/www/files/documents/elections/election-results-pdfs/"
+                         "statistics-turnout.pdf", binary=True, retries=1, timeout=60)
+        kinds = {"G": "general", "P": "primary", "PP": "presidential primary", "S": "special"}
+        for page in pypdf.PdfReader(io.BytesIO(raw)).pages:
+            for line in page.extract_text(extraction_mode="layout").splitlines():
+                m = re.match(r"\s*((?:19|20)\d{2})\s+(PP|P|G|S)\s+(.*)$", line)
+                if m:
+                    cells = re.split(r"\s{2,}", m.group(3).strip())
+                    if len(cells) >= 7 and C.parse_number(cells[6]) == total:
+                        as_of = "SoS estimate used for the %s %s election" % (m.group(1), kinds[m.group(2)])
+    except Exception:  # noqa: BLE001 - the label is optional
+        pass
+    return {"total": total, "as_of": as_of, "kind": "eligible",
+            "basis": "eligible voters (SoS estimate from U.S. Census data; North Dakota has no voter registration)",
+            "source": "https://results.sos.nd.gov/voterturnoutdetails.aspx"}
+
+
 SOURCES = {"mt": parse_mt, "in": parse_in, "vt": parse_vt, "hi": parse_hi, "il": parse_il,
-           "ga": parse_ga, "wi": parse_wi, "mn": parse_mn}
+           "ga": parse_ga, "wi": parse_wi, "mn": parse_mn, "nd": parse_nd}
 
 
 def main():
