@@ -166,6 +166,14 @@ tbody tr.sel { background: rgba(52,80,107,.12); }
 .chart .gridline { stroke: var(--line); stroke-width: 1; stroke-dasharray: 2 3; opacity: .7; }
 .chart .lbl { fill: var(--muted); font-size: 10px; }
 .chart .zero { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
+.chart { touch-action: pan-y; }
+.chart .hit { cursor: crosshair; }
+.chart .hover-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
+.chart .hover-dot { stroke: var(--card); stroke-width: 1.5; pointer-events: none; }
+.chart .tip { pointer-events: none; }
+.chart .tip rect { fill: var(--card); stroke: var(--line); stroke-width: 1; filter: drop-shadow(0 1px 2px rgba(16,24,40,.15)); }
+.chart .tip-v { fill: var(--ink); font-size: 11px; font-weight: 600; }
+.chart .tip-d { fill: var(--muted); font-size: 10px; }
 .chart-empty { color: var(--muted); font-size: 12.5px; padding: 20px 4px; }
 
 /* Table actions / mini buttons */

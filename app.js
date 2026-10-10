@@ -938,8 +938,11 @@
     var lean = seriesFrom(function (s) {
       var c = s.cast; return (c && c[4]) ? Math.round((c[0] - c[1]) / c[4] * 1000) / 10 : null;
     });
-    drawLineChart($("#chart-cast"), cast, { ymin: 0, fmt: fmt, color: "#31a354" });
-    drawLineChart($("#chart-lean"), lean, { symmetric: true, zero: true, fmt: marginText, color: "var(--accent)" });
+    lean.forEach(function (p, i) { p.n = cast[i] ? cast[i].y : null; });   // same records, same order
+    drawLineChart($("#chart-cast"), cast, { ymin: 0, fmt: fmt, color: "#31a354",
+      tip: function (p) { return fmt(p.y) + " ballots"; } });
+    drawLineChart($("#chart-lean"), lean, { symmetric: true, zero: true, fmt: marginText, color: "var(--accent)",
+      tip: function (p) { return marginText(p.y) + (p.n ? " of " + fmt(p.n) + " ballots" : ""); } });
   }
   function drawLineChart(svg, series, opts) {
     opts = opts || {};
@@ -978,6 +981,42 @@
     function dl(t) { return t.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
     add("text", { class: "lbl", x: ml, y: H - 7 }, dl(new Date(xmin)));
     add("text", { class: "lbl", x: W - mr, y: H - 7, "text-anchor": "end" }, dl(new Date(xmax)));
+
+    // hover / touch readout: the reported point nearest the pointer
+    var color = opts.color || "var(--accent)";
+    var guide = add("line", { class: "hover-line", x1: 0, y1: mt, x2: 0, y2: H - mb, visibility: "hidden" });
+    var dot = add("circle", { r: 3.5, fill: color, class: "hover-dot", visibility: "hidden" });
+    var tip = add("g", { class: "tip", visibility: "hidden" });
+    function sub(tag, cls) { var e = document.createElementNS(NS, tag); if (cls) e.setAttribute("class", cls); tip.appendChild(e); return e; }
+    var tipBg = sub("rect"), tipV = sub("text", "tip-v"), tipD = sub("text", "tip-d");
+    tipBg.setAttribute("rx", 4);
+    var hit = add("rect", { class: "hit", x: ml, y: mt, width: W - ml - mr, height: H - mt - mb, fill: "transparent" });
+    function show(clientX, clientY) {
+      var m = svg.getScreenCTM();   // the drawing is centered in its box (viewBox "meet"), so map through the CTM
+      if (!m) return;
+      var sp = svg.createSVGPoint();
+      sp.x = clientX; sp.y = clientY || 0;
+      var x = sp.matrixTransform(m.inverse()).x, best = 0, bd = Infinity;
+      for (var i = 0; i < pts.length; i++) { var dx = Math.abs(px(xs[i]) - x); if (dx < bd) { bd = dx; best = i; } }
+      var p = pts[best], X = px(xs[best]), Y = py(p.y);
+      guide.setAttribute("x1", X); guide.setAttribute("x2", X);
+      dot.setAttribute("cx", X); dot.setAttribute("cy", Y);
+      tipV.textContent = opts.tip ? opts.tip(p) : (opts.fmt ? opts.fmt(p.y) : p.y);
+      tipD.textContent = p.t.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      [guide, dot, tip].forEach(function (e) { e.setAttribute("visibility", "visible"); });
+      var pad = 6, w = Math.max(tipV.getComputedTextLength(), tipD.getComputedTextLength()) + 2 * pad, h = 32;
+      var tx = X + 8 + w > W - mr ? X - 8 - w : X + 8;
+      var ty = Math.max(mt, Math.min(Y - h / 2, H - mb - h));
+      tipBg.setAttribute("x", tx); tipBg.setAttribute("y", ty); tipBg.setAttribute("width", w); tipBg.setAttribute("height", h);
+      tipV.setAttribute("x", tx + pad); tipV.setAttribute("y", ty + 13);
+      tipD.setAttribute("x", tx + pad); tipD.setAttribute("y", ty + 26);
+    }
+    function hide() { [guide, dot, tip].forEach(function (e) { e.setAttribute("visibility", "hidden"); }); }
+    hit.addEventListener("mousemove", function (e) { show(e.clientX, e.clientY); });
+    hit.addEventListener("mouseleave", hide);
+    function touch(e) { if (e.touches[0]) show(e.touches[0].clientX, e.touches[0].clientY); }
+    hit.addEventListener("touchstart", touch, { passive: true });
+    hit.addEventListener("touchmove", touch, { passive: true });
   }
 
   // ---- CSV export ----------------------------------------------------------
