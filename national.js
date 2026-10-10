@@ -6,6 +6,7 @@
   function $(s) { return document.querySelector(s); }
   function getJSON(u) { return fetch(u + "?t=" + Date.now(), { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(u); return r.json(); }); }
   function fmt(n) { return n == null ? "—" : Math.round(n).toLocaleString("en-US"); }
+  function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function marginText(m) { return m == null ? "—" : m > 0 ? "R+" + m.toFixed(1) : m < 0 ? "D+" + (-m).toFixed(1) : "Even"; }
 
   var STOPS = [[-40, [33, 102, 172]], [-20, [103, 169, 207]], [0, [235, 237, 240]], [20, [239, 138, 98]], [40, [178, 24, 43]]];
@@ -65,20 +66,29 @@
 
   function renderCards() {
     var s = mf.states || [], c = mf.counts || {};
-    var totCast = 0, reg = 0, R = 0, D = 0, N = 0, O = 0, pReport = 0, tReport = 0;
-    s.forEach(function (x) { totCast += x.cast || 0; if (x.registered) reg += x.registered; if (x.partisan && x.has_data) { R += x.rep || 0; D += x.dem || 0; N += x.npa || 0; O += x.oth || 0; pReport++; } if (x.has_data) tReport++; });
+    var totCast = 0, reg = 0, regCast = 0, regN = 0, noReg = [], R = 0, D = 0, N = 0, O = 0, pReport = 0, tReport = 0;
+    s.forEach(function (x) {
+      totCast += x.cast || 0;
+      if (x.partisan && x.has_data) { R += x.rep || 0; D += x.dem || 0; N += x.npa || 0; O += x.oth || 0; pReport++; }
+      if (!x.has_data) return;
+      tReport++;
+      // registration and turnout over the SAME states: reporting states that have a registration total
+      if (x.registered) { reg += x.registered; regCast += x.cast || 0; regN++; } else noReg.push(x.name);
+    });
     var totP = R + D + N + O, natMargin = totP ? Math.round((100 * R / totP - 100 * D / totP) * 10) / 10 : null;   // total-based, matching per-state margins
-    var to = reg ? (100 * totCast / reg).toFixed(1) + "%" : "—";
+    var to = reg ? (100 * regCast / reg).toFixed(1) + "%" : "—";
+    var missing = noReg.length ? "No registration total for: " + noReg.sort().join(", ") + " (no party registration" +
+      (noReg.indexOf("North Dakota") >= 0 ? "; North Dakota has no voter registration" : "") + ")" : "";
     var cards = [
       ["Ballots cast (national)", fmt(totCast)],
       ["States reporting", (c.live || tReport) + " of " + (c.total || s.length)],
       ["Early-vote lean (party-reg states)", marginText(natMargin)],
-      ["Registered (reporting states)", fmt(reg)],
-      ["Turnout (reporting states)", to]
+      ["Registered (" + regN + " of " + tReport + " reporting states)", fmt(reg), missing],
+      ["Turnout (those " + regN + " states)", to, regN ? fmt(regCast) + " ballots of " + fmt(reg) + " registered. " + missing : ""]
     ];
     $("#cards").innerHTML = cards.map(function (k) {
       var col = (k[0].indexOf("lean") >= 0 && natMargin != null) ? (natMargin > 0 ? "var(--rep)" : natMargin < 0 ? "var(--dem)" : "var(--ink)") : "var(--ink)";
-      return "<div class='ncard'><div class='k'>" + k[0] + "</div><div class='v' style='color:" + col + "'>" + k[1] + "</div></div>";
+      return "<div class='ncard'" + (k[2] ? " title='" + esc(k[2]) + "'" : "") + "><div class='k'>" + k[0] + "</div><div class='v' style='color:" + col + "'>" + k[1] + "</div></div>";
     }).join("");
     var any = tReport > 0, pn = $("#pre-note");
     if (!any) { pn.hidden = false; pn.innerHTML = "🗳️ <b>Early voting hasn't started nationally yet.</b> States light up here as their 2026 feeds go live through October; the map & totals fill in automatically."; }

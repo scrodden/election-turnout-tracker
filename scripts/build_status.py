@@ -29,6 +29,8 @@ def now():
 def main():
     reg = load(STATES_PATH, {}) or {}
     health = (load(os.path.join(ROOT, "data", "_health.json"), {}) or {}).get("states", {})
+    # registration totals for states whose turnout feed carries none (the party-registration table)
+    regtab = (load(os.path.join(ROOT, "data", "registration.json"), {}) or {}).get("states", {}) or {}
     out_states = []
     live = 0
     for s in reg.get("states", []):
@@ -42,14 +44,21 @@ def main():
         has_data = cast > 0 or bool(methods)
         if has_data:
             live += 1
+        registered = int(sw.get("registered", 0) or 0)
+        turnout_pct = sw.get("turnout_pct")
+        reg_src = "feed" if registered else ""
+        rt = regtab.get(code) or {}
+        if not registered and rt.get("total"):
+            registered, reg_src = int(rt["total"]), "registration table (as of %s)" % rt.get("as_of", "?")
+            turnout_pct = round(100.0 * cast / registered, 2) if cast else None
         out_states.append({
             "code": code, "name": s.get("name"), "partisan": s.get("partisan", True) is not False,
             "hidden": bool(s.get("hidden")), "has_data": has_data, "frozen": frozen,
-            "cast": cast, "registered": int(sw.get("registered", 0) or 0),
+            "cast": cast, "registered": registered, "registered_source": reg_src,
             "rep": int(castb.get("rep", 0) or 0), "dem": int(castb.get("dem", 0) or 0),
             "npa": int(castb.get("npa", 0) or 0), "oth": int(castb.get("oth", 0) or 0),
             "margin": castb.get("margin"),
-            "turnout_pct": sw.get("turnout_pct"), "methods": methods,
+            "turnout_pct": turnout_pct, "methods": methods,
             "updated": d.get("generated_at", ""), "source_compiled": d.get("source_compiled", ""),
             "checked_at": health.get(code, {}).get("checked_at", ""),
             "feed_status": health.get(code, {}).get("status", ""),
