@@ -17,12 +17,21 @@ source fails keeps its last-known value (marked stale) instead of dropping out.
   il  State Board of Elections 'Voter Turnout' page: newest election's 'All
       Jurisdictions' 'Total Voters' (registered, as of that election)
 
-Not reachable from scripts (checked 2026-10-10): GA (sos.ga.gov 403), MN
-(sos.mn.gov pages and electionresults.sos.mn.gov behind bot checks / CAPTCHA),
-WI (elections.wi.gov Cloudflare challenge; its file names aren't discoverable
-without the pages), MS (sos.ms.gov 403, files too), OH (ohiosos.gov
-Cloudflare; the registration dashboard's report key isn't published outside
-the blocked portal). North Dakota has no voter registration.
+  ga  SoS 'Georgia Active Voters Report' -- the SoS's Tableau Public dashboard
+      (CSV export of ActiveVotersbyCounty; sos.ga.gov itself blocks scripts):
+      active voters, daily
+  wi  WEC monthly 'Voter Registration Statistics' workbook VoterCountsByCounty
+      (the pages are behind a Cloudflare check but the files are served; each
+      month's file gets the next numeric suffix, so the next one is probed)
+  mn  SoS 'Voter Registration by County since 2000' workbook (stable media
+      URL; newest column), unless the manual snapshot is newer
+
+Official figures read by hand from pages scripts can't reach (Cloudflare /
+403) live in config/registered_totals_manual.json (OH: certified 2026 primary
+press release; MS: monthly Active Voter Count report; MN: the counts page's
+monthly county table). A manual entry is used when no parser covers the state
+or when it is newer than the parsed figure. North Dakota has no voter
+registration.
 
 Refreshes about daily (registration moves slowly). Run:
   python scripts/registered_totals_update.py [--force]
@@ -43,6 +52,7 @@ sys.path.insert(0, HERE)
 import common as C  # noqa: E402
 
 OUT_PATH = os.path.join(ROOT, "data", "registered_totals.json")
+MANUAL_PATH = os.path.join(ROOT, "config", "registered_totals_manual.json")
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
           "November", "December"]
 
@@ -178,7 +188,69 @@ def parse_il():
     raise RuntimeError("IL: 'All Jurisdictions' row not found")
 
 
-SOURCES = {"mt": parse_mt, "in": parse_in, "vt": parse_vt, "hi": parse_hi, "il": parse_il}
+def parse_ga():
+    import csv
+    import io
+    url = ("https://public.tableau.com/views/ElectionDashboard_16395162064680/ActiveVotersbyCounty.csv"
+           "?:showVizHome=no")
+    rows = list(csv.DictReader(io.StringIO(C.http_get(url, retries=2, timeout=60).lstrip("\ufeff"))))
+    counties = [r for r in rows if (r.get("County Name") or "").strip() and
+                not re.search(r"total", r.get("County Name", ""), re.I)]
+    if len(counties) < 150:
+        raise RuntimeError("GA: only %d county rows" % len(counties))
+    total = sum(C.parse_number(r.get("Total 2") or r.get("Sum of Total") or "0") for r in counties)
+    dates = {(r.get("Month, Day, Year of Calculation1") or "").strip() for r in counties} - {""}
+    return {"total": int(total), "as_of": sorted(dates)[-1] if dates else "", "basis": "active voters",
+            "source": "https://sos.ga.gov/georgia-active-voters-report"}
+
+
+def parse_wi(prev=None):
+    import xls_lite
+    start = int((prev or {}).get("file_n") or 39)
+    best = None
+    for n in range(start, start + 4):
+        url = "https://elections.wi.gov/sites/default/files/documents/VoterCountsByCounty_%d.xlsx" % n
+        req = urllib.request.Request(url, headers={"User-Agent": C.USER_AGENT})
+        try:
+            with urllib.request.urlopen(req, context=C._SSL_CTX, timeout=60) as r:
+                best = (n, url, r.read(), r.headers.get("Last-Modified", ""))
+        except Exception:  # noqa: BLE001 - next month's file not posted yet
+            if n > start:
+                break
+    if not best:
+        raise RuntimeError("WI: no VoterCountsByCounty_%d.xlsx" % start)
+    n, url, raw, lm = best
+    rows = xls_lite.read_any(raw)[0][1]
+    hdr = [str(x).strip() for x in rows[0]]
+    ci = hdr.index("VoterCount")
+    total = sum(r[ci] for r in rows[1:] if len(r) > ci and isinstance(r[ci], float))
+    when = datetime.strptime(lm, "%a, %d %b %Y %H:%M:%S GMT") if lm else None   # posted the day after the 1st
+    as_of = "%s 1, %d" % (MONTHS[when.month - 1], when.year) if when else ""
+    return {"total": int(total), "as_of": as_of, "as_of_date": when.strftime("%Y-%m-01") if when else "",
+            "basis": "active registered voters", "file_n": n,
+            "source": "https://elections.wi.gov/statistics-data/voter-registration-statistics", "file": url}
+
+
+def parse_mn():
+    import xls_lite
+    from datetime import date, timedelta
+    url = "https://www.sos.mn.gov/media/3294/minnesota-voter-registration-by-county-since-2000.xlsx"
+    rows = xls_lite.read_any(C.http_get(url, binary=True, retries=2, timeout=90))[0][1]
+    hi = next(i for i, r in enumerate(rows) if r and str(r[0]).strip() == "County")
+    hdr = rows[hi]
+    ci = max(i for i, v in enumerate(hdr) if v not in (None, ""))
+    when = hdr[ci]
+    d = (date(1899, 12, 30) + timedelta(days=int(when))) if isinstance(when, float) else \
+        datetime.strptime(str(when).strip(), "%m/%d/%Y").date()
+    total = sum(r[ci] for r in rows[hi + 1:] if r and isinstance(r[0], str) and r[0].strip()
+                and not re.search(r"total", r[0], re.I) and len(r) > ci and isinstance(r[ci], float))
+    return {"total": int(total), "as_of": "%s %d, %d" % (MONTHS[d.month - 1], d.day, d.year),
+            "as_of_date": d.isoformat(), "basis": "registered voters (active and challenged)",
+            "source": "https://www.sos.mn.gov/election-administration-campaigns/data-maps/voter-registration-counts/"}
+
+
+SOURCES = {"mt": parse_mt, "in": parse_in, "vt": parse_vt, "hi": parse_hi, "il": parse_il,
+           "ga": parse_ga, "wi": parse_wi, "mn": parse_mn}
 
 
 def main():
@@ -195,7 +267,7 @@ def main():
     out = {}
     for code, fn in SOURCES.items():
         try:
-            r = fn()
+            r = fn(((prev.get("states") or {}).get(code))) if code == "wi" else fn()
             if not r.get("total"):
                 raise RuntimeError("no total")
             out[code] = r
@@ -204,6 +276,14 @@ def main():
             old = (prev.get("states") or {}).get(code)
             if old:
                 out[code] = dict(old, stale=True)
+    # official figures read by hand where scripts are blocked; used when no parser
+    # covers the state or when the snapshot is newer than the parsed figure
+    for code, m in ((load(MANUAL_PATH, {}) or {}).get("states") or {}).items():
+        if not m.get("total"):
+            continue
+        cur = out.get(code)
+        if not cur or (m.get("as_of_date", "") > (cur.get("as_of_date") or "")):
+            out[code] = dict({k: v for k, v in m.items() if not k.startswith("_")}, manual=True)
     doc = {"generated_at": now(),
            "note": "Statewide registered-voter totals for states without party registration (official sources; see "
                    "scripts/registered_totals_update.py). Used as the turnout denominator on the national page.",
