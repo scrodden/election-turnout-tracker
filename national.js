@@ -88,7 +88,7 @@
       ["States reporting", (c.live || tReport) + " of " + (c.total || s.length)],
       ["Early-vote lean (party-reg states)", marginText(natMargin)],
       [(elig.length ? "Registered + eligible" : "Registered") + " (" + regN + " of " + tReport + " reporting states)", fmt(reg), missing],
-      ["Turnout (those " + regN + " states)", to, regN ? fmt(regCast) + " ballots of " + fmt(reg) + " registered. " + missing : ""]
+      ["Turnout (those " + regN + " states)", to, regN ? fmt(regCast) + " ballots of " + fmt(reg) + (elig.length ? " registered or eligible voters. " : " registered. ") + missing : ""]
     ];
     $("#cards").innerHTML = cards.map(function (k) {
       var col = (k[0].indexOf("lean") >= 0 && natMargin != null) ? (natMargin > 0 ? "var(--rep)" : natMargin < 0 ? "var(--dem)" : "var(--ink)") : "var(--ink)";
