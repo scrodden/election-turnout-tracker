@@ -279,12 +279,12 @@
     {
       "code": "ca",
       "name": "California",
-      "partisan": false,
+      "partisan": true,
       "hidden": true,
       "data": "data/ca/latest.json",
       "geojson": "assets/ca-counties.geojson",
       "history": "data/ca/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.ca.gov/elections/upcoming-elections/general-election-november-3-2026' target='_blank' rel='noopener'>California Secretary of State</a> VBM Ballot Statistics (vote-by-mail ballots issued and returned by county, updated daily), with turnout measured against the Secretary of State's Report of Registration. California registers voters by party, but the state's ballot report has no party breakdown, so this is turnout only. Every active voter is mailed a ballot.",
+      "source_note": "Source: <a href='https://www.sos.ca.gov/elections/upcoming-elections/general-election-november-3-2026' target='_blank' rel='noopener'>California Secretary of State</a> VBM Ballot Statistics (vote-by-mail ballots issued and returned by county, updated daily), with turnout measured against the Secretary of State's Report of Registration. California registers voters by party, but the state's ballot report has no party breakdown, so counties show turnout only. Every active voter is mailed a ballot. Statewide party split: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (from Political Data Inc), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>; county figures have no party.",
       "party_registration": true
     },
     {

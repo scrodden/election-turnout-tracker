@@ -395,7 +395,7 @@ def main():
         "county_source_errors": {k: v.get("error", "") for k, v in sorted(errors.items())},
         "source_compiled": newest,
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
-        "mail_base_label": "Ballots sent",
+        "mail_base_label": "Ballots sent", "unk_label": "county reports ahead of state data",
         "statewide": statewide, "counties": counties,
     }
     if note:

@@ -31,6 +31,8 @@
   };
 
   function noPartyText() {
+    if (partisan && data && data.units_partisan === false)
+      return "Party is reported statewide only (see the cards above), so " + (unitLabelPlural || "counties").toLowerCase() + " show turnout.";
     if (st && st.partisan !== false) return "The source isn't reporting party for these ballots right now, so this is turnout only.";
     if (st && st.party_registration) return "This state registers voters by party, but its ballot report has no party breakdown, so this is turnout only.";
     return "This state does not register voters by party, so no partisan breakdown is available.";
@@ -56,6 +58,7 @@
   var rcmp = false, rcData = null, RCMP_URL = null, rcRace = "gov";
   var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
   var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
+  var unitPartisan = true;   // false = party only statewide (e.g. CA): map / table / county panel show turnout
   var unitLabel = "County", unitLabelPlural = "Counties";  // per-state map/table unit noun (VA = "District")
   var localityLinks = null, localityData = null, localityFilter = "";  // outbound per-locality directory (VA -> VPAP)
   // Second map view (st.locality_data + st.locality_geojson): VA's main map is by
@@ -110,7 +113,7 @@
 
   // ---- turnout vs 2026 result -----
   function rcHasData() { return !!(rcData && rcData.counties && Object.keys(rcData.counties).length); }
-  function rcActive() { return partisan && rcmp && rcHasData() && method === "cast"; }
+  function rcActive() { return unitPartisan && rcmp && rcHasData() && method === "cast"; }
   function rcRaceLabel() { return rcRace === "sen" ? "Senate" : "Governor"; }
   function rcRow(name) { var c = rcData && rcData.counties && rcData.counties[name]; if (!c) return null; return c[rcRace] || c.gov || c.sen || null; }
   function rcMarginOf(name) { var r = rcRow(name); return r ? r.margin : null; }
@@ -299,7 +302,7 @@
     host.appendChild(statCard("", "No party / Other", fmt(b.npa + b.oth),
       pctText(b.npa_pct == null ? null : Math.round((b.npa_pct + b.oth_pct) * 10) / 10)));
     // e.g. OH: a county's own daily report ahead of the state's party data -> ballots without a party yet
-    if (b.unk) host.appendChild(statCard("", "Party not reported", fmt(b.unk), "county reports ahead of state data"));
+    if (b.unk) host.appendChild(statCard("", "Party not reported", fmt(b.unk), data.unk_label || "counted, but no party in the source yet"));
     var mc = statCard("", "Partisan lean", marginText(b.margin),
       total ? (b.unk ? "of ballots with a known party" : "of ballots in this category") : "no ballots yet");
     mc.querySelector(".v").style.color = b.margin == null ? "var(--muted)" : (b.margin > 0 ? "var(--rep)" : b.margin < 0 ? "var(--dem)" : "var(--ink)");
@@ -432,13 +435,13 @@
 
   function updateMapCaption() {
     var unitLc = unitLabel.toLowerCase();
-    var hasT = !partisan && anyTurnout();
+    var hasT = !unitPartisan && anyTurnout();
     var outlined = mapMode === "precinct" && unitMode !== "primary";
     $("#map-title").textContent = mapMode === "precinct" ? "Turnout by precinct" + (outlined ? " · " + unitLabelPlural.toLowerCase() : "")
-      : (partisan ? "Partisan lean by " + unitLc : (hasT ? "Early turnout by " : "Early ballots by ") + unitLc);
+      : (unitPartisan ? "Partisan lean by " + unitLc : (hasT ? "Early turnout by " : "Early ballots by ") + unitLc);
     $("#map-note").textContent = mapMode === "precinct"
       ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
-      : (partisan
+      : (unitPartisan
         ? "Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet."
         : hasT
           ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). " + noPartyText()
@@ -454,7 +457,7 @@
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     var cmp = compareActive();
     var maxTot = 0, maxT = 0, anyT = false, tOf = {};
-    if (!partisan) {
+    if (!unitPartisan) {
       geo.features.forEach(function (ft) {
         var nm = ft.properties.name, c = data.counties[nm], bb = block(c, method);
         var tt = bb.total || 0; if (tt > maxTot) maxTot = tt;
@@ -466,7 +469,7 @@
       var name = ft.properties.name;
       var b = block(data.counties[name], method);
       var fill;
-      if (!partisan) {
+      if (!unitPartisan) {
         // relative shading: darkest = highest turnout (or most ballots) among units
         fill = anyT ? (tOf[name] == null ? "#e9edf0" : colorForFrac(maxT ? tOf[name] / maxT : 0))
              : colorForFrac(maxTot ? (b.total / maxTot) : 0);
@@ -547,7 +550,7 @@
 
   function renderLegend() {
     var lg = $("#legend");
-    if (mapMode === "precinct" || !partisan) {
+    if (mapMode === "precinct" || !unitPartisan) {
       lg.innerHTML = "<span>less</span><span class='grad grad-turnout'></span><span>more turnout</span>";
     } else if (compareActive()) {
       lg.innerHTML = "<span>more Dem</span><span class='grad'></span><span>more Rep</span><span style='margin-left:5px'>vs&nbsp;2022</span>";
@@ -577,7 +580,7 @@
     var b = block(data.counties[name], method);
     var tip = $("#tooltip");
     tip.hidden = false;
-    if (!partisan) {
+    if (!unitPartisan) {
       var cty = data.counties[name] || {}, tv = turnoutOf(data.counties[name], b);
       tip.innerHTML = "<b>" + name + "</b><br>Ballots: " + fmt(b.total) +
         (tv != null ? "<br>Turnout: <span class='tt-margin'>" + pctText(tv) + "</span>" +
@@ -624,7 +627,7 @@
     return false;
   }
   function activeCols() {
-    if (!partisan) {
+    if (!unitPartisan) {
       var cols0 = [{ key: "county", label: unitLabel, cls: "county" }, { key: "total", label: "Ballots" }];
       if (anyTurnout()) cols0.push({ key: "turnout", label: "Turnout" });
       return cols0;
@@ -664,7 +667,7 @@
       var res = rcActive() ? rcMarginOf(name) : null;
       var gap = (rcActive() && b.margin != null && res != null) ? Math.round((b.margin - res) * 10) / 10 : null;
       return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
-               margin: b.margin, turnout: partisan ? cty.turnout_pct : turnoutOf(data.counties[name], b),
+               margin: b.margin, turnout: unitPartisan ? cty.turnout_pct : turnoutOf(data.counties[name], b),
                tqv: cty.tqv_url, source: cty.source, srcUrl: cty.source_url, srcLabel: cty.source_label,
                m22: m22, shift: shift, res: res, gap: gap };
     });
@@ -688,7 +691,7 @@
       var href = (r.tqv && r.source === "tqv") ? r.tqv : r.srcUrl;
       var ttl = (r.tqv && r.source === "tqv") ? "Live TQV feed for " + r.name : (r.srcLabel || "County turnout page") + " (" + r.name + ")";
       var link = href ? " <a class='tqv-mini' href='" + href + "' target='_blank' rel='noopener' title='" + ttl + "'>&#8599;</a>" : "";
-      if (!partisan) {
+      if (!unitPartisan) {
         tr.innerHTML = "<td class='county'>" + r.name + link + "</td><td>" + fmt(r.total) + "</td>" +
           (showT ? "<td>" + pctText(r.turnout) + "</td>" : "");
         tr.addEventListener("click", function (ev) { if (ev.target.closest("a")) return; selectCounty(r.name, false); });
@@ -750,7 +753,7 @@
     $("#county-title").textContent = name + " — " + (data.state_name || "");
     var mlist = METHODS.filter(function (m) { return m.key === "cast" || (data.methods_present || []).indexOf(m.key) >= 0; });
     var rows = [];
-    if (partisan) {
+    if (unitPartisan) {
       rows.push("<tr><th>Method</th><th>Rep</th><th>Dem</th><th>NPA</th><th>Other</th><th>Total</th><th>Lean</th></tr>");
       mlist.forEach(function (m) {
         if (m.key !== "cast" && !cty[m.key]) return;
@@ -863,6 +866,7 @@
       if (!shown || nd.data_hash !== shown.data_hash) {
         if (inView) { primaryView.data = nd; applyAltView(unitMode); } else data = nd;
         partisan = (st.partisan !== false) && nd.partisan !== false;
+        unitPartisan = partisan && nd.units_partisan !== false;
         ensureMethodValid(); precinctCache = {}; renderAll();
         if (selected) openPrecincts(selected);
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
@@ -934,9 +938,13 @@
     var sec = $("#trends");
     if (!trendData || trendData.length < 2) { sec.hidden = true; return; }
     sec.hidden = false;
-    var cast = seriesFrom(function (s) { return (s.cast && s.cast[4]) || 0; });
-    var lean = seriesFrom(function (s) {
-      var c = s.cast; return (c && c[4]) ? Math.round((c[0] - c[1]) / c[4] * 1000) / 10 : null;
+    var cast = (trendData || []).map(function (r) {
+      var sc = (r.statewide || {}).cast;
+      return { t: new Date(r.generated_at), y: (sc && sc[4]) || (typeof r.cast === "number" ? r.cast : 0) };
+    }).filter(function (p) { return !isNaN(p.t.getTime()); });
+    var lean = seriesFrom(function (s) {   // over party-known ballots (records may carry unattributed ones)
+      var c = s.cast, known = c ? c[0] + c[1] + c[2] + c[3] : 0;
+      return known ? Math.round((c[0] - c[1]) / known * 1000) / 10 : null;
     });
     lean.forEach(function (p, i) { p.n = cast[i] ? cast[i].y : null; });   // same records, same order
     drawLineChart($("#chart-cast"), cast, { ymin: 0, fmt: fmt, color: "#31a354",
@@ -1123,7 +1131,7 @@
     // read now: updateHash() rewrites the hash before the view data arrives
     var wantUnit = applyHash ? parseHash().u : null;
     RCMP_URL = st.data ? st.data.replace(/latest\.json$/, "results_county.json") : null;
-    partisan = (st.partisan !== false);
+    partisan = (st.partisan !== false); unitPartisan = partisan;
     $("#filter").value = ""; var cb = $("#cmp-2022"); if (cb) cb.checked = false;
     var rb0 = $("#cmp-result"); if (rb0) rb0.checked = false;
     var rlab0 = $("#cmp-result-label"); if (rlab0) rlab0.hidden = true;
@@ -1140,6 +1148,7 @@
       geo = res[0]; data = res[1]; proj = buildProjection(geo); method = pickDefaultMethod();
       // a partisan state's feed can drop party for a while (e.g. ME's file on 10/2/26): show turnout only
       partisan = (st.partisan !== false) && data.partisan !== false;
+      unitPartisan = partisan && data.units_partisan !== false;
       unitLabel = data.unit_label || "County"; unitLabelPlural = data.unit_label_plural || (unitLabel === "County" ? "Counties" : unitLabel + "s");
       if (applyHash) {
         var h = parseHash();
