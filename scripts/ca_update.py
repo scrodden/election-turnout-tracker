@@ -29,7 +29,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -61,18 +61,39 @@ def _block(total):
             "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
 
 
-def read_vbm(raw):
+MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+          "november", "december")
+
+
+def data_date(stamp):
+    """The workbook's first cell, which the SoS keeps reformatting: an Excel
+    serial; 'Saturday, 10/10/2026 (a.m)'; 'Saturday, October 10, 2026 (p.m)'.
+    -> datetime (a.m. -> 9:00, p.m. -> 17:00; the SoS gives no clock time), or
+    None if unreadable (the caller then falls back to the file's own date)."""
+    stamp = str(stamp or "").strip()
+    try:
+        return datetime(1899, 12, 30) + timedelta(days=float(stamp))
+    except ValueError:
+        pass
+    ampm = re.search(r"\(?\s*([ap])\.?\s*m\.?\s*\)?\s*$", stamp, re.I)
+    hour = {"a": 9, "p": 17}.get(ampm.group(1).lower(), 0) if ampm else 0
+    m = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](20\d{2})", stamp)
+    if m:
+        return datetime(int(m.group(3)), int(m.group(1)), int(m.group(2)), hour)
+    m = re.search(r"([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(20\d{2})", stamp)
+    if m and m.group(1).lower()[:3] in [x[:3] for x in MONTHS]:
+        mon = [x[:3] for x in MONTHS].index(m.group(1).lower()[:3]) + 1
+        return datetime(int(m.group(3)), mon, int(m.group(2)), hour)
+    return None
+
+
+def read_vbm(raw, file_date=None):
     """-> (as-of datetime, {county: (issued, returned, accepted)}) with the Total row checked."""
     rows = next(iter(C.read_xlsx(raw, positional=True).values()))
-    stamp = str(rows[0][0]).strip()
-    try:   # an Excel serial, or (since 10/10/26) text like 'Saturday, 10/10/2026 (a.m)'
-        as_of = datetime(1899, 12, 30) + timedelta(days=float(stamp))
-    except ValueError:
-        m = re.search(r"(\d{1,2})/(\d{1,2})/(20\d{2})(?:\D*\(?\s*([ap])\.?\s*m)?", stamp, re.I)
-        if not m:
-            raise RuntimeError("CA: unrecognised data date %r" % stamp[:40])
-        hour = {"a": 9, "p": 17}.get((m.group(4) or "").lower(), 0)   # the SoS marks only a.m. / p.m.
-        as_of = datetime(int(m.group(3)), int(m.group(1)), int(m.group(2)), hour)
+    as_of = data_date(rows[0][0])
+    if as_of is None:   # never throw the figures away over a date format
+        print("CA: unrecognised data date %r -- using the file's date" % str(rows[0][0])[:40], file=sys.stderr)
+        as_of = file_date or datetime.now(timezone.utc).replace(tzinfo=None)
     hi = next(i for i, r in enumerate(rows) if r and r[0].strip().upper() == "COUNTY")
     head = [c.strip() for c in rows[hi]]
 
@@ -169,12 +190,13 @@ def main():
         print("ca: checked under 20 minutes ago.")
         return 0
     try:
-        as_of, rows = read_vbm(C.http_get(src["vbm_xlsx"], binary=True, no_cache=True, retries=2))
+        as_of, rows = read_vbm(C.http_get(src["vbm_xlsx"], binary=True, no_cache=True, retries=2),
+                               file_date=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=7))   # Pacific
     except Exception as e:  # noqa: BLE001
         print("CA SoS VBM statistics unavailable: %s" % str(e)[:140], file=sys.stderr)
         import lab_standin as LAB
         LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=False, force=force)
-        return 0
+        return 2   # the Lab stand-in kept the page current, but flag the official feed on the status page
     reg, reg_report = read_registration(src)
     geo = load(GEO_PATH, {"features": []})
     gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}

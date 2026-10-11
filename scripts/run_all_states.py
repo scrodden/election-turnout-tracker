@@ -15,6 +15,7 @@ publishes new data; this file makes that provable and surfaces breakage.
 Run:  python scripts/run_all_states.py
 """
 import os
+import re
 import sys
 import io
 import json
@@ -70,7 +71,9 @@ def main():
             elif rc in (0, None):
                 rec["status"] = "ok"; ok += 1
             else:
-                rec["status"] = "error"; rec["error"] = "exit %s" % rc; errors += 1
+                msgs = [l.strip() for l in out.splitlines() if re.search(r"unavailable|failed|error|!", l, re.I)]
+                rec["status"] = "error"; rec["error"] = (msgs[-1][:200] if msgs else "exit %s" % rc); errors += 1
+                rec["last_error_at"] = rec["checked_at"]
             rec["changed"] = (before != after)
             if rec["changed"]:
                 changed += 1
