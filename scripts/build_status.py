@@ -56,10 +56,12 @@ def main():
                 if rt.get("kind") == "eligible":   # North Dakota: no voter registration
                     reg_src = "eligible voters (as of %s)" % rt.get("as_of", "?")
                 turnout_pct = round(100.0 * cast / registered, 2) if cast else None
+        th = load(os.path.join(ROOT, "data", code, "turnout_history.json")) or {}
+        past_final = {y: v.get("total") for y, v in (th.get("years") or {}).items() if v.get("total")}
         out_states.append({
             "code": code, "name": s.get("name"), "partisan": s.get("partisan", True) is not False,
             "hidden": bool(s.get("hidden")), "has_data": has_data, "frozen": frozen,
-            "cast": cast, "registered": registered, "registered_source": reg_src,
+            "cast": cast, "registered": registered, "registered_source": reg_src, "past_final": past_final,
             "rep": int(castb.get("rep", 0) or 0), "dem": int(castb.get("dem", 0) or 0),
             "npa": int(castb.get("npa", 0) or 0), "oth": int(castb.get("oth", 0) or 0),
             "margin": castb.get("margin"),

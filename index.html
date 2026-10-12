@@ -33,6 +33,11 @@
     <div class="controls-row">
       <label class="cmp-toggle"><input type="checkbox" id="cmp-2022" /> <span>Compare to 2022 general</span></label>
       <label class="cmp-toggle" id="cmp-result-label" hidden><input type="checkbox" id="cmp-result" /> <span>Compare turnout to 2026 result</span></label>
+      <label class="cmp-toggle" id="past-label" hidden><span>Compare to final turnout in</span>
+        <select id="past-year" aria-label="Compare to a past general election's final turnout">
+          <option value="">— none —</option><option value="2024">2024</option><option value="2022">2022</option>
+          <option value="2020">2020</option><option value="2018">2018</option>
+        </select></label>
       <span id="cmp-note" class="dim"></span>
     </div>
     <p id="method-hint" class="method-hint"></p>

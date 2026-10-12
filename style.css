@@ -193,3 +193,5 @@ tbody tr.sel { background: rgba(52,80,107,.12); }
 .ctytable th { color: var(--muted); font-weight: 600; }
 .frozen-banner { background: #fff8e6; border: 1px solid #e6d38a; color: #5a4a1a; border-radius: var(--radius); padding: 10px 14px; margin: 0 0 14px; font-size: 13.5px; box-shadow: var(--shadow); }
 @media (prefers-color-scheme: dark) { .frozen-banner { background: #2a2410; border-color: #5c4f22; color: #e8d9a6; } }
+.past-pick { font-size: 12.5px; color: var(--muted); margin-left: auto; margin-right: 8px; white-space: nowrap; }
+.past-pick select, #past-label select { font-size: 12.5px; padding: 2px 4px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }

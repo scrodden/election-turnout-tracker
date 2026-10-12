@@ -2,6 +2,7 @@
 (function () {
   "use strict";
   var geo = null, mf = null, reg = null, proj = null, sort = { key: "cast", dir: -1 }, filter = "", maxCast = 0;
+  var pastYear = (location.hash.match(/pf=(\d{4})/) || [])[1] || "";   // compare with a past general's final turnout
   var ptSort = { key: "total", dir: -1 }, prSort = { key: "total", dir: -1 };
   function $(s) { return document.querySelector(s); }
   function getJSON(u) { return fetch(u + "?t=" + Date.now(), { cache: "no-store" }).then(function (r) { if (!r.ok) throw new Error(u); return r.json(); }); }
@@ -83,13 +84,18 @@
       (nd ? (others.length ? "; " : "") + "North Dakota (no voter registration)" : "") + "." : "";
     if (elig.length) missing = (missing ? missing + " " : "") + elig.join(", ") + " counted by eligible voters (" +
       (elig.length > 1 ? "no voter registration" : "it has no voter registration") + "; Secretary of State estimate).";
+    var pf = 0, pfCast = 0, pfN = 0;
+    s.forEach(function (x) { var f = (x.past_final || {})[pastYear]; if (pastYear && x.has_data && f) { pf += f; pfCast += x.cast || 0; pfN++; } });
     var cards = [
       ["Ballots cast (national)", fmt(totCast)],
       ["States reporting", (c.live || tReport) + " of " + (c.total || s.length)],
       ["Early-vote lean (party-reg states)", marginText(natMargin)],
       [(elig.length ? "Registered + eligible" : "Registered") + " (" + regN + " of " + tReport + " reporting states)", fmt(reg), missing],
+      pastYear ? ["vs " + pastYear + " final (" + pfN + " reporting states)", pf ? (100 * pfCast / pf).toFixed(1) + "%" : "—",
+        pf ? fmt(pfCast) + " ballots so far vs " + fmt(pf) + " cast in those states in " + pastYear + " (UF Election Lab totals)." : ""] : null,
       ["Turnout (those " + regN + " states)", to, regN ? fmt(regCast) + " ballots of " + fmt(reg) + (elig.length ? " registered or eligible voters. " : " registered. ") + missing : ""]
     ];
+    cards = cards.filter(Boolean);
     $("#cards").innerHTML = cards.map(function (k) {
       var col = (k[0].indexOf("lean") >= 0 && natMargin != null) ? (natMargin > 0 ? "var(--rep)" : natMargin < 0 ? "var(--dem)" : "var(--ink)") : "var(--ink)";
       return "<div class='ncard'" + (k[2] ? " title='" + esc(k[2]) + "'" : "") + "><div class='k'>" + k[0] + "</div><div class='v' style='color:" + col + "'>" + k[1] + "</div></div>";
@@ -103,12 +109,16 @@
     var rows = (mf.states || []).filter(function (r) { return !filter || r.name.toLowerCase().indexOf(filter) >= 0; });
     rows.sort(function (a, b) { var A = a[sort.key], B = b[sort.key]; if (sort.key === "name") return (A < B ? -1 : 1) * sort.dir; A = A || 0; B = B || 0; return (A - B) * sort.dir; });
     var cols = [["name", "State"], ["cast", "Ballots"], ["turnout_pct", "Turnout"], ["margin", "Lean"]];
+    rows.forEach(function (r) { var f = (r.past_final || {})[pastYear]; r.past_pct = (pastYear && f) ? Math.round(1000 * (r.cast || 0) / f) / 10 : null; });
+    if (pastYear) { cols.push(["past_pct", "% of " + pastYear + " final"]);
+      if (sort.key === "past_pct") rows.sort(function (a, b) { return ((a.past_pct == null ? -1 : a.past_pct) - (b.past_pct == null ? -1 : b.past_pct)) * sort.dir; }); }
     $("#lead thead").innerHTML = "<tr>" + cols.map(function (c) { return "<th data-k='" + c[0] + "'>" + c[1] + (sort.key === c[0] ? (sort.dir > 0 ? " ▲" : " ▼") : "") + "</th>"; }).join("") + "</tr>";
     $("#lead thead").querySelectorAll("th").forEach(function (th) { th.onclick = function () { var k = th.getAttribute("data-k"); if (sort.key === k) sort.dir *= -1; else { sort.key = k; sort.dir = k === "name" ? 1 : -1; } renderTable(); }; });
     $("#lead tbody").innerHTML = rows.map(function (r) {
       var lean = r.partisan ? ("<span class='lean' style='background:" + (r.has_data ? colorM(r.margin) : "#c9ced6") + "'></span>" + (r.has_data ? marginText(r.margin) : "—")) : "<span class='dim'>turnout-only</span>";
       var nm = r.has_data ? "<a href='" + statePage(r.code) + "'>" + r.name + "</a>" : r.name;
-      return "<tr><td><b>" + nm + "</b></td><td>" + fmt(r.cast) + "</td><td>" + (r.turnout_pct == null ? "—" : r.turnout_pct + "%") + "</td><td>" + lean + "</td></tr>";
+      return "<tr><td><b>" + nm + "</b></td><td>" + fmt(r.cast) + "</td><td>" + (r.turnout_pct == null ? "—" : r.turnout_pct + "%") + "</td><td>" + lean + "</td>" +
+        (pastYear ? "<td>" + (r.past_pct == null ? "—" : r.past_pct.toFixed(1) + "%") + "</td>" : "") + "</tr>";
     }).join("");
   }
 
@@ -220,6 +230,10 @@
     ]).then(function (res) {
       geo = res[0]; mf = res[1]; reg = res[2];
       $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); renderTable(); });
+      var py = $("#past-year");
+      if (py) { py.value = pastYear; py.addEventListener("change", function (e) {
+        pastYear = e.target.value; try { history.replaceState(null, "", pastYear ? "#pf=" + pastYear : "#"); } catch (x) {}
+        renderCards(); renderTable(); }); }
       render();
       renderBrief();
       setInterval(function () {

@@ -50,6 +50,11 @@
     </div>
     <div class="card table-card">
       <div class="card-head"><h2>By state</h2>
+        <span class="past-pick">Compare to final turnout in
+          <select id="past-year" aria-label="Compare to a past general election's final turnout">
+            <option value="">— none —</option><option value="2024">2024</option><option value="2022">2022</option>
+            <option value="2020">2020</option><option value="2018">2018</option>
+          </select></span>
         <input id="filter" class="filter" type="search" placeholder="Filter states…" aria-label="Filter" /></div>
       <div class="score-scroll"><table class="lead" id="lead"><thead></thead><tbody></tbody></table></div>
       <p class="fineprint">Sortable. “Lean” is by party registration of ballots cast (party-registration states only).</p>
