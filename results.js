@@ -124,6 +124,10 @@
       node.style.cursor = "pointer";
       node.addEventListener("mousemove", function (e) { showTip(e, node.getAttribute("data-u"), byState); });
       node.addEventListener("mouseleave", function () { tip.hidden = true; });
+      node.addEventListener("click", function () {   // open the state's race (and, for past years, its county map)
+        var rs = byState[node.getAttribute("data-u")];
+        if (rs && rs.length && office !== "house" && office !== "measures") { tip.hidden = true; renderDetail(rs[0], rs); }
+      });
     });
     renderLegend();
   }
@@ -231,12 +235,100 @@
         renderScore(cache[office]); renderWhatif(); return;
       }
       var rr = (cache[office].races || []).filter(function (x) { return x.id === id; })[0];
-      if (rr) renderDetail(rr);
+      if (rr) renderDetail(rr, (cache[office].races || []).filter(function (x) { return x.state === rr.state; }));
     };
     $("#score-note").textContent = rows.length + (office === "measures" ? " measures" : " races") + (rows.length ? " · click a row for detail" : "") + (office === "senate" ? " · * = special" : "");
   }
 
-  function renderDetail(r) {
+  // ---- county map for a past race (data/results/history/county/<office>_<year>.json) ----
+  var countyCache = {}, shapeCache = {};
+  var PARTY_COLOR = { D: "#2b6cb0", R: "#d62f2f", I: "#7e5bb5", L: "#c99a06", G: "#2f9e44" };
+  var ALT_COLOR = { D: "#0e9aa7", R: "#e8833a", I: "#b07cc6", L: "#8d6e00", G: "#6aa84f" };
+  function partyKey(p) {   // 'By Petition', 'Nonpartisan', 'Unaffiliated' ... read as independent
+    p = p || "";
+    return /independ|petition|non-?partisan|unaffiliated|no party|unenrolled/i.test(p) ? "I" : (p || "O").toUpperCase()[0];
+  }
+  function candColors(cands) {
+    var seen = {};
+    return cands.map(function (c) {
+      var p = partyKey(c.party);
+      var col = seen[p] ? (ALT_COLOR[p] || "#8a8f98") : (PARTY_COLOR[p] || "#6b7280");
+      seen[p] = true; return col;
+    });
+  }
+  function mix(hex, t) {   // white -> hex
+    var n = parseInt(hex.slice(1), 16), c = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+    return "rgb(" + c.map(function (v) { return Math.round(255 + (v - 255) * t); }).join(",") + ")";
+  }
+  function getCached(store, url) {
+    return store[url] ? Promise.resolve(store[url]) : getJSON(url).then(function (d) { store[url] = d; return d; });
+  }
+  function loadCountyMap(r, host) {
+    if (!host) return;
+    if (r.state === "DC") { host.innerHTML = ""; return; }
+    host.innerHTML = "<p class='dim'>Loading county map…</p>";
+    getCached(countyCache, "data/results/history/county/" + office + "_" + year + ".json").then(function (cd) {
+      var e = (cd.races || {})[r.id];
+      if (!e) {
+        var why = (cd.missing || {})[r.id];
+        host.innerHTML = "<p class='fineprint'>No county map for this race" + (r.state === "AK" ? " (Alaska reports results by state house district, not by borough)" :
+          why ? " (" + why + ")" : "") + ".</p>";
+        return;
+      }
+      return getCached(shapeCache, e.geo).then(function (g) { if (host.isConnected) drawCountyMap(host, e, g); });
+    }).catch(function () { host.innerHTML = "<p class='fineprint'>County results aren't available for this race yet.</p>"; });
+  }
+  function drawCountyMap(host, e, g) {
+    var feats = g.features, cols = candColors(e.cands);
+    var mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+    feats.forEach(function (ft) { eachRing(ft.geometry, function (ring) { ring.forEach(function (p) {
+      var x = p[0] > 0 ? p[0] - 360 : p[0];   // keep Aleutian islands west of the dateline together
+      if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (p[1] < mny) mny = p[1]; if (p[1] > mxy) mxy = p[1]; }); }); });
+    var k = Math.cos((mny + mxy) / 2 * Math.PI / 180), W = 600, s = W / ((mxx - mnx) * k), H = (mxy - mny) * s;
+    if (H > 520) { s *= 520 / H; W = (mxx - mnx) * k * s; H = 520; }
+    function pt(p) { var x = p[0] > 0 ? p[0] - 360 : p[0]; return ((x - mnx) * k * s).toFixed(1) + " " + ((mxy - p[1]) * s).toFixed(1); }
+    var won = {};
+    var paths = feats.map(function (ft) {
+      var name = ft.properties.name, row = e.units[name], fill = "#e3e6ea";
+      if (row) {
+        var tot = row.reduce(function (a, b) { return a + b; }, 0), w = 0, sec = 0;
+        for (var i = 1; i < e.cands.length; i++) if (row[i] > row[w]) w = i;
+        for (var j = 0; j < e.cands.length; j++) if (j !== w && row[j] > sec) sec = row[j];
+        if (tot) { won[w] = true; fill = mix(cols[w], 0.25 + 0.75 * Math.min(1, 100 * (row[w] - sec) / tot / 40)); }
+      }
+      var d = ""; eachRing(ft.geometry, function (ring) { d += "M" + ring.map(pt).join("L") + "Z"; });
+      return "<path d='" + d + "' fill='" + fill + "' stroke='#fff' stroke-width='0.6' data-n=\"" + name.replace(/"/g, "&quot;") + "\"></path>";
+    }).join("");
+    var legend = e.cands.map(function (c, i) {
+      return won[i] || i < 2 ? "<span class='cm-key'><i style='background:" + cols[i] + "'></i>" + c.name + "</span>" : "";
+    }).join("");
+    host.innerHTML = "<div class='cm-head'>" + (e.round === "first" ? "County results · first round (November)" : e.round === "runoff" ? "County results · runoff" : "County results") + "</div>" +
+      "<div class='cm-wrap'><svg viewBox='0 0 " + Math.ceil(W) + " " + Math.ceil(H) + "' role='img' aria-label='County results map'>" + paths + "</svg>" +
+      "<div class='cm-tip' hidden></div></div>" +
+      "<div class='cm-legend'>" + legend + "<span class='dim'>darker = wider margin</span></div>" +
+      (e.note ? "<p class='fineprint'>" + e.note + "</p>" : "") +
+      "<p class='fineprint'>County figures: " + linkify(e.source) + "</p>";
+    var tip = host.querySelector(".cm-tip"), wrap = host.querySelector(".cm-wrap");
+    function show(ev) {
+      var n = ev.target.getAttribute && ev.target.getAttribute("data-n"); if (!n) { tip.hidden = true; return; }
+      var row = e.units[n], html = "<b>" + n + "</b>";
+      if (!row) html += "<br>no results";
+      else {
+        var tot = row.reduce(function (a, b) { return a + b; }, 0);
+        e.cands.forEach(function (c, i) { html += "<br><i class='dot' style='background:" + cols[i] + "'></i>" + c.name + ": " + fmt(row[i]) + (tot ? " (" + (100 * row[i] / tot).toFixed(1) + "%)" : ""); });
+        if (row[e.cands.length]) html += "<br>Others: " + fmt(row[e.cands.length]);
+      }
+      tip.innerHTML = html; tip.hidden = false;
+      var b = wrap.getBoundingClientRect();
+      tip.style.left = Math.min(ev.clientX - b.left + 10, b.width - 190) + "px";
+      tip.style.top = (ev.clientY - b.top + 10) + "px";
+    }
+    wrap.addEventListener("mousemove", show);
+    wrap.addEventListener("click", show);
+    wrap.addEventListener("mouseleave", function () { tip.hidden = true; });
+  }
+
+  function renderDetail(r, siblings) {
     var d = $("#detail"), body = $("#detail-body"), c = computeRace(r);
     $("#detail-title").textContent = r.state_name + (r.district ? (" — District " + r.district) : "") + " · " + r.office + (r.title ? (" — " + r.title) : "") + (r.special ? " (special)" : "");
     if (!r.candidates || !r.candidates.length) {
@@ -255,12 +347,26 @@
       }).join("");
     }
     if (isPast()) {
+      var others = (siblings || []).filter(function (x) { return x.id !== r.id; });
       body.innerHTML = "<p class='dim'>" + (r.year || year) + " general · final results" + (r.runoff_note ? " · " + r.runoff_note : "") + "</p>" +
+        (others.length ? "<p class='fineprint'>Also in " + r.state_name + ": " + others.map(function (x) {
+          return "<a href='#' data-race='" + x.id + "'>" + (x.special ? "special election" : "regular election") + "</a>"; }).join(" · ") + "</p>" : "") +
+        "<div class='detail-grid'><div>" +
         (r.first_round ? "<h4 style='margin:10px 0 2px'>Runoff</h4>" : "") + bars(r.candidates) +
         (r.first_round ? "<h4 style='margin:12px 0 2px'>First round</h4>" + bars(r.first_round.candidates) : "") +
+        "</div><div id='county-map' class='county-map'></div></div>" +
         (r.note ? "<p class='fineprint'>" + linkify(r.note) + "</p>" : "") +
         (r.source ? "<p class='fineprint'>Source: " + (/^https?:\/\/\S+$/.test(r.source) ? "<a href='" + r.source + "' target='_blank' rel='noopener'>official results</a>" : linkify(r.source)) + "</p>" : "");
-      d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" }); return;
+      body.querySelectorAll("[data-race]").forEach(function (a) {
+        a.addEventListener("click", function (e) {
+          e.preventDefault();
+          var nx = (siblings || []).filter(function (x) { return x.id === a.getAttribute("data-race"); })[0];
+          if (nx) renderDetail(nx, siblings);
+        });
+      });
+      d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      loadCountyMap(r, $("#county-map"));
+      return;
     }
     body.innerHTML = "<p class='dim'>" + (c.reporting != null ? c.reporting + "% reporting" : "reporting —") + (r.called ? (" · Called " + r.called) : "") + "</p>" +
       sorted.map(function (x) {

@@ -202,10 +202,15 @@ def geo_names(st):
     return {norm(f["properties"]["name"]): f["properties"]["name"] for f in g["features"]}
 
 
-def match_units(totals, geo):
+# election authorities that aren't counties -> the county holding most of them
+FOLD = {"mo": {"kansascity": "jackson"}}
+
+
+def match_units(totals, geo, st=""):
     out, unmatched = {}, []
     for unit, v in totals.items():
         k = norm(unit)
+        k = FOLD.get(st, {}).get(k, k)
         if k in geo:
             out[geo[k]] = out.get(geo[k], 0) + v
         else:
@@ -261,7 +266,7 @@ def main():
                     raw = fetch_zip(MEDSL[y].format(st=st), cache)
                     best = None
                     for field, (r_, u_, s_) in county_totals(precinct_rows(raw)).items():
-                        m_, un_ = match_units(u_, geo)
+                        m_, un_ = match_units(u_, geo, st)
                         cover = len(m_) / len(geo) if geo else 0
                         if not best or cover > best[3]:
                             best = (r_, m_, s_, cover, un_)
@@ -276,7 +281,7 @@ def main():
                     doc["notes"].append("%s: precinct returns unavailable (%s)" % (y, str(e)[:80]))
             elif y == "2020" and st in pres20:
                 race = "US PRESIDENT"
-                units, unmatched = match_units(pres20[st], geo)
+                units, unmatched = match_units(pres20[st], geo, st)
                 sw_votes = sum(pres20[st].values())
                 if geo and len(units) / len(geo) < 0.9:
                     doc["notes"].append("2020: county totals not used (%d of %d matched)" % (len(units), len(geo)))

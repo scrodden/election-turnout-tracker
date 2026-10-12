@@ -77,6 +77,7 @@ def title(name):
                    (w.upper().rstrip(".") + ("." if w.upper().rstrip(".") in ("JR", "SR") else "") if SUFFIX.match(w) else w)
                    for w in n.split(" "))
     out = re.sub(r"\b(Jr|Sr)\b(?!\.)", r"\1.", out.replace("JR.", "Jr.").replace("SR.", "Sr.").replace("JR", "Jr").replace("SR", "Sr"))
+    out = re.sub(r"\bO'(\w)", lambda m: "O'" + m.group(1).upper(), out)
     return re.sub(r"\bMc(\w)", lambda m: "Mc" + m.group(1).upper(), out)
 
 

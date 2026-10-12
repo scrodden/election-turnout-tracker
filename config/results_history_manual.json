@@ -1247,6 +1247,17 @@
       "Valdez": "Lupe Valdez",
       "Tippetts": "Mark Jay Tippetts",
       "_source": "https://www.sos.texas.gov/elections/forms/enrrpts/2018-general.pdf"
+    },
+    "senate|2020|MA": {
+      "Kevin J. O'Conner": "Kevin J. O'Connor",
+      "_source": "Massachusetts official results (electionstats.state.ma.us) spell it O'Connor"
+    },
+    "senate|2022|OR": {
+      "Wyden Ron": "Ron Wyden",
+      "Perkins Jo Rae": "Jo Rae Perkins",
+      "Henry Chris": "Chris Henry",
+      "Pulju Dan": "Dan Pulju",
+      "_source": "MIT's statewide file lists these last-name-first"
     }
   }
 }
