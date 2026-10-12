@@ -58,6 +58,8 @@
   var pastFinal = null, pastYear = "", PAST_URL = null;
   // turnout-vs-2026-result comparison (dormant until data/<st>/results_county.json has data)
   var rcmp = false, rcData = null, RCMP_URL = null, rcRace = "gov";
+  // "if every county voted like <past race>" (data/<st>/past_results_county.json)
+  var lookData = null, lookKey = "";
   var CMP_METHODS = ["mail_provided", "mail_voted", "early_voted", "election_day", "cast"];
   var partisan = true;   // false = turnout-only state (no party registration, e.g. GA)
   var unitPartisan = true;   // false = party only statewide (e.g. CA): map / table / county panel show turnout
@@ -1116,6 +1118,7 @@
     if (compare) parts.push("cmp=1");
     if (rcmp) parts.push("rc=1");
     if (pastYear) parts.push("pf=" + pastYear);
+    if (lookKey && lookShown()) parts.push("lk=" + lookKey);
     if (selected) parts.push("c=" + encodeURIComponent(selected));
     try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
   }
@@ -1180,6 +1183,7 @@
     // read now: updateHash() rewrites the hash before the view data arrives
     var wantUnit = applyHash ? parseHash().u : null;
     var wantPast = applyHash ? (parseHash().pf || "") : null;
+    lookData = null; lookKey = applyHash ? (parseHash().lk || "") : "";
     RCMP_URL = st.data ? st.data.replace(/latest\.json$/, "results_county.json") : null;
     partisan = (st.partisan !== false); unitPartisan = partisan;
     $("#filter").value = ""; var cb = $("#cmp-2022"); if (cb) cb.checked = false;
@@ -1224,6 +1228,11 @@
         if (sel) sel.value = pastYear;
         updateResultToggle(); renderAll(); if (pastYear) updateHash();
       }).catch(function () { pastFinal = null; updateResultToggle(); renderAll(); });
+      if (st.data && !unitPartisan) {   // no party by county: offer the past-race estimate
+        getJSON(st.data.replace(/latest\.json$/, "past_results_county.json"))
+          .then(function (lk) { lookData = lk; renderLookalike(); updateHash(); })
+          .catch(function () { lookData = null; renderLookalike(); });
+      }
       if (RCMP_URL) getJSON(RCMP_URL).then(function (rc) {
         rcData = rc; rcRace = (rc.race_types && rc.race_types.indexOf("gov") >= 0) ? "gov" : "sen";
         if (applyHash && parseHash().rc === "1" && rcHasData()) {
@@ -1454,7 +1463,80 @@
     card.title = "Ballots cast so far vs the " + pastYear + " general's final total. Source: " + (y.source || "") + ".";
     $("#summary").appendChild(card);
   }
-  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderPastCard(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
+  // ---- "if every county voted like <past race>" (states without party data) ----
+  // Each county's 2026 ballots so far are split the way that county voted in the
+  // chosen race (data/<st>/past_results_county.json, built from the results-page
+  // county maps): the geography of turnout, not a forecast of how people voted.
+  function lookParty(p) {
+    p = p || "";
+    return /independ|petition|non-?partisan|unaffiliated|no party|unenrolled/i.test(p) ? "I" : (p || "O").toUpperCase()[0];
+  }
+  var LOOK_COLOR = { D: "#2b6cb0", R: "#d62f2f", I: "#7e5bb5", L: "#c99a06", G: "#2f9e44" };
+  function lookShown() { return !unitPartisan && lookData && lookData.races && lookData.races.length && data && data.counties; }
+  function marginWords(m, c) {   // m = cand1 share - cand2 share
+    if (Math.abs(m) < 0.05) return "Even";
+    var w = m > 0 ? c[0] : c[1];
+    return lookParty(w.party) + "+" + Math.abs(m).toFixed(1);
+  }
+  function renderLookalike() {
+    var host = $("#lookalike"); if (!host) return;
+    if (!lookShown()) { host.hidden = true; return; }
+    var races = lookData.races, r = races.filter(function (x) { return x.key === lookKey; })[0] || races[0];
+    lookKey = r.key;
+    var basis = ["mail_voted", "early_voted", "election_day", "cast"].indexOf(method) >= 0 ? method : "cast";
+    var W = 0, a = 0, b = 0, all = 0, units = 0;
+    Object.keys(data.counties).forEach(function (name) {
+      var w = block(data.counties[name], basis).total || 0, u = r.units[name];
+      all += w;
+      if (!w || !u || !u[2]) return;
+      W += w; a += w * u[0] / u[2]; b += w * u[1] / u[2]; units++;
+    });
+    var c = r.cands.slice(), swap = lookParty(c[0].party) === "R" && lookParty(c[1].party) === "D";   // D left, R right
+    if (swap) { c.reverse(); var t0 = a; a = b; b = t0; }
+    var sw = r.statewide ? (swap ? [r.statewide[1], r.statewide[0]] : r.statewide) : null;
+    var col = c.map(function (x) { return LOOK_COLOR[lookParty(x.party)] || "#6b7280"; });
+    var noun = ((data.method_labels || {})[basis] || methodLabel(basis)).toLowerCase();
+    if (noun.indexOf("ballot") < 0) noun += " ballots";
+    var opts = races.map(function (x) { return "<option value='" + x.key + "'" + (x.key === r.key ? " selected" : "") + ">" + x.label + "</option>"; }).join("");
+    var head = "<div class='card-head'><h2>If every " + unitLabel.toLowerCase() + " voted like&hellip;</h2>" +
+      "<label class='look-pick'><select id='look-race' aria-label='Past race'>" + opts + "</select></label></div>";
+    if (!W) {
+      host.innerHTML = head + "<p class='dim'>No " + ((data.method_labels || {})[basis] || methodLabel(basis)).toLowerCase() + " reported yet.</p>";
+    } else {
+      var s1 = 100 * a / W, s2 = 100 * b / W, m = s1 - s2;
+      var act = sw ? sw[0] - sw[1] : null, tilt = act == null ? null : m - act;
+      var lead = m > 0 ? c[0] : c[1], lp = lookParty(lead.party);
+      var who = lp === "D" ? "Democrats" : lp === "R" ? "Republicans" : lead.name;
+      var total = s1 + s2;
+      var bar = "<div class='look-bar'><div style='width:" + (100 * s1 / total).toFixed(1) + "%;background:" + col[0] + "'></div>" +
+        "<div style='width:" + (100 * s2 / total).toFixed(1) + "%;background:" + col[1] + "'></div><i></i></div>";
+      var tiltTxt = "";
+      if (tilt != null) {
+        var tp = tilt > 0 ? c[0] : c[1], tw = lookParty(tp.party) === "D" ? "Democratic" : lookParty(tp.party) === "R" ? "Republican" : "toward " + tp.name;
+        tiltTxt = Math.abs(tilt) < 0.05 ? "the same lean as the state had in that race."
+          : Math.abs(tilt).toFixed(1) + " points more " + tw + " than the state was in that race.";
+      }
+      host.innerHTML = head +
+        "<div class='look-main'><div class='look-margin' style='color:" + (m > 0 ? col[0] : col[1]) + "'>" + marginWords(m, c) + "</div>" +
+        "<div><b>" + (Math.abs(m) < 0.05 ? "An even race" : who + " would lead by " + Math.abs(m).toFixed(1) + " points") + "</b><div class='dim'>" +
+        c[0].name + " " + s1.toFixed(1) + "% &middot; " + c[1].name + " " + s2.toFixed(1) + "%</div></div></div>" + bar +
+        "<p class='fineprint'>Based on the " + fmt(W) + " " + noun + " so far, each " + unitLabel.toLowerCase() +
+        "&rsquo;s ballots split the way that " + unitLabel.toLowerCase() + " voted in the " + r.label.replace(" — first round", "") + " race" +
+        (r.label.indexOf("first round") >= 0 ? " (first round)" : "") + ". " +
+        (act != null ? "That race&rsquo;s actual result was <b>" + marginWords(act, c) + "</b>, so the " + unitLabelPlural.toLowerCase() +
+          " casting these ballots lean " + tiltTxt : "") + "</p>" +
+        "<p class='fineprint dim'>This shows where ballots are coming from, not how anyone voted: within a " + unitLabel.toLowerCase() +
+        ", early and mail voters can lean differently from its voters overall." +
+        (all > W ? " " + Math.round(100 * W / all) + "% of ballots are in " + unitLabelPlural.toLowerCase() + " with past results." : "") +
+        (basis !== method ? " (Uses ballots cast; the selected category isn&rsquo;t votes.)" : "") +
+        " County results: " + r.source.replace(/^Official results by county: /, "") + ".</p>";
+    }
+    var sel = $("#look-race");
+    if (sel) sel.addEventListener("change", function (e) { lookKey = e.target.value; renderLookalike(); updateHash(); });
+    host.hidden = false;
+  }
+
+  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {

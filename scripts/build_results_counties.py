@@ -23,6 +23,7 @@ results are available.
   python scripts/build_results_counties.py --cache DIR --countypres FILE [--only president_2024,...]
 """
 import csv
+import glob
 import io
 import json
 import os
@@ -623,6 +624,60 @@ def build_offcycle(key):
     write("governor", key, entries, missing)
 
 
+# ---------------- per-state extract for the turnout page ----------------
+# data/<st>/past_results_county.json: each past race's county results (two
+# leading candidates + all votes), keyed by the turnout map's unit names, for the
+# "if every county voted like <race>" estimate on states without party data.
+
+OFFICE_LABEL = {"president": "President", "senate": "U.S. Senate", "governor": "Governor"}
+OFFICE_RANK = {"president": 0, "senate": 1, "governor": 2}
+
+
+def write_state_extracts():
+    reg = json.load(open(os.path.join(ROOT, "assets", "states.json"), encoding="utf-8"))
+    states = reg["states"] if isinstance(reg, dict) else reg
+    files = sorted(glob.glob(os.path.join(OUT, "*.json")))
+    by_state = defaultdict(list)
+    for p in files:
+        office, key = os.path.basename(p)[:-5].split("_", 1)
+        cd = json.load(open(p, encoding="utf-8"))
+        hist = {r["id"]: r for r in load(office, key)["races"]}
+        for rid, e in cd["races"].items():
+            r = hist.get(rid)
+            if not r:
+                continue
+            target = r["first_round"] if e.get("round") == "first" and r.get("first_round") else r
+            sw = {c["name"]: c["votes"] for c in target["candidates"]}
+            tot = target.get("total_votes") or sum(sw.values())
+            c1, c2 = e["cands"][0], e["cands"][1]
+            label = "%d %s%s%s" % (r["year"], OFFICE_LABEL[office], " (special)" if r.get("special") else "",
+                                   " — first round" if e.get("round") == "first" else "")
+            by_state[r["state"]].append({
+                "key": "%s-%s%s" % (office, r["year"], "-special" if r.get("special") else ""),
+                "label": label, "office": office, "year": r["year"], "geo": e["geo"],
+                "cands": [{"name": c1["name"], "party": c1["party"]}, {"name": c2["name"], "party": c2["party"]}],
+                "statewide": [round(100.0 * sw.get(c1["name"], 0) / tot, 2), round(100.0 * sw.get(c2["name"], 0) / tot, 2)] if tot else None,
+                "units": {u: [row[0], row[1], sum(row)] for u, row in e["units"].items()},
+                "source": e["source"]})
+    n = 0
+    for s in states:
+        st, geo = s["code"].upper(), s.get("geojson")
+        races = [x for x in by_state.get(st, []) if x["geo"] == geo]
+        p = os.path.join(ROOT, "data", s["code"], "past_results_county.json")
+        if not races:
+            if os.path.exists(p):
+                os.remove(p)
+            continue
+        races.sort(key=lambda x: (-x["year"], OFFICE_RANK[x["office"]], x["key"]))
+        for x in races:
+            del x["geo"]
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w", encoding="utf-8", newline="\n") as f:
+            json.dump({"state": s["code"], "races": races}, f, separators=(",", ":"))
+        n += 1
+    print("per-state extracts: %d states" % n)
+
+
 # ---------------- main ----------------
 
 def load(office, year):
@@ -653,6 +708,9 @@ def main():
     def want(k):
         return only is None or k in only
 
+    if "--extracts-only" in args:
+        write_state_extracts()
+        return 0
     if "--patch-official" in args:   # redo only the races with an official county table, keep the rest of each file
         for key in sorted(OFFICIAL_COUNTY):
             rid, y = key.split("|")
@@ -672,6 +730,7 @@ def main():
                 doc["races"].pop(rid, None)
                 doc["missing"][rid] = why
             write(office, y, doc["races"], doc["missing"])
+        write_state_extracts()
         return 0
 
     # president (county presidential file)
@@ -771,6 +830,7 @@ def main():
     for key in ("offcycle_latest", "offcycle_previous"):
         if want("governor_" + key):
             build_offcycle(key)
+    write_state_extracts()
     return 0
 
 
