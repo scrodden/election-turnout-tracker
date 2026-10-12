@@ -205,8 +205,12 @@ def match_units(totals, geo):
 
 def countypres_2020(path):
     out = defaultdict(lambda: defaultdict(lambda: {"total": 0, "modes": 0, "has_total": False}))
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for r in csv.DictReader(f, delimiter="\t"):
+    with open(path, encoding="utf-8-sig", errors="replace") as f:
+        head = f.readline()
+        f.seek(0)
+        delim = "\t" if head.count("\t") >= head.count(",") else ","   # Dataverse 'tab' export or the original CSV
+        for r in csv.DictReader(f, delimiter=delim):
+            r = {(k or "").strip().strip('"').lower(): (v or "").strip().strip('"') for k, v in r.items()}
             if r.get("year") != "2020":
                 continue
             st = (r.get("state_po") or "").lower()
