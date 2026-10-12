@@ -6,7 +6,7 @@
 <title>Turnout Tracker &mdash; 2026</title>
 <meta name="description" content="Live partisan composition of election turnout by county and voting method, from official state election data. Florida, North Carolina, and more." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
-<link rel="stylesheet" href="style.css?v=2026101204" />
+<link rel="stylesheet" href="style.css?v=2026101205" />
 </head>
 <body>
 <header class="site-head">
@@ -45,8 +45,6 @@
 
   <section id="summary" class="summary" aria-label="Statewide summary"></section>
 
-  <section id="lookalike" class="card look-card" hidden aria-label="If every county voted like a past race"></section>
-
   <section id="mail-panel" class="card mail-card" hidden aria-label="Mail ballot return rate">
     <div class="card-head">
       <h2>Mail ballots &mdash; the ballot chase</h2>
@@ -57,6 +55,7 @@
   </section>
 
   <section class="grid">
+    <div class="map-col">
     <div class="card map-card">
       <div class="card-head">
         <div class="map-head-left">
@@ -79,6 +78,8 @@
         <div id="tooltip" class="tooltip" hidden></div>
       </div>
       <p class="fineprint" id="map-note">Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet.</p>
+    </div>
+    <section id="lookalike" class="card look-card" hidden aria-label="If every county voted like a past race"></section>
     </div>
 
     <div class="card table-card">
@@ -157,6 +158,6 @@
   </footer>
 </main>
 
-<script src="app.js?v=2026101204"></script>
+<script src="app.js?v=2026101207"></script>
 </body>
 </html>

@@ -663,6 +663,10 @@ def write_state_extracts():
     for s in states:
         st, geo = s["code"].upper(), s.get("geojson")
         races = [x for x in by_state.get(st, []) if x["geo"] == geo]
+        view = "primary"
+        if not races and s.get("locality_geojson"):   # VA: main map by district, second view by locality
+            races = [x for x in by_state.get(st, []) if x["geo"] == s["locality_geojson"]]
+            view = "locality"
         p = os.path.join(ROOT, "data", s["code"], "past_results_county.json")
         if not races:
             if os.path.exists(p):
@@ -673,7 +677,7 @@ def write_state_extracts():
             del x["geo"]
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8", newline="\n") as f:
-            json.dump({"state": s["code"], "races": races}, f, separators=(",", ":"))
+            json.dump({"state": s["code"], "view": view, "races": races}, f, separators=(",", ":"))
         n += 1
     print("per-state extracts: %d states" % n)
 
