@@ -11,8 +11,10 @@
   .tabs { display: flex; gap: 6px; background: var(--card); padding: 6px; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
   .tabs button { flex: 1; padding: 9px 12px; font-size: 15px; font-weight: 700; border: 1px solid transparent; background: transparent; color: var(--muted); border-radius: 8px; cursor: pointer; }
   .tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+  .year-pick { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .year-pick select { font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
   .rsum { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
-  .rsum .pill { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; box-shadow: var(--shadow); }
+  .rsum .pill { background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--ink); box-shadow: var(--shadow); }
   .pill b { font-size: 15px; }
   .pill.dem b { color: var(--dem); } .pill.rep b { color: var(--rep); } .pill.unc b { color: var(--muted); }
   .rgrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
@@ -52,8 +54,11 @@
       <button data-office="senate" role="tab" aria-selected="true">U.S. Senate</button>
       <button data-office="governor" role="tab" aria-selected="false">Governor</button>
       <button data-office="house" role="tab" aria-selected="false">U.S. House</button>
+      <button data-office="president" role="tab" aria-selected="false">President</button>
       <button data-office="measures" role="tab" aria-selected="false">Ballot Measures</button>
     </div>
+    <label class="year-pick">Election year
+      <select id="year" aria-label="Election year"><option value="2026">2026 (live)</option></select></label>
   </section>
 
   <section id="balance" class="card" hidden aria-label="Balance of power" style="margin:14px 0;padding:14px 16px;">
@@ -109,6 +114,6 @@
   </footer>
 </main>
 
-<script src="results.js"></script>
+<script src="results.js?v=20261012"></script>
 </body>
 </html>

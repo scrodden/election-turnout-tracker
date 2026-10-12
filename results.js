@@ -13,6 +13,19 @@
   }
   var INSET = { AK: null, HI: null };           // filled after load; drawn as boxes
   var office = "senate";
+  // past results: data/results/history/<office>_<year>.json (same race ids as 2026, for later comparisons)
+  var YEARS = { senate: ["2026", "2024", "2022", "2020", "2018"],
+    governor: ["2026", "2024", "2022", "2020", "2018", "offcycle_latest", "offcycle_previous"],
+    president: ["2024", "2020"], house: ["2026"], measures: ["2026"] };
+  var YEAR_LABEL = { "2026": "2026 (live)", offcycle_latest: "Off-year: latest (KY/LA/MS 2023 · NJ/VA 2025)",
+    offcycle_previous: "Off-year: previous (KY/LA/MS 2019 · NJ/VA 2021)" };
+  var year = "2026";
+  function isPast() { return year !== "2026"; }
+  function linkify(s) {   // our own source notes: make any URL in them clickable
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/(https?:\/\/[^\s)]+[^\s).,;])/g, "<a href='$1' target='_blank' rel='noopener'>$1</a>");
+  }
+  function officeName(o) { return { senate: "U.S. Senate", governor: "Governor", house: "U.S. House", president: "President", measures: "Ballot measures" }[o]; }
   var geo = null, cache = {}, proj = null, sort = { key: "state", dir: 1 }, filter = "";
   var whatif = false, overrides = {};   // path-to-majority: {race_id: "D"|"R"|""}
 
@@ -71,7 +84,9 @@
       if (!dec) return "#c9ced6";
       return color((R - D) / rs.length * 100);
     }
-    var cc = computeRace(rs[0]); return cc.hasData ? color(cc.rd) : "#c9ced6";
+    var cc = computeRace(rs[0]);
+    if (cc.hasData && cc.leader !== "D" && cc.leader !== "R") return "#9b84c4";   // independent / third-party leader or winner
+    return cc.hasData ? color(cc.rd) : "#c9ced6";
   }
 
   // ---- map ----
@@ -120,14 +135,15 @@
       html += "<br>House: " + R + "R / " + D + "D" + (u ? " · " + u + " uncalled" : "") + " of " + rs.length;
     } else {
       var c = computeRace(rs[0]);
-      html += "<br>" + rs[0].office + "<br>" + (c.hasData ? (leanLabel(c.leader) + (c.leaderName ? " (" + c.leaderName + ")" : "") + " +" + c.margin + " · " + (c.reporting != null ? c.reporting + "% in" : "—")) : "not yet reported");
+      html += "<br>" + rs[0].office + (isPast() && rs[0].year ? " " + rs[0].year : "") + "<br>" + (c.hasData ? (leanLabel(c.leader) + (c.leaderName ? " (" + c.leaderName + ")" : "") + " +" + c.margin + " · " +
+        (isPast() ? (rs[0].first_round ? "won runoff" : "final") : (c.reporting != null ? c.reporting + "% in" : "—"))) : (isPast() ? "no result" : "not yet reported"));
     }
     var r = $("#map-holder").getBoundingClientRect();
     tip.innerHTML = html; tip.hidden = false;
     tip.style.left = Math.min(e.clientX - r.left + 12, r.width - 180) + "px";
     tip.style.top = (e.clientY - r.top + 12) + "px";
   }
-  function leanLabel(p) { return p === "R" ? "Republican" : p === "D" ? "Democratic" : p ? "Other" : "—"; }
+  function leanLabel(p) { return p === "R" ? "Republican" : p === "D" ? "Democratic" : p === "I" ? "Independent" : p ? "Other" : "—"; }
   function renderLegend() {
     var host = $("#legend"); host.innerHTML = "";
     var wrap = el("div"); wrap.style.cssText = "display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)";
@@ -149,7 +165,9 @@
     races.forEach(function (rc) { var c = computeRace(rc); if (!c.hasData && !rc.called) u++; else { var w = rc.called || c.leader; if (w === "D") d++; else if (w === "R") r++; else u++; } });
     if (!races.some(function (rc) { return computeRace(rc).hasData || rc.called; })) { d = r = o = 0; u = races.length; }
     host.innerHTML = "";
-    [["dem", "Dem leading/won", d], ["rep", "Rep leading/won", r], ["", "Total races", races.length], ["unc", "Not yet reported", u]].forEach(function (p) {
+    var pills = isPast() ? [["dem", "Democratic wins", d], ["rep", "Republican wins", r], ["", "Other", u], ["", "Races", races.length]]
+      : [["dem", "Dem leading/won", d], ["rep", "Rep leading/won", r], ["", "Total races", races.length], ["unc", "Not yet reported", u]];
+    pills.forEach(function (p) {
       var e = el("span", "pill " + p[0]); e.innerHTML = p[1] + ": <b>" + p[2] + "</b>"; host.appendChild(e);
     });
   }
@@ -157,6 +175,7 @@
     if (office === "measures") return [["state", "State"], ["title", "Measure"], ["yes", "Yes"], ["reporting", "% In"], ["status", "Status"]];
     return office === "house"
       ? [["state", "State"], ["district", "Dist"], ["leader", "Leader"], ["margin", "Margin"], ["reporting", "% In"], ["status", "Status"]]
+      : isPast() ? [["state", "State"], ["leader", "Winner"], ["margin", "Margin"], ["votes", "Total votes"], ["status", "Result"]]
       : [["state", "State"], ["leader", "Leader"], ["margin", "Margin"], ["reporting", "% In"], ["status", "Status"]];
   }
   function renderScore(data) {
@@ -168,6 +187,7 @@
       var A, B, ca = computeRace(a), cb = computeRace(b);
       if (sort.key === "margin") { A = ca.margin == null ? -1 : ca.margin; B = cb.margin == null ? -1 : cb.margin; }
       else if (sort.key === "reporting") { A = ca.reporting || 0; B = cb.reporting || 0; }
+      else if (sort.key === "votes") { A = a.total_votes || 0; B = b.total_votes || 0; }
       else if (sort.key === "leader") { A = ca.leader || "Z"; B = cb.leader || "Z"; }
       else if (sort.key === "district") { A = a.state_name + a.district; B = b.state_name + b.district; }
       else if (sort.key === "yes") { A = a.yes_pct == null ? -1 : a.yes_pct; B = b.yes_pct == null ? -1 : b.yes_pct; }
@@ -189,18 +209,21 @@
       }
       var c = computeRace(r), lc = color(office === "house" ? null : c.rd);
       var lead = c.hasData ? (leanLabel(c.leader) + (c.leaderName ? " " + c.leaderName : "")) : "—";
-      var status = r.called ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>Called " + r.called + "</span>"
+      var status = (isPast() && r.called) ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>" +
+          (r.year && year.indexOf("offcycle") === 0 ? r.year + " · " : "") + (r.first_round ? "Won runoff" : "Won") + "</span>"
+        : r.called ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>Called " + r.called + "</span>"
         : c.hasData ? "<span class='badge unc'>Leading</span>" : "<span class='badge unc'>—</span>";
       var ovBadge = (whatif && (r.id in overrides)) ? " <span class='badge " + (overrides[r.id] === "D" ? "dem" : overrides[r.id] === "R" ? "rep" : "unc") + "'>" + (overrides[r.id] || "UND") + "?</span>" : "";
       var tds = ["<span class='lean' style='background:" + (c.hasData ? color(c.rd) : "#c9ced6") + "'></span>" + r.state_name + (r.special ? " *" : "") + ovBadge];
       if (office === "house") tds.push(r.district);
-      tds.push(lead, c.margin == null ? "—" : (c.leader || "") + "+" + c.margin, c.reporting == null ? "—" : c.reporting + "%", status);
+      tds.push(lead, c.margin == null ? "—" : (c.leader || "") + "+" + c.margin,
+        isPast() ? fmt(r.total_votes) : (c.reporting == null ? "—" : c.reporting + "%"), status);
       return "<tr data-id='" + r.id + "' style='cursor:pointer'>" + tds.map(function (x) { return "<td>" + x + "</td>"; }).join("") + "</tr>";
     }).join("");
     $("#score tbody").onclick = function (e) {
       var tr = e.target.closest("tr[data-id]"); if (!tr) return;
       var id = tr.getAttribute("data-id");
-      if (whatif) {
+      if (whatif && !isPast()) {
         var cur = (id in overrides) ? (overrides[id] || "UND") : "actual";
         var nextMap = { "actual": "D", "D": "R", "R": "UND", "UND": "remove" };
         var nx = nextMap[cur];
@@ -222,6 +245,23 @@
     }
     var tot = r.candidates.reduce(function (s, x) { return s + (x.votes || 0); }, 0);
     var sorted = r.candidates.slice().sort(function (a, b) { return (b.votes || 0) - (a.votes || 0); });
+    function bars(list) {
+      var t = list.reduce(function (s, x) { return s + (x.votes || 0); }, 0);
+      return list.slice().sort(function (a, b) { return (b.votes || 0) - (a.votes || 0); }).map(function (x) {
+        var p = t ? 100 * (x.votes || 0) / t : 0, pc = (x.party || "").toUpperCase()[0];
+        var col = pc === "R" ? "#d62f2f" : pc === "D" ? "#2b6cb0" : "#6b7280";
+        return "<div style='margin:8px 0'><div style='display:flex;justify-content:space-between;font-size:13px'><span><b>" + (x.name || "—") + "</b> (" + (x.party || "?") + ")</span><span>" + fmt(x.votes || 0) + " · " + p.toFixed(1) + "%</span></div>" +
+          "<div style='height:9px;border-radius:5px;background:var(--line);margin-top:3px'><div style='width:" + p.toFixed(1) + "%;height:100%;border-radius:5px;background:" + col + "'></div></div></div>";
+      }).join("");
+    }
+    if (isPast()) {
+      body.innerHTML = "<p class='dim'>" + (r.year || year) + " general · final results" + (r.runoff_note ? " · " + r.runoff_note : "") + "</p>" +
+        (r.first_round ? "<h4 style='margin:10px 0 2px'>Runoff</h4>" : "") + bars(r.candidates) +
+        (r.first_round ? "<h4 style='margin:12px 0 2px'>First round</h4>" + bars(r.first_round.candidates) : "") +
+        (r.note ? "<p class='fineprint'>" + linkify(r.note) + "</p>" : "") +
+        (r.source ? "<p class='fineprint'>Source: " + (/^https?:\/\/\S+$/.test(r.source) ? "<a href='" + r.source + "' target='_blank' rel='noopener'>official results</a>" : linkify(r.source)) + "</p>" : "");
+      d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" }); return;
+    }
     body.innerHTML = "<p class='dim'>" + (c.reporting != null ? c.reporting + "% reporting" : "reporting —") + (r.called ? (" · Called " + r.called) : "") + "</p>" +
       sorted.map(function (x) {
         var p = tot ? 100 * (x.votes || 0) / tot : 0, pc = (x.party || "").toUpperCase()[0];
@@ -234,7 +274,13 @@
 
   function renderMeta(data) {
     $("#map-title").textContent = office === "measures" ? "Ballot measures by state"
-      : ({ senate: "U.S. Senate", governor: "Governor", house: "U.S. House" }[office]) + " — current margin";
+      : officeName(office) + (isPast() ? " — " + (YEAR_LABEL[year] || year) + " results" : " — current margin");
+    var mn = $("#map-note");
+    if (mn) mn.textContent = isPast()
+      ? "Red = Republican win, blue = Democratic win, shaded by the final margin; purple = independent. Gray = no race that year." +
+        (data.missing_note ? " " + data.missing_note + "." : "") + " Sources: MIT Election Data + Science Lab (president, Senate, most governors), official state results; open a row for its source."
+      : "Red = Republican lead, blue = Democratic lead, by current margin. Gray = no 2026 race or no results yet.";
+    if (isPast()) { $("#pre-note").hidden = true; $("#updated").innerHTML = "Final results"; return; }
     var upd = data.updated ? new Date(data.updated).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" }) : null;
     $("#updated").innerHTML = upd ? "Updated: <b>" + upd + "</b>" : "<b>Not yet reported</b>";
     var any = (data.races || []).some(function (r) { return computeRace(r).hasData || r.called; });
@@ -297,15 +343,26 @@
   }
 
   function render() {
-    var data = cache[office];
+    var data = cache[office + "|" + year];
+    if (isPast()) { $("#balance").hidden = true; }
     renderMeta(data); renderBalance(data); renderSummary(data); renderMap(data); renderScore(data); renderWhatif();
   }
+  function fillYears() {
+    var sel = $("#year"); if (!sel) return;
+    var ys = YEARS[office] || ["2026"];
+    if (ys.indexOf(year) < 0) year = ys[0];
+    sel.innerHTML = ys.map(function (y) { return "<option value='" + y + "'" + (y === year ? " selected" : "") + ">" + (YEAR_LABEL[y] || y) + "</option>"; }).join("");
+    sel.parentNode.hidden = ys.length < 2;
+  }
   function loadOffice(o) {
-    office = o;
+    office = o; fillYears();
     var dt = $("#detail"); if (dt) dt.hidden = true;
     $("#tabs").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-selected", String(b.getAttribute("data-office") === o)); });
-    if (cache[o]) { render(); return; }
-    getJSON("data/results/" + o + ".json").then(function (d) { cache[o] = d; render(); }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load results: " + e.message + "</span>"; });
+    try { history.replaceState(null, "", "#" + o + (year !== "2026" ? "&y=" + year : "")); } catch (e) {}
+    var key = o + "|" + year;
+    if (cache[key]) { cache[o] = cache[key]; render(); return; }
+    var url = year === "2026" ? "data/results/" + o + ".json" : "data/results/history/" + o + "_" + year + ".json";
+    getJSON(url).then(function (d) { cache[key] = d; cache[o] = d; render(); }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load results: " + e.message + "</span>"; });
   }
   function refresh() { cache = {}; loadOffice(office); }
 
@@ -322,8 +379,16 @@
         renderScore(cache[office]); renderWhatif();
       });
       $("#whatif-reset").addEventListener("click", function () { overrides = {}; renderScore(cache[office]); renderWhatif(); });
-      (function schedule() { setTimeout(function () { refresh(); schedule(); }, refreshMs()); })();
-      loadOffice("senate");
+      (function schedule() { setTimeout(function () { if (!isPast()) refresh(); schedule(); }, refreshMs()); })();
+      var ys = $("#year");
+      if (ys) ys.addEventListener("change", function (e) { year = e.target.value; loadOffice(office); });
+      function fromHash() {   // #<office>[&y=<year>]
+        var hm = location.hash.slice(1).split("&"), ho = hm[0], hy = (hm.filter(function (x) { return x.indexOf("y=") === 0; })[0] || "").slice(2);
+        year = hy || "2026";
+        loadOffice(YEARS[ho] ? ho : "senate");
+      }
+      window.addEventListener("hashchange", fromHash);
+      fromHash();
     }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load map: " + e.message + "</span>"; });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot); else boot();

@@ -115,7 +115,7 @@ def office_key(raw):
     """MEDSL standardises offices, but some files don't (WI 2018: 'Governor /
     Lt. Governor', 'US Senate')."""
     o = re.sub(r"\s+", " ", (raw or "").upper().replace(".", "")).strip()
-    if o.startswith("GOVERNOR"):
+    if re.match(r"^GOVERNOR(\s*(/|&|AND)\s*(LT|LIEUTENANT)\b.*)?$", o):   # not 'GOVERNOR'S COUNCIL' (MA)
         return "GOVERNOR"
     if o in ("US SENATE", "UNITED STATES SENATOR", "US SENATOR"):
         return "US SENATE"
@@ -124,6 +124,16 @@ def office_key(raw):
     if o.startswith("US PRESIDENT") or o.startswith("PRESIDENT"):
         return "US PRESIDENT"
     return o
+
+
+def race_label(race):
+    """'US SENATE (SPECIAL)' -> 'U.S. Senate (special)' for the 'votes for ...' basis text."""
+    if not race:
+        return "the top race"
+    base, special = race.replace(" (SPECIAL)", ""), " (SPECIAL)" in race
+    label = {"US PRESIDENT": "president", "US HOUSE": "U.S. House (all districts)", "US SENATE": "U.S. Senate",
+             "GOVERNOR": "Governor"}.get(base, base.title())
+    return label + (" (special)" if special else "")
 
 
 UNIT_FIELDS = (("county_name", "county"), ("jurisdiction_name", "jurisdiction"))
@@ -273,13 +283,13 @@ def main():
                     units = {}
             lab_n, basis = lab.get(st, {}).get(y, (0, ""))
             if basis == "estimate" and sw_votes:
-                total, basis = sw_votes, "votes for %s" % ("president" if race == "US PRESIDENT" else (race or "").lower())
+                total, basis = sw_votes, "votes for %s" % race_label(race)
             elif lab_n:
                 total = lab_n
                 if basis == "estimate":
                     basis = "UF Election Lab estimate (the state doesn't report total ballots)"
             elif sw_votes:
-                total, basis = sw_votes, "votes for %s" % (race or "the top race").lower()
+                total, basis = sw_votes, "votes for %s" % race_label(race)
             else:
                 total = 0
             if total:
@@ -293,8 +303,7 @@ def main():
                                         % (y, 100 * ratio, basis))
                     units = {}
             if units:
-                doc["county_basis"][y] = "votes for %s" % ("president" if race == "US PRESIDENT" else
-                                                           ("U.S. House (all districts)" if race == "US HOUSE" else race.title()))
+                doc["county_basis"][y] = "votes for %s" % race_label(race)
                 for name, v in units.items():
                     doc["counties"].setdefault(name, {})[y] = int(v)
         if not doc["years"]:

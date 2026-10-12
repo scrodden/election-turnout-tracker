@@ -1,0 +1,1252 @@
+{
+  "_comment": "Official results not available (or not verifiable) in the MIT datasets, entered from each state's official results with the source URL. party_fixes correct blank party fields in the MIT files from official records.",
+  "party_fixes": [
+    {
+      "year": 2020,
+      "office": "senate",
+      "state": "WY",
+      "candidate": "CYNTHIA M. LUMMIS",
+      "party": "Republican",
+      "source": "https://sos.wyo.gov/Elections/Docs/2020/Results/General/2020_Wyoming_General_Election_Results.pdf"
+    },
+    {
+      "year": 2020,
+      "office": "senate",
+      "state": "WY",
+      "candidate": "MERAV BEN DAVID",
+      "party": "Democratic",
+      "source": "https://sos.wyo.gov/Elections/Docs/2020/Results/General/2020_Wyoming_General_Election_Results.pdf"
+    }
+  ],
+  "governor": {
+    "offcycle_latest": [
+      {
+        "state": "NJ",
+        "state_name": "New Jersey",
+        "year": 2025,
+        "candidates": [
+          {
+            "name": "Mikie Sherrill",
+            "party": "Democratic",
+            "votes": 1896610
+          },
+          {
+            "name": "Jack Ciattarelli",
+            "party": "Republican",
+            "votes": 1417705
+          },
+          {
+            "name": "Vic Kaplan",
+            "party": "Libertarian",
+            "votes": 11880
+          },
+          {
+            "name": "Joanne S. Kuniansky",
+            "party": "Socialist Workers",
+            "votes": 8164
+          }
+        ],
+        "source": "https://nj.gov/state/elections/assets/pdf/election-results/2025/2025-official-general-results-governor.pdf"
+      },
+      {
+        "state": "KY",
+        "state_name": "Kentucky",
+        "year": 2023,
+        "candidates": [
+          {
+            "name": "Andy Beshear",
+            "party": "Democratic",
+            "votes": 694482
+          },
+          {
+            "name": "Daniel Cameron",
+            "party": "Republican",
+            "votes": 627457
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 83
+          }
+        ],
+        "source": "https://elect.ky.gov/results/2020-2029/Documents/Certification%20of%20Election%20Results%20for%202023%20General%20Election%20Final.pdf"
+      },
+      {
+        "state": "VA",
+        "state_name": "Virginia",
+        "year": 2025,
+        "candidates": [
+          {
+            "name": "Abigail D. Spanberger",
+            "party": "Democratic",
+            "votes": 1976857
+          },
+          {
+            "name": "Winsome Earle Sears",
+            "party": "Republican",
+            "votes": 1449586
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 6897
+          }
+        ],
+        "source": "https://historical.elections.virginia.gov/contest/164996"
+      },
+      {
+        "state": "LA",
+        "state_name": "Louisiana",
+        "year": 2023,
+        "candidates": [
+          {
+            "name": "\"Jeff\" Landry",
+            "party": "Republican",
+            "votes": 547827
+          },
+          {
+            "name": "Shawn D. Wilson",
+            "party": "Democratic",
+            "votes": 275525
+          },
+          {
+            "name": "Stephen \"Wags\" Waguespack",
+            "party": "Republican",
+            "votes": 62287
+          },
+          {
+            "name": "John Schroder",
+            "party": "Republican",
+            "votes": 56654
+          },
+          {
+            "name": "Hunter Lundy",
+            "party": "Independent",
+            "votes": 52165
+          },
+          {
+            "name": "Daniel M. \"Danny\" Cole",
+            "party": "Democratic",
+            "votes": 27662
+          },
+          {
+            "name": "Sharon W. Hewitt",
+            "party": "Republican",
+            "votes": 18468
+          },
+          {
+            "name": "Benjamin Barnes",
+            "party": "Independent",
+            "votes": 5190
+          },
+          {
+            "name": "Patrick Henry \"Dat\" Barthel",
+            "party": "Republican",
+            "votes": 4426
+          },
+          {
+            "name": "Richard Nelson",
+            "party": "Republican",
+            "votes": 3605
+          },
+          {
+            "name": "Jeffery Istre",
+            "party": "Independent",
+            "votes": 3400
+          },
+          {
+            "name": "Xavier Ellis",
+            "party": "Republican",
+            "votes": 1734
+          },
+          {
+            "name": "\"Keitron\" Gagnon",
+            "party": "No Party",
+            "votes": 1260
+          },
+          {
+            "name": "\"Xan\" John",
+            "party": "Republican",
+            "votes": 1164
+          },
+          {
+            "name": "Frank Scurlock",
+            "party": "Independent",
+            "votes": 1131
+          }
+        ],
+        "source": "https://voterportal.sos.la.gov/static/2023-10-14/resultsRace/statewide",
+        "note": "Won outright (over 50%) in the October 14, 2023 all-party primary, so no runoff was held."
+      },
+      {
+        "state": "MS",
+        "state_name": "Mississippi",
+        "year": 2023,
+        "candidates": [
+          {
+            "name": "Tate Reeves",
+            "party": "Republican",
+            "votes": 418233
+          },
+          {
+            "name": "Brandon Presley",
+            "party": "Democratic",
+            "votes": 391614
+          },
+          {
+            "name": "Gwendolyn Gray",
+            "party": "Independent",
+            "votes": 11153
+          }
+        ],
+        "source": "https://sos.ms.gov/elections/electionresults/2023General/State%20Certified%20Results/2023%20Statewide%20Recapitulation%20Sheet.pdf"
+      }
+    ],
+    "offcycle_previous": [
+      {
+        "state": "NJ",
+        "state_name": "New Jersey",
+        "year": 2021,
+        "candidates": [
+          {
+            "name": "Phil Murphy",
+            "party": "Democratic",
+            "votes": 1339471
+          },
+          {
+            "name": "Jack Ciattarelli",
+            "party": "Republican",
+            "votes": 1255185
+          },
+          {
+            "name": "Madelyn R. Hoffman",
+            "party": "Green",
+            "votes": 8450
+          },
+          {
+            "name": "Gregg Mele",
+            "party": "Libertarian",
+            "votes": 7768
+          },
+          {
+            "name": "Joanne Kuniansky",
+            "party": "Socialist Workers",
+            "votes": 4012
+          }
+        ],
+        "source": "https://nj.gov/state/elections/assets/pdf/election-results/2021/2021-official-general-results-governor.pdf"
+      },
+      {
+        "state": "VA",
+        "state_name": "Virginia",
+        "year": 2021,
+        "candidates": [
+          {
+            "name": "Glenn Youngkin",
+            "party": "Republican",
+            "votes": 1663158
+          },
+          {
+            "name": "Terry McAuliffe",
+            "party": "Democratic",
+            "votes": 1599470
+          },
+          {
+            "name": "Princess Blanding",
+            "party": "Liberation",
+            "votes": 23107
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 2592
+          }
+        ],
+        "source": "https://historical.elections.virginia.gov/contest/147466"
+      },
+      {
+        "state": "KY",
+        "state_name": "Kentucky",
+        "year": 2019,
+        "candidates": [
+          {
+            "name": "Andy Beshear",
+            "party": "Democratic",
+            "votes": 709890
+          },
+          {
+            "name": "Matt Bevin",
+            "party": "Republican",
+            "votes": 704754
+          },
+          {
+            "name": "John Hicks",
+            "party": "Libertarian",
+            "votes": 28433
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 46
+          }
+        ],
+        "source": "https://elect.ky.gov/results/2010-2019/Documents/2019%20General%20Certified%20Results.pdf"
+      },
+      {
+        "state": "LA",
+        "state_name": "Louisiana",
+        "year": 2019,
+        "candidates": [
+          {
+            "name": "John Bel Edwards",
+            "party": "Democratic",
+            "votes": 625970
+          },
+          {
+            "name": "\"Eddie\" Rispone",
+            "party": "Republican",
+            "votes": 368319
+          },
+          {
+            "name": "Ralph Abraham",
+            "party": "Republican",
+            "votes": 317149
+          },
+          {
+            "name": "Oscar \"Omar\" Dantzler",
+            "party": "Democratic",
+            "votes": 10993
+          },
+          {
+            "name": "Patrick \"Live Wire\" Landry",
+            "party": "Republican",
+            "votes": 10966
+          },
+          {
+            "name": "Gary Landrieu",
+            "party": "Independent",
+            "votes": 10084
+          }
+        ],
+        "runoff": {
+          "candidates": [
+            {
+              "name": "John Bel Edwards",
+              "party": "Democratic",
+              "votes": 774498
+            },
+            {
+              "name": "\"Eddie\" Rispone",
+              "party": "Republican",
+              "votes": 734286
+            }
+          ],
+          "note": "October 12 all-party primary; decided in the November 16, 2019 runoff"
+        },
+        "source": "https://voterportal.sos.la.gov/static/2019-11-16/resultsRace/statewide"
+      },
+      {
+        "state": "MS",
+        "state_name": "Mississippi",
+        "year": 2019,
+        "candidates": [
+          {
+            "name": "Tate Reeves",
+            "party": "Republican",
+            "votes": 459396
+          },
+          {
+            "name": "Jim Hood",
+            "party": "Democratic",
+            "votes": 414368
+          },
+          {
+            "name": "David R. Singletary",
+            "party": "Independent",
+            "votes": 8522
+          },
+          {
+            "name": "Bob Hickingbottom",
+            "party": "Constitution",
+            "votes": 2625
+          }
+        ],
+        "source": "https://sos.ms.gov/elections/electionresults/2019General/Certified%20Results/2019%20General%20Election%20Official%20Statewide%20Recapitulation%20(PDF).pdf"
+      }
+    ],
+    "2020": [
+      {
+        "state": "MO",
+        "state_name": "Missouri",
+        "year": 2020,
+        "candidates": [
+          {
+            "name": "Mike Parson",
+            "party": "Republican",
+            "votes": 1720202
+          },
+          {
+            "name": "Nicole Galloway",
+            "party": "Democratic",
+            "votes": 1225771
+          },
+          {
+            "name": "Rik Combs",
+            "party": "Libertarian",
+            "votes": 49067
+          },
+          {
+            "name": "Jerome Howard Bauer",
+            "party": "Green",
+            "votes": 17234
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 13
+          }
+        ],
+        "source": "https://www.sos.mo.gov/CMSImages/ElectionResultsStatistics/November3_2020GeneralElection.pdf",
+        "note": "Grand totals as posted on the Missouri SoS results page (report generated 01/26/2021, after certification; the report template is headed 'Unofficial Election Returns')."
+      },
+      {
+        "state": "ND",
+        "state_name": "North Dakota",
+        "year": 2020,
+        "candidates": [
+          {
+            "name": "Doug Burgum",
+            "party": "Republican",
+            "votes": 235479
+          },
+          {
+            "name": "Shelley Lenz",
+            "party": "Democratic-NPL",
+            "votes": 90789
+          },
+          {
+            "name": "DuWayne Hendrickson",
+            "party": "Libertarian",
+            "votes": 13853
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 17538
+          }
+        ],
+        "source": "https://results.sos.nd.gov/ResultsSW.aspx?text=All&type=SW&map=CTY&eid=313"
+      },
+      {
+        "state": "UT",
+        "state_name": "Utah",
+        "year": 2020,
+        "source": "Certified results as published by Ballotpedia and Wikipedia (Utah's election sites, vote.utah.gov and electionresults.utah.gov, could not be reached)",
+        "note": "Utah's official results site could not be reached when this was built; these are the certified totals as republished. To be replaced with the state canvass when reachable.",
+        "candidates": [
+          {
+            "name": "Spencer Cox",
+            "party": "Republican",
+            "votes": 918754
+          },
+          {
+            "name": "Christopher Peterson",
+            "party": "Democratic",
+            "votes": 442754
+          },
+          {
+            "name": "Daniel Cottam",
+            "party": "Libertarian",
+            "votes": 51393
+          },
+          {
+            "name": "Gregory Duerden",
+            "party": "Independent American",
+            "votes": 25810
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 20167
+          }
+        ]
+      }
+    ],
+    "2018": [
+      {
+        "state": "PA",
+        "state_name": "Pennsylvania",
+        "year": 2018,
+        "source": "https://www.electionreturns.pa.gov/General/SummaryResults?ElectionID=63&ElectionType=G&IsActive=0",
+        "candidates": [
+          {
+            "name": "Tom Wolf",
+            "party": "Democratic",
+            "votes": 2895652
+          },
+          {
+            "name": "Scott Wagner",
+            "party": "Republican",
+            "votes": 2039882
+          },
+          {
+            "name": "Kenneth V. Krawchuk",
+            "party": "Libertarian",
+            "votes": 49229
+          },
+          {
+            "name": "Paul Glover",
+            "party": "Green",
+            "votes": 27792
+          }
+        ]
+      },
+      {
+        "state": "CT",
+        "state_name": "Connecticut",
+        "year": 2018,
+        "source": "https://electionhistory.ct.gov/contest/3781",
+        "note": "Votes on all party lines combined.",
+        "candidates": [
+          {
+            "name": "Ned Lamont",
+            "party": "Democratic",
+            "votes": 694510
+          },
+          {
+            "name": "Bob Stefanowski",
+            "party": "Republican",
+            "votes": 650138
+          },
+          {
+            "name": "Oz Griebel",
+            "party": "Griebel Frank for CT",
+            "votes": 54741
+          },
+          {
+            "name": "Rodney Hanscomb",
+            "party": "Libertarian",
+            "votes": 6086
+          },
+          {
+            "name": "Mark Stewart Greenstein",
+            "party": "Amigo Constitution Liberty",
+            "votes": 1254
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 74
+          }
+        ]
+      },
+      {
+        "state": "NY",
+        "state_name": "New York",
+        "year": 2018,
+        "source": "https://results.elections.ny.gov/contest/1336",
+        "note": "Votes on all party lines combined (Cuomo: Democratic, Working Families, Independence, We the People; Molinaro: Republican, Conservative, Reform).",
+        "candidates": [
+          {
+            "name": "Andrew M. Cuomo",
+            "party": "Democratic",
+            "votes": 3635340
+          },
+          {
+            "name": "Marc Molinaro",
+            "party": "Republican",
+            "votes": 2207602
+          },
+          {
+            "name": "Howie Hawkins",
+            "party": "Green",
+            "votes": 103946
+          },
+          {
+            "name": "Larry Sharpe",
+            "party": "Libertarian",
+            "votes": 95033
+          },
+          {
+            "name": "Stephanie A. Miner",
+            "party": "Serve America Movement",
+            "votes": 55441
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 7115
+          }
+        ]
+      },
+      {
+        "state": "OR",
+        "state_name": "Oregon",
+        "year": 2018,
+        "source": "https://records.sos.state.or.us/ORSOSCMSearch/Search/RecordViewer.aspx?uri=6873825",
+        "candidates": [
+          {
+            "name": "Kate Brown",
+            "party": "Democratic",
+            "votes": 934498
+          },
+          {
+            "name": "Knute Buehler",
+            "party": "Republican",
+            "votes": 814988
+          },
+          {
+            "name": "Patrick Starnes",
+            "party": "Independent Party",
+            "votes": 53392
+          },
+          {
+            "name": "Nick Chen",
+            "party": "Libertarian",
+            "votes": 28927
+          },
+          {
+            "name": "Aaron Auer",
+            "party": "Constitution",
+            "votes": 21145
+          },
+          {
+            "name": "Chris Henry",
+            "party": "Progressive",
+            "votes": 11013
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 3034
+          }
+        ]
+      },
+      {
+        "state": "AL",
+        "state_name": "Alabama",
+        "year": 2018,
+        "source": "https://www.sos.alabama.gov/sites/default/files/voter-pdfs/2018/2018-Official-General-Election-Results-Certified-2018-11-27.pdf",
+        "candidates": [
+          {
+            "name": "Kay Ivey",
+            "party": "Republican",
+            "votes": 1022457
+          },
+          {
+            "name": "Walt Maddox",
+            "party": "Democratic",
+            "votes": 694495
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 2637
+          }
+        ]
+      }
+    ],
+    "2022": [
+      {
+        "state": "CT",
+        "state_name": "Connecticut",
+        "year": 2022,
+        "source": "https://electionhistory.ct.gov/contest/35080",
+        "note": "Votes on all party lines combined.",
+        "candidates": [
+          {
+            "name": "Ned Lamont",
+            "party": "Democratic",
+            "votes": 710186
+          },
+          {
+            "name": "Bob Stefanowski",
+            "party": "Republican",
+            "votes": 546209
+          },
+          {
+            "name": "Robert Hotaling",
+            "party": "Independent Party",
+            "votes": 12400
+          },
+          {
+            "name": "Michelle Louise Bicking",
+            "party": "Other",
+            "votes": 98
+          }
+        ]
+      },
+      {
+        "state": "NY",
+        "state_name": "New York",
+        "year": 2022,
+        "source": "https://results.elections.ny.gov/contest/1",
+        "note": "Votes on all party lines combined (Hochul: Democratic, Working Families; Zeldin: Republican, Conservative).",
+        "candidates": [
+          {
+            "name": "Kathy C. Hochul",
+            "party": "Democratic",
+            "votes": 3140415
+          },
+          {
+            "name": "Lee Zeldin",
+            "party": "Republican",
+            "votes": 2762581
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 9290
+          }
+        ]
+      },
+      {
+        "state": "ME",
+        "state_name": "Maine",
+        "year": 2022,
+        "source": "https://www.maine.gov/sos/sites/maine.gov.sos/files/inline-files/Governor.xlsx",
+        "candidates": [
+          {
+            "name": "Janet T. Mills",
+            "party": "Democratic",
+            "votes": 376934
+          },
+          {
+            "name": "Paul R. LePage",
+            "party": "Republican",
+            "votes": 287304
+          },
+          {
+            "name": "Sam Hunkler",
+            "party": "Independent",
+            "votes": 12581
+          }
+        ]
+      },
+      {
+        "state": "MI",
+        "state_name": "Michigan",
+        "year": 2022,
+        "source": "https://mielections.us/election/results/2022GEN_CENR.html",
+        "note": "Official results page (last updated 12/22/2022). It could not be opened from the build environment; Whitmer and Dixon totals as quoted from it, minor candidates from Wikipedia's table of the same official results.",
+        "candidates": [
+          {
+            "name": "Gretchen Whitmer",
+            "party": "Democratic",
+            "votes": 2430505
+          },
+          {
+            "name": "Tudor Dixon",
+            "party": "Republican",
+            "votes": 1960635
+          },
+          {
+            "name": "Mary Buzuma",
+            "party": "Libertarian",
+            "votes": 38800
+          },
+          {
+            "name": "Donna Brandenburg",
+            "party": "U.S. Taxpayers",
+            "votes": 16246
+          },
+          {
+            "name": "Kevin Hogan",
+            "party": "Green",
+            "votes": 10766
+          },
+          {
+            "name": "Daryl M. Simpson",
+            "party": "Natural Law",
+            "votes": 4973
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 47
+          }
+        ]
+      },
+      {
+        "state": "AR",
+        "state_name": "Arkansas",
+        "year": 2022,
+        "source": "Certified vote (Dec 1, 2022) as published by The Green Papers, https://www.thegreenpapers.com/G22/AR (the Arkansas SoS site no longer offers 2022 results for download)",
+        "candidates": [
+          {
+            "name": "Sarah Huckabee Sanders",
+            "party": "Republican",
+            "votes": 571105
+          },
+          {
+            "name": "Chris Jones",
+            "party": "Democratic",
+            "votes": 319242
+          },
+          {
+            "name": "Ricky Dale Harrington Jr.",
+            "party": "Libertarian",
+            "votes": 16690
+          }
+        ]
+      },
+      {
+        "state": "ID",
+        "state_name": "Idaho",
+        "year": 2022,
+        "source": "https://canvass.sos.idaho.gov/contests/view/17251",
+        "candidates": [
+          {
+            "name": "Brad Little",
+            "party": "Republican",
+            "votes": 358598
+          },
+          {
+            "name": "Stephen Heidt",
+            "party": "Democratic",
+            "votes": 120160
+          },
+          {
+            "name": "Ammon Bundy",
+            "party": "Independent",
+            "votes": 101835
+          },
+          {
+            "name": "Paul Sand",
+            "party": "Libertarian",
+            "votes": 6714
+          },
+          {
+            "name": "Chantyrose Davison",
+            "party": "Constitution",
+            "votes": 5250
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 67
+          }
+        ]
+      },
+      {
+        "state": "TN",
+        "state_name": "Tennessee",
+        "year": 2022,
+        "source": "https://sos-prod.tnsosgovfiles.com/s3fs-public/document/20221108GovbyOffice.pdf",
+        "candidates": [
+          {
+            "name": "Bill Lee",
+            "party": "Republican",
+            "votes": 1129390
+          },
+          {
+            "name": "Jason Brantley Martin",
+            "party": "Democratic",
+            "votes": 572818
+          },
+          {
+            "name": "John Gentry",
+            "party": "Independent",
+            "votes": 15395
+          },
+          {
+            "name": "Constance M. Every",
+            "party": "Independent",
+            "votes": 10277
+          },
+          {
+            "name": "Deborah Rouse",
+            "party": "Independent",
+            "votes": 3772
+          },
+          {
+            "name": "Rick Tyler",
+            "party": "Independent",
+            "votes": 2380
+          },
+          {
+            "name": "Charles Van Morgan",
+            "party": "Independent",
+            "votes": 1862
+          },
+          {
+            "name": "Basil Marceaux",
+            "party": "Independent",
+            "votes": 1568
+          },
+          {
+            "name": "Alfred O'Neil",
+            "party": "Independent",
+            "votes": 1216
+          },
+          {
+            "name": "Michael E. Scantland",
+            "party": "Independent",
+            "votes": 815
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 389
+          }
+        ]
+      },
+      {
+        "state": "NM",
+        "state_name": "New Mexico",
+        "year": 2022,
+        "source": "https://electionstats.sos.nm.gov/contest/11090",
+        "candidates": [
+          {
+            "name": "Michelle Lujan Grisham",
+            "party": "Democratic",
+            "votes": 370168
+          },
+          {
+            "name": "Mark V. Ronchetti",
+            "party": "Republican",
+            "votes": 324701
+          },
+          {
+            "name": "Karen Evette Bedonie",
+            "party": "Libertarian",
+            "votes": 17387
+          }
+        ]
+      },
+      {
+        "state": "WY",
+        "state_name": "Wyoming",
+        "year": 2022,
+        "source": "https://sos.wyo.gov/Elections/Docs/2022/Results/General/2022_General_Statewide_Candidates_Summary.pdf",
+        "candidates": [
+          {
+            "name": "Mark Gordon",
+            "party": "Republican",
+            "votes": 143696
+          },
+          {
+            "name": "Theresa A. Livingston",
+            "party": "Democratic",
+            "votes": 30686
+          },
+          {
+            "name": "Jared J. Baldes",
+            "party": "Libertarian",
+            "votes": 8157
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 11461
+          }
+        ]
+      },
+      {
+        "state": "TX",
+        "state_name": "Texas",
+        "year": 2022,
+        "source": "https://results.texas-election.com/static/data/Reports/47009/OfficialCanvassReport.pdf",
+        "candidates": [
+          {
+            "name": "Greg Abbott",
+            "party": "Republican",
+            "votes": 4437099
+          },
+          {
+            "name": "Beto O'Rourke",
+            "party": "Democratic",
+            "votes": 3553656
+          },
+          {
+            "name": "Mark Tippetts",
+            "party": "Libertarian",
+            "votes": 81932
+          },
+          {
+            "name": "Delilah Barrios",
+            "party": "Green",
+            "votes": 28584
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 1637
+          }
+        ]
+      },
+      {
+        "state": "NE",
+        "state_name": "Nebraska",
+        "year": 2022,
+        "source": "https://sos.nebraska.gov/sites/default/files/doc/elections/2022/2022%20General%20Canvass%20Book.pdf",
+        "candidates": [
+          {
+            "name": "Jim Pillen",
+            "party": "Republican",
+            "votes": 398334
+          },
+          {
+            "name": "Carol Blood",
+            "party": "Democratic",
+            "votes": 242006
+          },
+          {
+            "name": "Scott Zimmerman",
+            "party": "Libertarian",
+            "votes": 26455
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 5798
+          }
+        ]
+      },
+      {
+        "state": "RI",
+        "state_name": "Rhode Island",
+        "year": 2022,
+        "source": "https://ri.gov/election/results/2022/general_election",
+        "candidates": [
+          {
+            "name": "Daniel J. McKee",
+            "party": "Democratic",
+            "votes": 207166
+          },
+          {
+            "name": "Ashley Marie Kalus",
+            "party": "Republican",
+            "votes": 139001
+          },
+          {
+            "name": "Zachary Baker Hurwitz",
+            "party": "Independent",
+            "votes": 4512
+          },
+          {
+            "name": "Paul A. Rianna Jr.",
+            "party": "Independent",
+            "votes": 3123
+          },
+          {
+            "name": "Elijah J. Gizzarelli",
+            "party": "Libertarian",
+            "votes": 2811
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 1057
+          }
+        ]
+      },
+      {
+        "state": "MA",
+        "state_name": "Massachusetts",
+        "year": 2022,
+        "source": "https://electionstats.state.ma.us/elections/view/154338/",
+        "candidates": [
+          {
+            "name": "Maura Healey",
+            "party": "Democratic",
+            "votes": 1584403
+          },
+          {
+            "name": "Geoff Diehl",
+            "party": "Republican",
+            "votes": 859343
+          },
+          {
+            "name": "Kevin Reed",
+            "party": "Libertarian",
+            "votes": 39244
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 2806
+          }
+        ]
+      }
+    ],
+    "2024": [
+      {
+        "state": "IN",
+        "state_name": "Indiana",
+        "year": 2024,
+        "source": "https://enr.indianavoters.in.gov/archive/2024General/index.html",
+        "candidates": [
+          {
+            "name": "Mike Braun",
+            "party": "Republican",
+            "votes": 1566081
+          },
+          {
+            "name": "Jennifer McCormick",
+            "party": "Democratic",
+            "votes": 1183741
+          },
+          {
+            "name": "Donald Rainwater",
+            "party": "Libertarian",
+            "votes": 129781
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 52
+          }
+        ]
+      }
+    ]
+  },
+  "senate": {
+    "2022": [
+      {
+        "state": "AK",
+        "special": false,
+        "candidates": [
+          {
+            "name": "Lisa Murkowski",
+            "party": "Republican",
+            "votes": 113495
+          },
+          {
+            "name": "Kelly C. Tshibaka",
+            "party": "Republican",
+            "votes": 111480
+          },
+          {
+            "name": "Patricia R. Chesbro",
+            "party": "Democratic",
+            "votes": 27145
+          },
+          {
+            "name": "Buzz A. Kelley",
+            "party": "Republican",
+            "votes": 7557
+          },
+          {
+            "name": "Write-ins",
+            "party": "Other",
+            "votes": 2028
+          }
+        ],
+        "source": "https://www.elections.alaska.gov/results/22GENR/ElectionSummaryReportRPT.pdf",
+        "note": "First-choice votes (official results). Decided by ranked-choice tabulation: final round Murkowski 135,972 (53.69%) - Tshibaka 117,299 (46.31%), per the Division of Elections RCV report (https://www.elections.alaska.gov/results/22GENR/rcv/US-SEN.pdf, labelled unofficial, 11/23/2022)."
+      }
+    ],
+    "2018": [
+      {
+        "state": "PA",
+        "special": false,
+        "candidates": [
+          {
+            "name": "Robert P. Casey Jr.",
+            "party": "Democratic",
+            "votes": 2792437
+          },
+          {
+            "name": "Louis J. Barletta",
+            "party": "Republican",
+            "votes": 2134848
+          },
+          {
+            "name": "Dale R. Kerns Jr.",
+            "party": "Libertarian",
+            "votes": 50907
+          },
+          {
+            "name": "Neal Taylor Gale",
+            "party": "Green",
+            "votes": 31208
+          }
+        ],
+        "source": "https://www.electionreturns.pa.gov/General/SummaryResults?ElectionID=63&ElectionType=G&IsActive=0",
+        "note": "Official returns; the MIT statewide file lists Casey at 2,777,680."
+      }
+    ]
+  },
+  "verify_top2": {
+    "2018|AK": {
+      "R": 145631,
+      "D": 125739,
+      "source": "https://www.elections.alaska.gov/results/18GENR/data/results18.htm"
+    },
+    "2018|AR": {
+      "R": 582406,
+      "D": 283218,
+      "source": "Arkansas SoS certified returns as published by The Green Papers (https://www.thegreenpapers.com/G18/AR)"
+    },
+    "2018|CO": {
+      "D": 1348888,
+      "R": 1080801,
+      "source": "https://historicalelectiondata.coloradosos.gov/contest/3949"
+    },
+    "2018|GA": {
+      "R": 1978408,
+      "D": 1923685,
+      "source": "https://results.sos.ga.gov/results/public/Georgia/elections/2018NovGen"
+    },
+    "2018|IA": {
+      "R": 667275,
+      "D": 630986,
+      "source": "https://sos.iowa.gov/elections/pdf/2018/general/govcanvsummary.pdf"
+    },
+    "2018|ID": {
+      "R": 361661,
+      "D": 231081,
+      "source": "https://canvass.sos.idaho.gov/contests/view/7607"
+    },
+    "2018|IL": {
+      "D": 2479746,
+      "R": 1765751,
+      "source": "https://elections.il.gov/Downloads/ElectionOperations/VoteTotals/2018GEOfficialVote.pdf"
+    },
+    "2018|KS": {
+      "D": 506509,
+      "R": 453030,
+      "source": "https://sos.ks.gov/elections/18elec/2018_General_Election_Official_Votes_Cast.pdf"
+    },
+    "2018|NH": {
+      "R": 302764,
+      "D": 262359,
+      "source": "https://www.sos.nh.gov/2018-general-election-governor"
+    },
+    "2018|OK": {
+      "R": 644579,
+      "D": 500973,
+      "source": "https://results.okelections.gov/OKER/?elecDate=20181106"
+    },
+    "2018|SC": {
+      "R": 921342,
+      "D": 784182,
+      "source": "https://electionhistory.scvotes.gov/contest/4373"
+    },
+    "2018|SD": {
+      "R": 172912,
+      "D": 161454,
+      "source": "South Dakota SoS 2020 election history page, which cites the 2018 governor votes (https://www.sdsos.gov/elections-voting/election-resources/election-history/2020_Election_History.aspx)"
+    },
+    "2022|CA": {
+      "D": 6470104,
+      "R": 4462914,
+      "source": "https://elections.cdn.sos.ca.gov/sov/2022-general/sov/06-summary.pdf"
+    },
+    "2022|MN": {
+      "D": 1312349,
+      "R": 1119941,
+      "source": "Minnesota SoS 2022 general election results page and the University of Minnesota election archive (the SoS results page is behind a bot check)"
+    }
+  },
+  "name_fixes": {
+    "_comment": "Full candidate names where a precinct file has surnames only; names from the state's own report.",
+    "governor|2018|TX": {
+      "Abbott": "Greg Abbott",
+      "Valdez": "Lupe Valdez",
+      "Tippetts": "Mark Jay Tippetts",
+      "_source": "https://www.sos.texas.gov/elections/forms/enrrpts/2018-general.pdf"
+    }
+  }
+}
