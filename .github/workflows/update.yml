@@ -79,6 +79,10 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/fl_districts_update.py || echo "fl districts update failed (non-fatal)"
 
+      - name: Refresh 2026 ballot lists (candidates + measures; at most daily, frozen on Election Day)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/build_ballot_2026.py || echo "ballot list refresh failed (non-fatal; previous lists kept)"
+
       - name: Update election results (House / Senate / Governor)
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/results_update.py || echo "results update failed (non-fatal)"
@@ -117,7 +121,7 @@ jobs:
         run: |
           git config user.name  "turnout-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data
+          git add data config/candidates_2026.json config/measures.json
           if git diff --cached --quiet; then
             echo "No data change; nothing to commit."
           else

@@ -25,6 +25,7 @@ ROOT = os.path.dirname(HERE)
 SLATE_PATH = os.path.join(ROOT, "config", "results_races.json")
 CHAMBERS_PATH = os.path.join(ROOT, "config", "chambers.json")
 MEASURES_PATH = os.path.join(ROOT, "config", "measures.json")
+CANDIDATES_PATH = os.path.join(ROOT, "config", "candidates_2026.json")   # who's on the ballot (build_ballot_2026.py)
 OUT_DIR = os.path.join(ROOT, "data", "results")
 
 # SOURCES_MEASURES[usps] -> {measure_id: {yes, no, reporting, called}} (wired near election)
@@ -66,6 +67,7 @@ def write_measures():
     doc = {"office": "measures", "election": {"date": "2026-11-03", "name": "2026 General"},
            "generated_at": utc_now(), "updated": (utc_now() if any(x.get("candidates") for x in out) else ""),
            "note": "2026 statewide ballot measures; results wired near Election Day.",
+           "list_source": {"label": "Ballotpedia: 2026 ballot measures", "url": "https://ballotpedia.org/2026_ballot_measures"},
            "summary": {"total": len(out), "passed": passed, "failed": failed, "undecided": und},
            "races": out}
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -113,6 +115,14 @@ def main():
     except (OSError, ValueError):
         chambers = {}
 
+    try:
+        ballot = load(CANDIDATES_PATH)
+    except (OSError, ValueError):
+        ballot = {}
+    ballot_races = ballot.get("races", {})
+    ballot_src = {o: {"label": "Wikipedia: " + v.get("title", ""), "url": v.get("url")}
+                  for o, v in (ballot.get("sources") or {}).items()}
+
     any_data = False
     for office, races in slate.items():
         out_races = []
@@ -120,6 +130,8 @@ def main():
                  "dem_lead": 0, "rep_lead": 0, "other_lead": 0, "undecided": 0}
         for race in races:
             rc = dict(race)
+            if ballot_races.get(rc["id"]):   # names on the ballot, shown until results arrive (never as votes)
+                rc["ballot"] = ballot_races[rc["id"]]
             src = live.get(rc["state"], {}).get(rc["id"])
             if src:
                 rc["candidates"] = src.get("candidates", [])
@@ -154,6 +166,8 @@ def main():
                         "called_other": tally["other_called"], "uncalled": tally["undecided"] + tally["dem_lead"] + tally["rep_lead"] + tally["other_lead"]},
             "races": out_races,
         }
+        if office in ballot_src:
+            out["ballot_source"] = ballot_src[office]
         if office in chambers:
             ch = chambers[office]; nu = ch.get("not_up", {"D": 0, "R": 0, "other": 0})
             out["balance"] = {

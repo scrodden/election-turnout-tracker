@@ -22,6 +22,27 @@
   .cm-head { font-weight: 700; font-size: 13px; margin: 10px 0 4px; }
   .cm-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 12px; margin-top: 6px; }
   .cm-key i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 4px; vertical-align: -2px; }
+  .house-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .house-grid { grid-template-columns: 1fr; } }
+  .district-list { max-height: 520px; overflow: auto; }
+  .district-list table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .district-list th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 4px 6px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--card); }
+  .district-list td, .district-list th { text-align: left; }
+  .district-list td { padding: 5px 6px; border-bottom: 1px solid var(--line); }
+  .district-list td:last-child, .district-list th:last-child { text-align: right; }
+  .district-list tbody tr { cursor: pointer; }
+  .district-list tbody tr:hover { background: var(--line); }
+  .cd-labels text { font-weight: 600; fill: #3b4048; pointer-events: none; }
+  .zoom-btns { position: absolute; top: 4px; right: 4px; display: flex; flex-direction: column; gap: 3px; }
+  .zoom-btns button { width: 26px; height: 26px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 5px; font-size: 15px; line-height: 1; cursor: pointer; padding: 0; }
+  .zoom-btns button:hover { background: var(--line); }
+  #district-map svg { touch-action: none; user-select: none; }
+  .district-locator svg { max-height: 300px; }
+  .ballot-list { list-style: none; padding: 0; margin: 4px 0; font-size: 13.5px; }
+  .ballot-list li { margin: 3px 0; }
+  .ballot-list i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  .measure-item { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .measure-item:last-of-type { border-bottom: 0; }
   .year-pick { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 13px; color: var(--muted); }
   .year-pick select { font-size: 13px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
   .rsum { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
@@ -125,6 +146,6 @@
   </footer>
 </main>
 
-<script src="results.js?v=2026101303"></script>
+<script src="results.js?v=2026101305"></script>
 </body>
 </html>

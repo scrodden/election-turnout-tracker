@@ -49,6 +49,27 @@
       if (office === o && !isPast()) render();
     });
   }
+  function pLetter(p) {
+    p = p || "";
+    if (/independ|petition|non-?partisan|unaffiliated|no party|unenrolled/i.test(p)) return "I";
+    if (/^dfl$|democratic-npl/i.test(p)) return "D";
+    return p.charAt(0).toUpperCase();
+  }
+  function lastName(n) {
+    var w = String(n || "").replace(/\s+(Jr\.?|Sr\.?|II|III|IV)$/i, "").split(" ");
+    return w[w.length - 1];
+  }
+  function ballotSorted(r) {   // Democrat / Republican first, then the rest, otherwise in the source's order
+    var b = r.ballot || [];
+    return b.filter(function (x) { return /^[DR]$/.test(pLetter(x.party)); }).concat(b.filter(function (x) { return !/^[DR]$/.test(pLetter(x.party)); }));
+  }
+  function ballotShort(r, max) {   // 'Collins (R) · Ossoff (D)' for the table / tooltip
+    var b = r.ballot || []; if (!b.length) return "";
+    max = max || 3;
+    var major = b.filter(function (x) { return /^[DR]$/.test(pLetter(x.party)); }), rest = b.filter(function (x) { return major.indexOf(x) < 0; });
+    var pick = major.concat(rest).slice(0, max);
+    return pick.map(function (x) { return lastName(x.name) + " (" + pLetter(x.party) + ")"; }).join(" · ") + (b.length > max ? " +" + (b.length - max) : "");
+  }
   function prevOf(r) { return !isPast() && prevIdx[office] ? prevIdx[office][r.id] || null : null; }
   function prevText(r, long) {
     var p = prevOf(r); if (!p) return "—";
@@ -160,7 +181,9 @@
       node.addEventListener("mouseleave", function () { tip.hidden = true; });
       node.addEventListener("click", function () {   // open the state's race (and, for past years, its county map)
         var rs = byState[node.getAttribute("data-u")];
-        if (rs && rs.length && office !== "house" && office !== "measures") { tip.hidden = true; renderDetail(rs[0], rs); }
+        if (rs && rs.length && office === "measures") { tip.hidden = true; renderMeasures(rs); }
+        else if (rs && rs.length && office === "house") { tip.hidden = true; renderHouseState(rs); }
+        else if (rs && rs.length) { tip.hidden = true; renderDetail(rs[0], rs); }
       });
     });
     renderLegend();
@@ -168,14 +191,21 @@
   function showTip(e, usps, byState) {
     var tip = $("#tooltip"), rs = byState[usps]; if (!rs) { tip.hidden = true; return; }
     var name = rs[0].state_name, html = "<b>" + name + "</b>";
-    if (office === "house") {
+    if (office === "measures") {
+      html += "<br>" + rs.length + " statewide measure" + (rs.length === 1 ? "" : "s") + " on the ballot";
+      rs.slice(0, 6).forEach(function (x) { html += "<br>&middot; " + x.title + (x.subject ? " — " + x.subject.split(";")[0] : ""); });
+      if (rs.length > 6) html += "<br>&middot; +" + (rs.length - 6) + " more";
+    } else if (office === "house") {
       var R = 0, D = 0, u = 0; rs.forEach(function (r) { var c = computeRace(r); if (!c.hasData) u++; else if (c.leader === "R") R++; else if (c.leader === "D") D++; });
-      html += "<br>House: " + R + "R / " + D + "D" + (u ? " · " + u + " uncalled" : "") + " of " + rs.length;
+      html += "<br>" + (u === rs.length ? rs.length + (rs.length === 1 ? " seat (at-large)" : " districts") + " on the ballot"
+        : "House: " + R + "R / " + D + "D" + (u ? " · " + u + " uncalled" : "") + " of " + rs.length);
+      if (!isPast()) html += "<br><span class='dim'>click for the " + (rs.length === 1 ? "race" : "district map") + "</span>";
     } else {
       var c = computeRace(rs[0]);
       html += "<br>" + rs[0].office + (isPast() && rs[0].year ? " " + rs[0].year : "") + "<br>" + (c.hasData ? (leanLabel(c.leader) + (c.leaderName ? " (" + c.leaderName + ")" : "") + " +" + c.margin + " · " +
         (isPast() ? (rs[0].first_round ? "won runoff" : "final") : (c.reporting != null ? c.reporting + "% in" : "—"))) : (isPast() ? "no result" : "on the ballot, no results yet"));
       rs.slice(1).forEach(function (x) { html += "<br>also: " + x.office + (x.special && !/special/i.test(x.office || "") ? " (special)" : ""); });
+      if (!isPast() && !c.hasData && rs[0].ballot) html += "<br>" + ballotShort(rs[0], 4);
       if (!isPast() && prevOf(rs[0])) html += "<br>last time: " + prevText(rs[0], true);
     }
     var r = $("#map-holder").getBoundingClientRect();
@@ -253,11 +283,12 @@
         var mstat = r.called ? "<span class='badge " + (r.called === "Pass" ? "dem" : "rep") + "'>" + r.called + "</span>"
           : decided ? "<span class='badge unc'>" + (pass ? "Passing" : "Failing") + "</span>" : "<span class='badge unc'>—</span>";
         var mtds = ["<span class='lean' style='background:" + (decided ? (pass ? "#2f9e44" : "#adb5bd") : "#c9ced6") + "'></span>" + r.state_name,
-          (r.title || "Measure"), yesTxt, r.reporting_pct == null ? "—" : r.reporting_pct + "%", mstat];
+          "<b>" + (r.title || "Measure") + "</b>" + (r.subject ? "<div class='dim' style='font-size:12px'>" + r.subject + "</div>" : ""),
+          yesTxt, r.reporting_pct == null ? "—" : r.reporting_pct + "%", mstat];
         return "<tr data-id='" + r.id + "' style='cursor:pointer'>" + mtds.map(function (x) { return "<td>" + x + "</td>"; }).join("") + "</tr>";
       }
       var c = computeRace(r), lc = color(office === "house" ? null : c.rd);
-      var lead = c.hasData ? (leanLabel(c.leader) + (c.leaderName ? " " + c.leaderName : "")) : "—";
+      var lead = c.hasData ? (leanLabel(c.leader) + (c.leaderName ? " " + c.leaderName : "")) : (!isPast() && r.ballot ? "<span class='dim'>" + ballotShort(r) + "</span>" : "—");
       var status = (isPast() && r.called) ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>" +
           (r.year && year.indexOf("offcycle") === 0 ? r.year + " · " : "") + (r.first_round ? "Won runoff" : "Won") + "</span>"
         : r.called ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>Called " + r.called + "</span>"
@@ -374,18 +405,47 @@
     wrap.addEventListener("mouseleave", function () { tip.hidden = true; });
   }
 
+  function data_src() {
+    var d = cache[office + "|" + year], b = d && d.ballot_source;
+    return b && b.url ? "<a href='" + b.url + "' target='_blank' rel='noopener'>" + b.label + "</a>" : "";
+  }
+  function measureName(r) {   // 'California Proposition 1, Veteran and Housing ... Measure' -> 'Veteran and Housing ... Measure'
+    var n = r.name || "", pre = (r.state_name + " " + r.title).toLowerCase();
+    if (n.toLowerCase().indexOf(pre) === 0) n = n.slice(pre.length).replace(/^[,:\s-]+/, "");
+    return n && n !== r.title ? n : "";
+  }
+  function renderMeasures(list) {   // a state's ballot measures (or one) in the detail panel
+    var d = $("#detail"), body = $("#detail-body"), r0 = list[0];
+    $("#detail-title").textContent = r0.state_name + " · " + (list.length > 1 ? list.length + " ballot measures" : r0.title);
+    var src = (cache["measures|" + year] || {}).list_source;
+    body.innerHTML = list.map(function (r) {
+      var res = r.yes_pct != null ? "<b>Yes " + r.yes_pct + "%</b>" + (r.called ? " &middot; " + r.called : "") : "<span class='dim'>no results yet</span>";
+      return "<div class='measure-item'><div><b>" + r.title + "</b> <span class='dim'>" + (r.type || "") + "</span></div>" +
+        (measureName(r) ? "<div style='font-size:13px'>" + measureName(r) + "</div>" : "") +
+        (r.description ? "<div class='dim' style='font-size:13px;margin-top:2px'>" + r.description + "</div>" : "") +
+        "<div style='font-size:12.5px;margin-top:4px'>" + res + (r.url ? " &middot; <a href='" + r.url + "' target='_blank' rel='noopener'>details</a>" : "") + "</div></div>";
+    }).join("") + (src ? "<p class='fineprint'>List: <a href='" + src.url + "' target='_blank' rel='noopener'>" + src.label + "</a>. Results come from official state sources on Election Night.</p>" : "");
+    d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
   function renderDetail(r, siblings) {
     var d = $("#detail"), body = $("#detail-body"), c = computeRace(r);
-    $("#detail-title").textContent = r.state_name + (r.district ? (" — District " + r.district) : "") + " · " + r.office + (r.title ? (" — " + r.title) : "") + (r.special && !/special/i.test(r.office || "") ? " (special)" : "");
+    $("#detail-title").textContent = r.state_name + (r.district ? (" — " + districtLabel(r)) : "") + " · " + r.office + (r.title ? (" — " + r.title) : "") + (r.special && !/special/i.test(r.office || "") ? " (special)" : "");
+    if (office === "measures") { renderMeasures([r]); return; }
     if (!r.candidates || !r.candidates.length) {
       var pv = prevOf(r);
-      body.innerHTML = "<p class='dim'>" + (isPast() ? "No results for this race." : "On the ballot November 3, 2026 &mdash; no results yet.") + "</p>" +
+      var onBallot = (!isPast() && r.ballot && r.ballot.length) ? "<h4 style='margin:10px 0 4px'>On the ballot</h4><ul class='ballot-list'>" +
+        ballotSorted(r).map(function (x) { var pc = pLetter(x.party);
+          return "<li><i style='background:" + (pc === "R" ? "#d62f2f" : pc === "D" ? "#2b6cb0" : pc === "I" ? "#7e5bb5" : "#6b7280") + "'></i>" + x.name +
+            " <span class='dim'>(" + x.party + ")</span></li>"; }).join("") + "</ul>" +
+        (data_src() ? "<p class='fineprint'>Candidates: " + data_src() + ". Official names and votes replace this list as results are reported.</p>" : "") : "";
+      body.innerHTML = "<p class='dim'>" + (isPast() ? "No results for this race." : "On the ballot November 3, 2026 &mdash; no results yet.") + "</p>" + onBallot +
         (pv ? "<div class='detail-grid'><div><h4 style='margin:10px 0 2px'>Last time this seat was up (" + pv.year + ")</h4>" + bars(pv.race.candidates) +
           "<p class='fineprint'>" + (pv.race.first_round ? "Decided in a runoff. " : "") + "Source: " + (/^https?:\/\/\S+$/.test(pv.race.source || "") ?
             "<a href='" + pv.race.source + "' target='_blank' rel='noopener'>official results</a>" : linkify(pv.race.source || "")) + "</p></div>" +
           "<div id='county-map' class='county-map'></div></div>" : "");
       d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
       if (pv) loadCountyMap(pv.race, $("#county-map"), pv.year);
+      houseExtras(r);
       return;
     }
     var tot = r.candidates.reduce(function (s, x) { return s + (x.votes || 0); }, 0);
@@ -428,7 +488,158 @@
         return "<div style='margin:8px 0'><div style='display:flex;justify-content:space-between;font-size:13px'><span><b>" + (x.name || "—") + "</b> (" + (x.party || "?") + ")</span><span>" + fmt(x.votes || 0) + " · " + p.toFixed(1) + "%</span></div>" +
           "<div style='height:9px;border-radius:5px;background:var(--line);margin-top:3px'><div style='width:" + p.toFixed(1) + "%;height:100%;border-radius:5px;background:" + col + "'></div></div></div>";
       }).join("");
+    houseExtras(r);
     d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  // ---- House: a state's districts (assets/<st>-cd.geojson — the lines in use for November 2026) ----
+  var districtGeo = {};
+  function districtNo(r) { return r.district === "AL" ? 0 : parseInt(r.district, 10); }
+  function districtLabel(r) { return r.district === "AL" ? "At-large" : "District " + parseInt(r.district, 10); }
+  function houseRaces(usps) { return ((cache[office] || {}).races || []).filter(function (x) { return x.state === usps; }); }
+  function districtFill(r) {
+    if (!r) return NO_RACE;
+    var c = computeRace(r);
+    if (!c.hasData) return ON_BALLOT;
+    return c.leader !== "D" && c.leader !== "R" ? "#9b84c4" : color(c.rd);
+  }
+  function renderHouseState(rs) {
+    if (rs.length === 1) { renderDetail(rs[0], rs); return; }
+    rs = rs.slice().sort(function (a, b) { return districtNo(a) - districtNo(b); });
+    var d = $("#detail"), body = $("#detail-body"), r0 = rs[0], R = 0, D = 0, u = 0;
+    rs.forEach(function (r) { var c = computeRace(r); if (!c.hasData) u++; else if (c.leader === "R") R++; else if (c.leader === "D") D++; });
+    $("#detail-title").textContent = r0.state_name + " · U.S. House — " + rs.length + " districts";
+    var rows = rs.map(function (r) {
+      var c = computeRace(r);
+      var who = c.hasData ? leanLabel(c.leader) + (c.leaderName ? " " + c.leaderName : "") + " +" + c.margin : (r.ballot ? ballotShort(r, 3) : "—");
+      return "<tr data-id='" + r.id + "'><td><span class='lean' style='background:" + districtFill(r) + "'></span>" + (r.district === "AL" ? "AL" : districtNo(r)) +
+        "</td><td>" + who + "</td><td>" + (c.reporting != null ? c.reporting + "%" : "—") + "</td></tr>";
+    }).join("");
+    body.innerHTML = "<p class='dim'>" + (u === rs.length ? "On the ballot November 3, 2026 &mdash; no results yet. " : R + " R &middot; " + D + " D leading &middot; " + u + " not yet reported. ") +
+      "Hover a district for its candidates; click one for detail.</p>" +
+      "<div class='house-grid'><div id='district-map' class='county-map'></div>" +
+      "<div class='district-list'><table><thead><tr><th>District</th><th>" + (u === rs.length ? "Candidates" : "Leader") + "</th><th>% In</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>" +
+      (data_src() ? "<p class='fineprint'>Candidates: " + data_src() + ". Official names and votes replace them as results are reported.</p>" : "");
+    body.querySelector(".district-list tbody").addEventListener("click", function (e) {
+      var tr = e.target.closest("tr[data-id]"); if (!tr) return;
+      var r = rs.filter(function (x) { return x.id === tr.getAttribute("data-id"); })[0];
+      if (r) renderDetail(r, rs);
+    });
+    d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    loadDistricts(r0.state, rs, $("#district-map"), null);
+  }
+  function houseExtras(r) {   // a House race's detail: back to the state's districts + where this one is
+    if (office !== "house" || isPast()) return;
+    var body = $("#detail-body"), all = houseRaces(r.state);
+    if (all.length > 1) {
+      var back = el("p", "fineprint"); back.style.marginTop = "0";
+      back.innerHTML = "<a href='#'>&larr; All " + all.length + " " + r.state_name + " districts</a>";
+      back.querySelector("a").addEventListener("click", function (e) { e.preventDefault(); renderHouseState(all); });
+      body.insertBefore(back, body.firstChild);
+    }
+    var host = el("div", "county-map district-locator"); body.appendChild(host);
+    loadDistricts(r.state, all, host, r.id);
+  }
+  function loadDistricts(usps, races, host, focusId) {
+    if (!host) return;
+    host.innerHTML = "<p class='dim'>Loading district map…</p>";
+    getCached(districtGeo, "assets/" + usps.toLowerCase() + "-cd.geojson").then(function (g) { if (host.isConnected) drawDistricts(host, g, races, focusId); })
+      .catch(function () { host.innerHTML = "<p class='fineprint'>The district map isn't available for this state.</p>"; });
+  }
+  function drawDistricts(host, g, races, focusId) {
+    var byNum = {}; races.forEach(function (r) { byNum[districtNo(r)] = r; });
+    var feats = g.features, mnx = Infinity, mxx = -Infinity, mny = Infinity, mxy = -Infinity;
+    feats.forEach(function (ft) { eachRing(ft.geometry, function (ring) { ring.forEach(function (p) {
+      var x = p[0] > 0 ? p[0] - 360 : p[0];   // Aleutians west of the dateline
+      if (x < mnx) mnx = x; if (x > mxx) mxx = x; if (p[1] < mny) mny = p[1]; if (p[1] > mxy) mxy = p[1]; }); }); });
+    var maxH = focusId ? 300 : 520;
+    var k = Math.cos((mny + mxy) / 2 * Math.PI / 180), W = 600, s = W / ((mxx - mnx) * k), H = (mxy - mny) * s;
+    if (H > maxH) { s *= maxH / H; W = (mxx - mnx) * k * s; H = maxH; }
+    function xy(p) { var x = p[0] > 0 ? p[0] - 360 : p[0]; return [(x - mnx) * k * s, (mxy - p[1]) * s]; }
+    var labels = [];
+    var paths = feats.map(function (ft) {
+      var n = ft.properties.district_number, r = byNum[n], fill = districtFill(r);
+      if (focusId) fill = r && r.id === focusId ? (computeRace(r).hasData ? fill : "#c9a227") : "#e6e8ec";
+      var d = "", best = null, bestA = 0;
+      eachRing(ft.geometry, function (ring) {
+        var pts = ring.map(xy), a = 0, cx = 0, cy = 0;
+        d += "M" + pts.map(function (q) { return q[0].toFixed(1) + " " + q[1].toFixed(1); }).join("L") + "Z";
+        for (var i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          var f = pts[j][0] * pts[i][1] - pts[i][0] * pts[j][1]; a += f; cx += (pts[j][0] + pts[i][0]) * f; cy += (pts[j][1] + pts[i][1]) * f;
+        }
+        if (Math.abs(a) > bestA) { bestA = Math.abs(a); best = a ? [cx / (3 * a), cy / (3 * a)] : null; }
+      });
+      if (best && n) labels.push("<text x='" + best[0].toFixed(1) + "' y='" + best[1].toFixed(1) + "' data-a='" + Math.round(bestA / 2) + "' text-anchor='middle' dominant-baseline='central'>" + n + "</text>");
+      return "<path d='" + d + "' fill='" + fill + "' stroke='#fff' vector-effect='non-scaling-stroke' stroke-width='" + (focusId && r && r.id === focusId ? 1.6 : 0.9) + "'" + (r ? " data-id='" + r.id + "'" : "") + "></path>";
+    }).join("");
+    host.innerHTML = (focusId ? "<div class='cm-head'>Where the district is</div>" : "") +
+      "<div class='cm-wrap'><svg viewBox='0 0 " + Math.ceil(W) + " " + Math.ceil(H) + "' role='img' aria-label='Congressional district map'>" + paths +
+      (focusId ? "" : "<g class='cd-labels'>" + labels.join("") + "</g>") + "</svg><div class='cm-tip' hidden></div>" +
+      (focusId || feats.length < 4 ? "" : "<div class='zoom-btns'><button type='button' data-z='in' title='Zoom in'>+</button><button type='button' data-z='out' title='Zoom out'>&minus;</button>" +
+        "<button type='button' data-z='reset' title='Reset'>&#8634;</button></div>") + "</div>" +
+      (focusId || feats.length < 4 ? "" : "<p class='fineprint' style='margin-top:2px'>Zoom with + / &minus; or double-click; drag to pan.</p>") +
+      "<p class='fineprint'>District lines: " + (g.source || "U.S. Census Bureau") + ".</p>";
+    var tip = host.querySelector(".cm-tip"), wrap = host.querySelector(".cm-wrap");
+    function raceAt(ev) { var id = ev.target.getAttribute && ev.target.getAttribute("data-id"); return id && races.filter(function (x) { return x.id === id; })[0]; }
+    wrap.addEventListener("mousemove", function (ev) {
+      var r = raceAt(ev); if (!r) { tip.hidden = true; return; }
+      var c = computeRace(r), html = "<b>" + r.state_name + " " + districtLabel(r) + "</b>";
+      if (c.hasData) html += "<br>" + leanLabel(c.leader) + (c.leaderName ? " (" + c.leaderName + ")" : "") + " +" + c.margin + (c.reporting != null ? " · " + c.reporting + "% in" : "");
+      else if (r.ballot && r.ballot.length) ballotSorted(r).slice(0, 6).forEach(function (x) {
+        var pc = pLetter(x.party);
+        html += "<br><i class='dot' style='background:" + (pc === "R" ? "#d62f2f" : pc === "D" ? "#2b6cb0" : pc === "I" ? "#7e5bb5" : "#6b7280") + "'></i>" + x.name + " (" + x.party + ")";
+      });
+      else html += "<br>on the ballot, no results yet";
+      tip.innerHTML = html; tip.hidden = false;
+      var b = wrap.getBoundingClientRect();
+      tip.style.left = Math.min(ev.clientX - b.left + 10, b.width - 190) + "px";
+      tip.style.top = (ev.clientY - b.top + 10) + "px";
+    });
+    wrap.addEventListener("mouseleave", function () { tip.hidden = true; });
+    // zoom / pan (state view): the viewBox moves; strokes stay thin and labels keep their size
+    var svg = wrap.querySelector("svg"), vb = [0, 0, W, H], drag = null, moved = false;
+    function setVB() {
+      svg.setAttribute("viewBox", vb.map(function (v) { return v.toFixed(1); }).join(" "));
+      var z = W / vb[2];
+      svg.querySelectorAll(".cd-labels text").forEach(function (t) {
+        t.setAttribute("font-size", (11 / z).toFixed(2));
+        t.style.display = +t.getAttribute("data-a") * z * z > 450 ? "" : "none";
+      });
+    }
+    function zoomAt(f, cx, cy) {   // f > 1 zooms in, around (cx, cy) in map units
+      var w = Math.min(W, Math.max(W / 24, vb[2] / f)), h = w * H / W;
+      vb = [Math.min(Math.max(0, cx - (cx - vb[0]) * w / vb[2]), W - w), Math.min(Math.max(0, cy - (cy - vb[1]) * h / vb[3]), H - h), w, h];
+      setVB();
+    }
+    function fit() {   // screen px per map unit, and the letterbox offset (the svg can be capped by max-height)
+      var b = svg.getBoundingClientRect(), k = Math.min(b.width / vb[2], b.height / vb[3]);
+      return { k: k, x: b.left + (b.width - vb[2] * k) / 2, y: b.top + (b.height - vb[3] * k) / 2 };
+    }
+    function toMap(ev) { var f = fit(); return [vb[0] + (ev.clientX - f.x) / f.k, vb[1] + (ev.clientY - f.y) / f.k]; }
+    setVB();
+    if (!focusId && feats.length >= 4) {
+      wrap.querySelectorAll("[data-z]").forEach(function (b) {
+        b.addEventListener("click", function (ev) {
+          ev.stopPropagation(); var z = b.getAttribute("data-z");
+          if (z === "reset") { vb = [0, 0, W, H]; setVB(); } else zoomAt(z === "in" ? 2 : 0.5, vb[0] + vb[2] / 2, vb[1] + vb[3] / 2);
+        });
+      });
+      svg.addEventListener("dblclick", function (ev) { ev.preventDefault(); var p = toMap(ev); zoomAt(2, p[0], p[1]); });
+      svg.addEventListener("pointerdown", function (ev) { drag = { x: ev.clientX, y: ev.clientY, vb: vb.slice() }; moved = false; });
+      svg.addEventListener("pointermove", function (ev) {
+        if (!drag || vb[2] >= W) return;
+        var f = fit(), dx = (ev.clientX - drag.x) / f.k, dy = (ev.clientY - drag.y) / f.k;
+        if (!moved && Math.abs(ev.clientX - drag.x) + Math.abs(ev.clientY - drag.y) > 4) { moved = true; try { svg.setPointerCapture(ev.pointerId); } catch (e) {} }
+        if (moved) { vb[0] = Math.min(Math.max(0, drag.vb[0] - dx), W - vb[2]); vb[1] = Math.min(Math.max(0, drag.vb[1] - dy), H - vb[3]); setVB(); tip.hidden = true; }
+      });
+      svg.addEventListener("pointerup", function () { drag = null; });
+      svg.addEventListener("pointercancel", function () { drag = null; });
+    }
+    wrap.addEventListener("click", function (ev) {
+      if (moved) { moved = false; return; }
+      var r = raceAt(ev); if (r && r.id !== focusId) { tip.hidden = true; renderDetail(r, races); }
+    });
+    wrap.style.cursor = "pointer";
   }
 
   function renderMeta(data) {
@@ -438,7 +649,7 @@
     if (mn) mn.textContent = isPast()
       ? "Red = Republican win, blue = Democratic win, shaded by the final margin; purple = independent. Gray = no race that year." +
         (data.missing_note ? " " + data.missing_note + "." : "") + " Sources: MIT Election Data + Science Lab (president, Senate, most governors), official state results; open a row for its source."
-      : "Red = Republican lead, blue = Democratic lead, by current margin. Tan = on the ballot, no results yet; gray = no " + officeName(office) + " race in 2026. Hover or click a state for the seat's last result.";
+      : "Red = Republican lead, blue = Democratic lead, by current margin. Tan = on the ballot, no results yet; gray = no " + officeName(office) + " race in 2026. " + (office === "house" ? "Click a state for its district map." : "Hover or click a state for the seat's last result.");
     if (isPast()) { $("#pre-note").hidden = true; $("#updated").innerHTML = "Final results"; return; }
     var upd = data.updated ? new Date(data.updated).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" }) : null;
     $("#updated").innerHTML = upd ? "Updated: <b>" + upd + "</b>" : "<b>Not yet reported</b>";
