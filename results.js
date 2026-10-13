@@ -513,6 +513,9 @@
     if (ys.indexOf(year) < 0) year = ys[0];
     sel.innerHTML = ys.map(function (y) { return "<option value='" + y + "'" + (y === year ? " selected" : "") + ">" + (YEAR_LABEL[y] || y) + "</option>"; }).join("");
     sel.parentNode.hidden = ys.length < 2;
+    // the President tab only for presidential years (2020, 2024)
+    var pt = document.querySelector("#tabs [data-office='president']");
+    if (pt) pt.hidden = (YEARS.president || []).indexOf(year) < 0;
   }
   function loadOffice(o) {
     office = o; fillYears();
