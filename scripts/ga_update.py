@@ -84,9 +84,12 @@ def due(last_iso, hours):
     return last < boundary
 
 
-def pick_election(names, tokens):
-    hits = [n for n in names if all(t.upper() in n.upper() for t in tokens)]
-    return hits[0] if hits else None
+def pick_elections(names, tokens):
+    """Every Election Name matching all tokens. The hub can carry one election
+    under several names (2026: 'NOVEMBER 3, 2026 - GENERAL ELECTION', '... -
+    GENERAL & SPECIAL ELECTIONS', '... - GENERAL AND SPECIAL ELECTIONS'), with
+    counties' ballots split among them, so all of them are summed."""
+    return sorted(n for n in names if all(t.upper() in n.upper() for t in tokens))
 
 
 MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
@@ -103,37 +106,45 @@ def election_snapshot_date(name):
 
 
 def fetch(src, election_override=None):
-    """-> (election_name, snapshot_date, {COUNTY: {...counts}}) or (None, None, {}) if
-    the configured election isn't in the hub yet."""
+    """-> (election_name, snapshot_date, {COUNTY: {...counts}}, {CD: {...counts}}) or
+    (None, None, {}, {}) if the configured election isn't in the hub yet. The
+    district rows come from each ballot's registration record
+    (Snapshot.CONGRESSIONAL_DISTRICT)."""
     s = QlikSession(src["token_url"], src["qlik_host"], src["app_id"])
     try:
         names = s.values("Election Name")
-        elec = election_override or pick_election(names, src["election_match"])
-        if not elec:
-            return None, None, {}
-        snap_date = election_snapshot_date(elec)
+        elecs = [election_override] if election_override else pick_elections(names, src["election_match"])
+        if not elecs:
+            return None, None, {}, {}
+        elec = " + ".join(elecs)
+        snap_date = election_snapshot_date(elecs[0])
         if snap_date not in s.values("Snapshot.AsOfDate"):
             snap_date = None
 
         def styles(lst):
             return ",".join("'%s'" % x for x in lst)
-        e = "[Election Name]={'%s'}" % elec
+        e = "[Election Name]={%s}" % ",".join("'%s'" % n.replace("'", "''") for n in elecs)
         mail = "{1<%s,[Ballot Style]={%s}>}" % (e, styles(MAIL_STYLES))
         eip = "{1<%s,[Ballot Style]={%s}>}" % (e, styles(EIP_STYLES))
         eday = '{1<%s,[Ballot Style]={"Election Day*"}>}' % e
         cols = ["eip", "mail", "mail_issued", "mail_rejected", "mail_other", "eday"]
-        rows = s.cube(["County"], [
+        measures = [
             "Sum(%s Ballots_Accepted_Counter)" % eip,
             "Sum(%s Ballots_Accepted_Counter)" % mail,
             "Sum(%s Ballots_Issued_Counter)" % mail,
             "Sum(%s Ballots_Rejected_Counter)" % mail,
             "Sum(%s Ballots_Other_Counter)" % mail,
-            "Sum(%s Ballots_Accepted_Counter)" % eday])
+            "Sum(%s Ballots_Accepted_Counter)" % eday]
+        rows = s.cube(["County"], measures)
         out = {}
         for r in rows:
             if not r[0] or r[0] == "-":
                 continue
             out[r[0]] = {k: int(v or 0) for k, v in zip(cols, r[1:])}
+        dist = {}
+        for r in s.cube(["Snapshot.CONGRESSIONAL_DISTRICT"], measures):
+            if r[0] and r[0].strip().isdigit():
+                dist["CD%d" % int(r[0])] = {k: int(v or 0) for k, v in zip(cols, r[1:])}
         if snap_date:
             status = ",".join("'%s'" % x for x in src.get("registered_status", ["Active"]))
             reg = s.cube(["County"], ["Sum({1<[Snapshot.AsOfDate]={'%s'},[Snapshot.Voter Status]={%s}>} [Snapshot.VoterCount])"
@@ -146,7 +157,7 @@ def fetch(src, election_override=None):
                     out[cn]["registered"] = v
             else:
                 snap_date = None
-        return elec, snap_date, out
+        return elec, snap_date, out, dist
     finally:
         s.close()
 
@@ -187,6 +198,50 @@ def build(cfg, elec, snap_date, rows):
     methods_present = [k for k, v in (("early_voted", t["eip"]), ("mail_voted", t["mail"]),
                                       ("election_day", t["eday"]), ("mail_provided", t["mail_out"])) if v]
     return statewide, counties, methods_present, unmatched
+
+
+def write_districts(cfg, elec, drows, now):
+    """data/ga/districts.json (the map's Districts view) from the hub's
+    by-district counts, in the same shape the Election Lab stand-in used."""
+    geo = load(CD_GEO_PATH, {"features": []})
+    names = {f["properties"]["name"] for f in geo["features"]}
+    units, t = {}, {k: 0 for k in ("eip", "mail", "mail_out", "eday")}
+    for name, r in sorted(drows.items()):
+        if name not in names:
+            continue
+        out = max(0, r["mail_issued"] - r["mail"] - r["mail_rejected"] - r["mail_other"])
+        ent = {"cast": _block(r["eip"] + r["mail"] + r["eday"]), "early_voted": _block(r["eip"]),
+               "mail_voted": _block(r["mail"]), "mail_provided": _block(out)}
+        if r["eday"]:
+            ent["election_day"] = _block(r["eday"])
+        m = C.compute_mail(ent)
+        if m:
+            ent["mail"] = m
+        units[name] = ent
+        t["eip"] += r["eip"]; t["mail"] += r["mail"]; t["mail_out"] += out; t["eday"] += r["eday"]
+    if not units:
+        return False
+    statewide = {"cast": _block(t["eip"] + t["mail"] + t["eday"]), "early_voted": _block(t["eip"]),
+                 "mail_voted": _block(t["mail"]), "mail_provided": _block(t["mail_out"])}
+    if t["eday"]:
+        statewide["election_day"] = _block(t["eday"])
+    body = {"state": STATE, "election": cfg.get("election", {}), "unit_label": "District", "unit_label_plural": "Districts",
+            "partisan": False,
+            "source": "GA SoS Election Data Hub (Qlik): accepted ballots by U.S. House district of each voter's registration",
+            "methods_present": [k for k, v in (("early_voted", t["eip"]), ("mail_voted", t["mail"]),
+                                                ("election_day", t["eday"]), ("mail_provided", t["mail_out"])) if v],
+            "method_labels": cfg.get("method_labels", {}),
+            "coverage": {"ok": len(units), "total": len(names), "unmatched": sorted(set(drows) - names)},
+            "statewide": statewide, "counties": units}
+    h = C.data_hash(dict(body, hub_election=elec))
+    prev = load(DISTRICTS_PATH, {}) or {}
+    changed = h != prev.get("data_hash")
+    body.update({"as_of": now[:10], "source_compiled": now[:10] if changed else prev.get("source_compiled", now[:10]),
+                 "source_compiled_iso": now if changed else prev.get("source_compiled_iso", now),
+                 "data_hash": h, "generated_at": now if changed else prev.get("generated_at", now)})
+    with open(DISTRICTS_PATH, "w", encoding="utf-8") as f:
+        json.dump(body, f, separators=(",", ":"))
+    return True
 
 
 LAB_AGE = [("18-25", "1"), ("26-40", "2"), ("41-65", "3"), ("Over 65", "4")]
@@ -341,8 +396,10 @@ def main():
     now = C.utc_now_iso()
     if not dry:
         os.makedirs(DATA_DIR, exist_ok=True)
-        import lab_standin as LAB   # district view: the Lab's GA_cd.csv, ~hourly
-        LAB.districts(STATE, cfg, CD_GEO_PATH, DISTRICTS_PATH, partisan=False, force=force)
+        on_hub = str(psrc.get("primary", "")).startswith("GA SoS")
+        if not on_hub:   # district view: the Lab's GA_cd.csv, ~hourly, until the hub has the general
+            import lab_standin as LAB
+            LAB.districts(STATE, cfg, CD_GEO_PATH, DISTRICTS_PATH, partisan=False, force=force)
 
     hub_last = psrc.get("hub_checked_at") or psrc.get("fetched_at")
     if not (force or dry) and not due(hub_last, src.get("fetch_hours_utc", [11, 23])):
@@ -359,10 +416,10 @@ def main():
         return 0
 
     try:
-        elec, snap_date, rows = fetch(src, override)
+        elec, snap_date, rows, drows = fetch(src, override)
         status = "ok" if elec else "waiting: no election matching %s in the hub yet" % src["election_match"]
     except Exception as e:  # noqa: BLE001
-        elec, snap_date, rows, status = None, None, {}, "error: %s" % str(e)[:160]
+        elec, snap_date, rows, drows, status = None, None, {}, {}, "error: %s" % str(e)[:160]
     print("ga: %s" % status)
 
     if dry:
@@ -394,6 +451,8 @@ def main():
         return 0
 
     statewide, counties, methods_present, unmatched = build(cfg, elec, snap_date, rows)
+    if drows and sum(r["eip"] + r["mail"] + r["eday"] for r in drows.values()) == statewide["cast"]["total"]:
+        write_districts(cfg, elec, drows, now)   # only when the districts add up to the county total
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Georgia"), "election": cfg.get("election", {}),
         "partisan": False, "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
