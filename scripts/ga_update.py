@@ -107,6 +107,46 @@ def election_snapshot_date(name):
     return "%02d/%02d/%s" % (MONTHS.index(m.group(1)[:3]) + 1, int(m.group(2)), m.group(3))
 
 
+# the hub's voter demographics (DVB_AGG, joined to each ballot's voter record)
+DEMO_FIELDS = (("age", "Age Group"), ("gender", "Gender_Clean"), ("race", "RACE_DESC"))
+
+
+def _age_key(label):
+    m = re.match(r"(\d+)", label or "")
+    return int(m.group(1)) if m else 999
+
+
+def hub_demographics(s, e):
+    """Accepted ballots by age group / gender / race, statewide and by county,
+    in the hub's own categories ('-' = no linked voter record -> 'Unknown').
+    -> {"statewide": {age: [...], ...}, "counties": {COUNTY: {...}}}"""
+    meas = ["Sum({1<%s>} Ballots_Accepted_Counter)" % e]
+    out = {"statewide": {}, "counties": {}}
+
+    def norm_list(pairs, key):
+        acc = {}
+        for lab, v in pairs:
+            lab = "Unknown" if (not lab or lab == "-") else lab
+            acc[lab] = acc.get(lab, 0) + v
+        items = [{"label": k, "count": v} for k, v in acc.items() if v]
+        if key == "age":
+            items.sort(key=lambda x: (_age_key(x["label"]), x["label"]))
+        else:   # named groups by size, then the hub's catch-alls
+            items.sort(key=lambda x: (x["label"] == "Unknown", "unknown" in x["label"].lower() or x["label"] == "Other", -x["count"]))
+        return items
+
+    for key, field in DEMO_FIELDS:
+        rows = s.cube([field], meas)
+        out["statewide"][key] = norm_list([(r[0], int(r[1] or 0)) for r in rows], key)
+        by = {}
+        for r in s.cube(["County", field], meas, max_rows=5000):
+            if r[0] and r[0] != "-":
+                by.setdefault(r[0], []).append((r[1], int(r[2] or 0)))
+        for cty, pairs in by.items():
+            out["counties"].setdefault(cty, {})[key] = norm_list(pairs, key)
+    return out
+
+
 def fetch(src, election_override=None):
     """-> (election_name, snapshot_date, {COUNTY: {...counts}}, {CD: {...counts}}) or
     (None, None, {}, {}) if the configured election isn't in the hub yet. The
@@ -118,7 +158,7 @@ def fetch(src, election_override=None):
         names = s.values("Election Name")
         elecs = [election_override] if election_override else pick_elections(names, src["election_match"])
         if not elecs:
-            return None, None, {}, {}, reload_at
+            return None, None, {}, {}, reload_at, {}
         elec = " + ".join(elecs)
         snap_date = election_snapshot_date(elecs[0])
         if snap_date not in s.values("Snapshot.AsOfDate"):
@@ -144,6 +184,7 @@ def fetch(src, election_override=None):
             if not r[0] or r[0] == "-":
                 continue
             out[r[0]] = {k: int(v or 0) for k, v in zip(cols, r[1:])}
+        demo = hub_demographics(s, e)
         dist = {}
         for r in s.cube(["Snapshot.CONGRESSIONAL_DISTRICT"], measures):
             if r[0] and r[0].strip().isdigit():
@@ -160,7 +201,7 @@ def fetch(src, election_override=None):
                     out[cn]["registered"] = v
             else:
                 snap_date = None
-        return elec, snap_date, out, dist, reload_at
+        return elec, snap_date, out, dist, reload_at, demo
     finally:
         s.close()
 
@@ -427,10 +468,10 @@ def main():
         return 0
 
     try:
-        elec, snap_date, rows, drows, reload_at = fetch(src, override)
+        elec, snap_date, rows, drows, reload_at, demo = fetch(src, override)
         status = "ok" if elec else "waiting: no election matching %s in the hub yet" % src["election_match"]
     except Exception as e:  # noqa: BLE001
-        elec, snap_date, rows, drows, reload_at, status = None, None, {}, {}, "", "error: %s" % str(e)[:160]
+        elec, snap_date, rows, drows, reload_at, demo, status = None, None, {}, {}, "", {}, "error: %s" % str(e)[:160]
     print("ga: %s" % status)
 
     if dry:
@@ -469,6 +510,15 @@ def main():
         "partisan": False, "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties,
     }
+    if demo.get("statewide", {}).get("age"):
+        dm = dict(demo["statewide"])
+        dm["note"] = ("Ballots cast so far by the age group, gender and race on each voter's registration record, "
+                      "from the GA SoS Election Data Hub (its categories; Unknown = no linked voter record).")
+        body["demographics"] = dm
+        for cname, ent in counties.items():
+            d = demo["counties"].get(cname.upper()) or demo["counties"].get(cname)
+            if d:
+                ent["demographics"] = d
     h = C.data_hash(dict(body, hub_election=elec, reg_snapshot=snap_date))
     changed = force or h != prev.get("data_hash")
     snap = dict(body)
@@ -483,8 +533,13 @@ def main():
     with open(LATEST_PATH, "w", encoding="utf-8") as f:
         json.dump(snap, f, separators=(",", ":"))
     cast = statewide["cast"]["total"]
-    if changed and cast:
-        with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+    try:   # a new trend point only when the counts move (not when only demographics / labels change)
+        with open(HISTORY_PATH, encoding="utf-8") as f:
+            last = json.loads([x for x in f.read().splitlines() if x.strip()][-1])
+    except (OSError, ValueError, IndexError):
+        last = {}
+    if changed and cast and (last.get("cast"), last.get("registered")) != (cast, statewide["registered"]):
+        with open(HISTORY_PATH, "a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps({"generated_at": now, "cast": cast, "registered": statewide["registered"],
                                 "data_hash": h}, separators=(",", ":")) + "\n")
     print("%s  %s | counties=%d cast=%d turnout=%s%%%s"
