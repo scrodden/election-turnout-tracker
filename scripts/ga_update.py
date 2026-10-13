@@ -16,9 +16,11 @@ snapshots. For the configured election we pull, per county:
   election_day  Ballots_Accepted_Counter, styles 'Election Day*'
   registered    active voters in the newest registration snapshot on/before today
 
-Polite polling: each fetch creates an anonymous user on the state's Qlik
-tenant, so we fetch at most once per window in source.fetch_hours_utc (twice a
-day) and record the attempt in latest.json.
+Polling: the hub reloads about every 10-20 minutes during voting, so once
+source.every_minutes is set the hub is read on every run that far apart (each
+read opens one anonymous session, as each page visit does); before that, once
+per window in source.fetch_hours_utc. The app's last reload time is kept as
+the data's "as of" time.
 
 Run:  python scripts/ga_update.py [--force] [--dry-run] [--election "NOVEMBER 5, 2024 - GENERAL ELECTION"]
 """
@@ -112,10 +114,11 @@ def fetch(src, election_override=None):
     (Snapshot.CONGRESSIONAL_DISTRICT)."""
     s = QlikSession(src["token_url"], src["qlik_host"], src["app_id"])
     try:
+        reload_at = (s.call(s.doc, "GetAppLayout", {})["qLayout"].get("qLastReloadTime") or "")[:19] + "Z"
         names = s.values("Election Name")
         elecs = [election_override] if election_override else pick_elections(names, src["election_match"])
         if not elecs:
-            return None, None, {}, {}
+            return None, None, {}, {}, reload_at
         elec = " + ".join(elecs)
         snap_date = election_snapshot_date(elecs[0])
         if snap_date not in s.values("Snapshot.AsOfDate"):
@@ -157,7 +160,7 @@ def fetch(src, election_override=None):
                     out[cn]["registered"] = v
             else:
                 snap_date = None
-        return elec, snap_date, out, dist
+        return elec, snap_date, out, dist, reload_at
     finally:
         s.close()
 
@@ -402,7 +405,15 @@ def main():
             LAB.districts(STATE, cfg, CD_GEO_PATH, DISTRICTS_PATH, partisan=False, force=force)
 
     hub_last = psrc.get("hub_checked_at") or psrc.get("fetched_at")
-    if not (force or dry) and not due(hub_last, src.get("fetch_hours_utc", [11, 23])):
+    if src.get("every_minutes"):   # live: read the hub every run, at most this often
+        try:
+            age = (datetime.now(timezone.utc) - datetime.fromisoformat(hub_last.replace("Z", "+00:00"))).total_seconds() / 60
+        except (AttributeError, ValueError):
+            age = None
+        hub_due = age is None or age >= float(src["every_minutes"])
+    else:
+        hub_due = due(hub_last, src.get("fetch_hours_utc", [11, 23]))
+    if not (force or dry) and not hub_due:
         # the hub is only tried twice a day; while we're on the Lab fallback,
         # re-check the Lab about hourly in between
         on_lab = "Election Lab" in str(psrc.get("primary", "")) or not prev.get("statewide")
@@ -416,10 +427,10 @@ def main():
         return 0
 
     try:
-        elec, snap_date, rows, drows = fetch(src, override)
+        elec, snap_date, rows, drows, reload_at = fetch(src, override)
         status = "ok" if elec else "waiting: no election matching %s in the hub yet" % src["election_match"]
     except Exception as e:  # noqa: BLE001
-        elec, snap_date, rows, drows, status = None, None, {}, {}, "error: %s" % str(e)[:160]
+        elec, snap_date, rows, drows, reload_at, status = None, None, {}, {}, "", "error: %s" % str(e)[:160]
     print("ga: %s" % status)
 
     if dry:
@@ -452,7 +463,7 @@ def main():
 
     statewide, counties, methods_present, unmatched = build(cfg, elec, snap_date, rows)
     if drows and sum(r["eip"] + r["mail"] + r["eday"] for r in drows.values()) == statewide["cast"]["total"]:
-        write_districts(cfg, elec, drows, now)   # only when the districts add up to the county total
+        write_districts(cfg, elec, drows, reload_at if len(reload_at) > 10 else now)   # only when they add up to the county total
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Georgia"), "election": cfg.get("election", {}),
         "partisan": False, "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
@@ -463,9 +474,10 @@ def main():
     snap = dict(body)
     snap["source"] = {"primary": "GA SoS Election Data Hub (Qlik): accepted ballots by county & method; turnout-only",
                       "hub_election": elec, "registration_snapshot": snap_date, "fetched_at": now,
-                      "hub_checked_at": now, "status": status}
-    snap["source_compiled"] = now[:10] if changed else prev.get("source_compiled", now[:10])
-    snap["source_compiled_iso"] = now if changed else prev.get("source_compiled_iso", now)
+                      "hub_checked_at": now, "hub_reloaded_at": reload_at, "status": status}
+    as_of = reload_at if len(reload_at) > 10 else now   # the hub's own refresh time
+    snap["source_compiled"] = as_of[:10] if changed else prev.get("source_compiled", as_of[:10])
+    snap["source_compiled_iso"] = as_of if changed else prev.get("source_compiled_iso", as_of)
     snap["data_hash"] = h
     snap["generated_at"] = now if changed else prev.get("generated_at", now)
     with open(LATEST_PATH, "w", encoding="utf-8") as f:
