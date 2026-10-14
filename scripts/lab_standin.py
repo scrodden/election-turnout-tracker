@@ -211,6 +211,10 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     st = code.upper()
     if cfg.get("lab_no_requests"):
         NO_REQUESTS.add(code)
+    dcode = code
+    if cfg.get("lab_district_no_requests"):   # e.g. UT: the district file's "requests" just repeat ballots accepted
+        dcode = code + ":districts"
+        NO_REQUESTS.add(dcode)
     data_dir = os.path.dirname(out_path)
     label, plural, desc = KIND_LABELS[kind]
     if not force and C.checked_recently(data_dir, "lab_" + kind):
@@ -228,7 +232,7 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     geo = _load(cd_geo_path, {"features": []})
     gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
     placed = [r for r in parts if _dnum(r.get(kind)) is not None]
-    ok, gap, cast_gap = reconcile(placed, row, code)
+    ok, gap, cast_gap = reconcile(placed, row, dcode)
     sums = {}
     unknown = sorted({_dnum(r[kind]) for r in placed if _dnum(r[kind]) not in gidx})
     for r in placed:
@@ -243,12 +247,12 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     out_units = {}
     for num in sorted(gidx):
         a = sums.get(num, {})
-        ent = dict(_entity(a, partisan, code), fips=gidx[num]["fips"])
+        ent = dict(_entity(a, partisan, dcode), fips=gidx[num]["fips"])
         d = _demographics(a)
         if d:
             ent["demographics"] = d
         out_units[gidx[num]["name"]] = ent
-    statewide = _entity(row, partisan, code)
+    statewide = _entity(row, partisan, dcode)
     body = {
         "state": code, "election": cfg.get("election", {}), "unit_label": label, "unit_label_plural": plural,
         "partisan": partisan,
@@ -259,7 +263,7 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         "coverage": {"ok": len(gidx), "total": len(gidx), "unmatched": []},
         "as_of": row.get("last_update", ""), "statewide": statewide, "counties": out_units,
     }
-    note = None if code in NO_REQUESTS else unassigned_note(gap, _n(row, "request_all"), "district")
+    note = None if dcode in NO_REQUESTS else unassigned_note(gap, _n(row, "request_all"), "district")
     if cast_gap:
         cast_all = _n(row, "accept_all") + _n(row, "inperson_all")
         note = ((note + " ") if note else "") + (

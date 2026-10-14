@@ -415,7 +415,9 @@
       "data": "data/ut/latest.json",
       "geojson": "assets/ut-counties.geojson",
       "history": "data/ut/history.jsonl",
-      "source_note": "Source: <a href='https://elections.utah.gov/' target='_blank' rel='noopener'>Utah Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Utah Lt. Governor's office data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Utah mails a ballot to every active voter, so &ldquo;ballots mailed&rdquo; is the active-voter count by registered party (unaffiliated voters shown as NPA). The Districts map uses the Lab's U.S. House district file (ballots only; Utah doesn't publish district-level mailings). Once the canvass is certified, the Lt. Governor's <a href='https://vote.utah.gov/election-results-data-historical-information' target='_blank' rel='noopener'>county totals</a> replace these figures. Boundaries: U.S. Census Bureau (districts for the 2026 elections).",
+      "locality_data": "data/ut/districts.json",
+      "locality_geojson": "assets/ut-cd.geojson"
     },
     {
       "code": "wv",

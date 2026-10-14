@@ -49,6 +49,8 @@ GEO_PATH = os.path.join(ROOT, "assets", "ut-counties.geojson")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
+CD_GEO_PATH = os.path.join(ROOT, "assets", STATE + "-cd.geojson")
+DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
 
 PAGE_URL = "https://vote.utah.gov/election-results-data-historical-information"
 FALLBACK_XLSX = "https://vote.utah.gov/wp-content/uploads/2025/12/Master-Aggregated-Numbers-2023-2026.xlsx"
@@ -188,6 +190,21 @@ def build_snapshot(cfg, parsed, gidx, sheet_label):
     return snap
 
 
+def lab_standin(cfg, force):
+    """Until the certified G26 sheet exists: the UF Election Lab's Utah rows
+    (from the Lt. Governor's office), by county and registered party, plus
+    its U.S. House district file for the Districts map. The Lab's 'requested'
+    is every active voter (Utah mails each one a ballot); its district file
+    has no request counts, so the Districts view shows ballots only."""
+    import lab_standin as LAB
+    os.makedirs(DATA_DIR, exist_ok=True)
+    LAB.districts(STATE, cfg, CD_GEO_PATH, DISTRICTS_PATH, partisan=True, force=force)
+    if not LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force,
+                   role="stand-in until the Lt. Governor's certified county totals are posted"):
+        print("ut: no Election Lab figures for Utah yet.")
+    return 0
+
+
 def main():
     force = "--force" in sys.argv
     validate = "--validate" in sys.argv
@@ -196,12 +213,15 @@ def main():
     gidx = {f["properties"]["name"]: f["properties"] for f in geo["features"]}
     county_names = set(gidx)
 
+    prev0 = load(LATEST_PATH, {}) or {}
+    if not (validate or force) and prev0.get("lab_standin") and C.checked_recently(DATA_DIR, "workbook", minutes=360):
+        return lab_standin(cfg, force)   # the certified sheet comes weeks after Nov 3: look for it every ~6 hours
     url = discover_xlsx_url()
     try:
         raw = C.http_get(url, binary=True, no_cache=True, retries=2)
     except Exception as e:  # noqa: BLE001
         print("UT: workbook unavailable (%s): %s" % (url, str(e)[:140]), file=sys.stderr)
-        return 0 if not validate else 2
+        return 2 if validate else lab_standin(cfg, force)
 
     try:
         sheets = C.read_xlsx(raw, positional=True)
@@ -227,6 +247,8 @@ def main():
 
     parsed = parse_sheet(sheets.get(SHEET, []), county_names)
     snap = build_snapshot(cfg, parsed, gidx, SHEET)
+    if not snap["counties"]:   # no certified G26 sheet yet: the Election Lab's live figures
+        return lab_standin(cfg, force)
 
     prev = load(LATEST_PATH, {}) or {}
     changed = force or snap["data_hash"] != prev.get("data_hash")
