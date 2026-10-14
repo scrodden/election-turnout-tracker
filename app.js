@@ -1405,7 +1405,7 @@
           return "<div style='display:flex;align-items:center;gap:8px;font-size:12.5px;margin:3px 0'>" +
             "<span style='width:120px'>" + x.label + "</span>" +
             "<div style='flex:1;height:10px;background:var(--line);border-radius:5px'><div style='width:" + p.toFixed(1) + "%;height:100%;background:var(--accent);border-radius:5px'></div></div>" +
-            "<span style='width:96px;text-align:right'>" + (x.count || 0).toLocaleString("en-US") + " (" + p.toFixed(0) + "%)</span></div>";
+            "<span style='width:118px;text-align:right;white-space:nowrap'>" + (x.count || 0).toLocaleString("en-US") + " (" + p.toFixed(1) + "%)</span></div>";
         }).join("") + "</div>";
     }
     var scope = "<div class='dim' style='font-size:12.5px'>" + (local ? selected + " — click it again for " + (data.state_name || "statewide")
