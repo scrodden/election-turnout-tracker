@@ -44,6 +44,7 @@ LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 CD_GEO_PATH = os.path.join(ROOT, "assets", "ga-cd.geojson")
 DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
+RACE_SHARE_PATH = os.path.join(DATA_DIR, "race_share.json")
 
 MAIL_STYLES = ["Absentee by mail", "Electronic Ballot Delivery"]
 EIP_STYLES = ["Early In-Person"]
@@ -147,6 +148,54 @@ def hub_demographics(s, e):
     return out
 
 
+def election_day_of(name):
+    """'NOVEMBER 3, 2026 - GENERAL ELECTION' -> date(2026, 11, 3), else None."""
+    try:
+        return datetime.strptime(name.split(" - ")[0].strip().title(), "%B %d, %Y").date()
+    except ValueError:
+        return None
+
+
+def race_by_day(s, e, eday, last_day):
+    """Accepted ballots per Ballot Accepted Date x race (the hub's RACE_DESC on
+    each voter's record; '-' = no linked record -> Unknown), one entry per day
+    through min(Election Day, last_day). Ballots with no accepted date, or one
+    after that (late-cured ballots, a few mistyped years), are added to the last
+    day so the running total matches the demographics table.
+    -> {"election_day", "dates": [iso...], "counts": {race: [per-day...]}, "total"}"""
+    rows = s.cube(["Ballot Accepted Date", "RACE_DESC"], ["Sum({1<%s>} Ballots_Accepted_Counter)" % e], max_rows=20000)
+    stop = min(eday, last_day) if eday else last_day
+    days, extra = {}, {}
+    for d, race, v in rows:
+        v = int(v or 0)
+        if not v:
+            continue
+        race = "Unknown" if (not race or race == "-") else race
+        try:
+            dt = datetime.strptime(d, "%m/%d/%Y").date()
+        except (TypeError, ValueError):
+            dt = None
+        bucket = extra if (dt is None or dt > stop) else days.setdefault(dt, {})
+        bucket[race] = bucket.get(race, 0) + v
+    early = {}   # mistyped years (1924, 1951 ...): more than 120 days out -> the first real day
+    if eday:
+        for dt in [x for x in days if x < eday - timedelta(days=120)]:
+            for race, v in days.pop(dt).items():
+                early[race] = early.get(race, 0) + v
+    if not days:
+        return None
+    first, last = min(days), max(days)
+    for race, v in early.items():
+        days[first][race] = days[first].get(race, 0) + v
+    for race, v in extra.items():
+        days[last][race] = days[last].get(race, 0) + v
+    dates = sorted(days)
+    races = sorted({r for d in days.values() for r in d}, key=lambda r: (r == "Unknown", r == "Other/Unknown", r))
+    return {"election_day": eday.isoformat() if eday else None, "dates": [d.isoformat() for d in dates],
+            "counts": {r: [days[d].get(r, 0) for d in dates] for r in races},
+            "total": sum(sum(d.values()) for d in days.values())}
+
+
 def fetch(src, election_override=None):
     """-> (election_name, snapshot_date, {COUNTY: {...counts}}, {CD: {...counts}}) or
     (None, None, {}, {}) if the configured election isn't in the hub yet. The
@@ -185,6 +234,17 @@ def fetch(src, election_override=None):
                 continue
             out[r[0]] = {k: int(v or 0) for k, v in zip(cols, r[1:])}
         demo = hub_demographics(s, e)
+        today_et = (datetime.now(timezone.utc) - timedelta(hours=4)).date()
+        demo["race_by_day"] = {"current": race_by_day(s, e, election_day_of(elecs[0]), today_et), "compare": {}}
+        prev_share = load(RACE_SHARE_PATH, {}) or {}
+        for yr, name in (src.get("race_compare") or {}).items():   # past generals: fixed, fetched once
+            old = (prev_share.get("series") or {}).get(yr)
+            if old and old.get("election") == name:
+                demo["race_by_day"]["compare"][yr] = old
+            elif name in names:
+                ser = race_by_day(s, "[Election Name]={'%s'}" % name.replace("'", "''"), election_day_of(name), election_day_of(name))
+                if ser:
+                    demo["race_by_day"]["compare"][yr] = dict(ser, election=name)
         dist = {}
         for r in s.cube(["Snapshot.CONGRESSIONAL_DISTRICT"], measures):
             if r[0] and r[0].strip().isdigit():
@@ -425,6 +485,28 @@ def write_lab(snap, prev, now):
              (snap["statewide"].get("mail") or {}).get("requested", 0), snap["source"].get("as_of")))
 
 
+def write_race_share(cfg, elec, rbd, as_of):
+    """data/ga/race_share.json: ballots by accepted date and race for this
+    election and the comparison generals (config source.race_compare), for the
+    page's "share of ballots over time" chart. Rewritten only when it changes."""
+    if not rbd or not rbd.get("current"):
+        return
+    yr = (cfg.get("election", {}).get("date") or "")[:4] or "current"
+    series = {yr: dict(rbd["current"], election=elec)}
+    series.update(rbd.get("compare") or {})
+    body = {"state": STATE, "series": series, "markers": (cfg.get("source") or {}).get("race_markers", []),
+            "source": "GA SoS Election Data Hub (Qlik): accepted ballots by Ballot Accepted Date and the race on each "
+                      "voter's registration record (the hub's categories; Unknown = no linked voter record). Past "
+                      "elections use today's voter records, so voters since removed from the rolls count as Unknown."}
+    prev = load(RACE_SHARE_PATH, {}) or {}
+    h = C.data_hash(body)
+    if h == prev.get("data_hash"):
+        return
+    with open(RACE_SHARE_PATH, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(dict(body, as_of=as_of, data_hash=h), f, separators=(",", ":"))
+    print("ga: race_share.json updated (%s)" % ", ".join("%s: %d ballots" % (k, v["total"]) for k, v in sorted(series.items())))
+
+
 def main():
     force = "--force" in sys.argv
     dry = "--dry-run" in sys.argv
@@ -532,6 +614,7 @@ def main():
     snap["generated_at"] = now if changed else prev.get("generated_at", now)
     with open(LATEST_PATH, "w", encoding="utf-8") as f:
         json.dump(snap, f, separators=(",", ":"))
+    write_race_share(cfg, elec, demo.get("race_by_day"), as_of)
     cast = statewide["cast"]["total"]
     try:   # a new trend point only when the counts move (not when only demographics / labels change)
         with open(HISTORY_PATH, encoding="utf-8") as f:

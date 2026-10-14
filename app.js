@@ -921,7 +921,7 @@
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
           precinctData = pd; if (mapMode === "precinct") renderMap();
         }).catch(function () {});
-        loadTrends();
+        loadTrends(); loadRaceShare();
         flashUpdated();
       } else { data.generated_at = nd.generated_at; renderMeta(); }
     }).catch(function () { /* transient; try again next tick */ });
@@ -1215,7 +1215,7 @@
         if (h2.v === "precinct" && PRECINCT_GEO_URL) setMode("precinct");
         if (h2.c && data.counties[h2.c]) selectCounty(h2.c, true);
       }
-      loadTrends();
+      loadTrends(); loadRaceShare();
       loadLocalityLookup(wantUnit);
       if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
       PAST_URL = st.data ? st.data.replace(/latest\.json$/, "turnout_history.json") : null;
@@ -1416,6 +1416,180 @@
     host.hidden = false;
   }
 
+  // ---- share of ballots over time by race (data/<st>/race_share.json; GA) ----
+  // Cumulative share of accepted ballots through each day from voters of one
+  // race, this election vs a past general lined up by days before Election Day.
+  var raceShare = null, raceGroup = "Black", RACE_MIN = 1000;   // days before 1,000 ballots aren't drawn
+  function loadRaceShare() {
+    raceShare = null;
+    var host = $("#race-trend"); if (host) host.hidden = true;
+    if (!st || !st.race_share) return;
+    var want = st;
+    getJSON(st.race_share).then(function (d) { if (st === want) { raceShare = d; renderRaceTrend(); } }).catch(function () {});
+  }
+  function raceSeries(ser, group) {
+    var eday = new Date(ser.election_day + "T12:00:00"), keys = Object.keys(ser.counts), cum = 0, g = 0, out = [];
+    ser.dates.forEach(function (d, i) {
+      var day = 0; keys.forEach(function (k) { day += ser.counts[k][i] || 0; });
+      var gd = (ser.counts[group] || [])[i] || 0;
+      cum += day; g += gd;
+      if (cum < RACE_MIN) return;
+      var t = new Date(d + "T12:00:00");
+      out.push({ t: t, days: Math.round((eday - t) / 86400000), day: day, dayShare: day ? 100 * gd / day : null, cum: cum, share: 100 * g / cum });
+    });
+    return out;
+  }
+  function raceAt(pts, days) {   // the running share as of that many days out (carried over days with no ballots)
+    var p = null;
+    for (var i = 0; i < pts.length; i++) { if (pts[i].days >= days) p = pts[i]; else break; }
+    return p;
+  }
+  function renderRaceTrend() {
+    var host = $("#race-trend"); if (!host) return;
+    var d = raceShare, yrs = d && d.series ? Object.keys(d.series).sort().reverse() : [];
+    if (!yrs.length) { host.hidden = true; return; }
+    var cur = d.series[yrs[0]], cmpYr = yrs[1], cmp = cmpYr ? d.series[cmpYr] : null;
+    var totals = {};
+    Object.keys(cur.counts).forEach(function (k) { totals[k] = cur.counts[k].reduce(function (a, b) { return a + b; }, 0); });
+    var groups = Object.keys(totals).filter(function (k) { return k !== "Unknown" && k !== "Other/Unknown" && totals[k]; })
+      .sort(function (a, b) { return totals[b] - totals[a]; });
+    if (groups.indexOf(raceGroup) < 0) raceGroup = groups.indexOf("Black") >= 0 ? "Black" : groups[0];
+    var A = raceSeries(cur, raceGroup), B = cmp ? raceSeries(cmp, raceGroup) : [];
+    var title = $("#race-trend-title"), sel = $("#race-group"), body = $("#race-trend-body");
+    title.textContent = raceGroup + " share of ballots over time";
+    if (!sel.options.length || sel.getAttribute("data-for") !== yrs[0]) {
+      sel.innerHTML = ""; sel.setAttribute("data-for", yrs[0]);
+      groups.forEach(function (g) { var o = document.createElement("option"); o.value = g; o.textContent = g; sel.appendChild(o); });
+      sel.onchange = function () { raceGroup = sel.value; renderRaceTrend(); };
+    }
+    sel.value = raceGroup;
+    host.hidden = false;
+    if (!A.length) { body.innerHTML = "<p class='dim'>Not enough ballots yet.</p>"; return; }
+    var last = A[A.length - 1], then = raceAt(B, last.days), fin = B.length ? B[B.length - 1] : null;
+    var cy = yrs[0], hero = $("#race-trend-hero");
+    hero.textContent = "";
+    var big = el("b"); big.textContent = last.share.toFixed(1) + "%"; hero.appendChild(big);
+    hero.appendChild(document.createTextNode(" of the " + fmt(last.cum) + " ballots cast so far are from " + raceGroup +
+      " voters" + (then ? ", vs " + then.share.toFixed(1) + "% at the same point in " + cmpYr + " (" + last.days + " days before Election Day)" +
+      (fin ? "; " + cmpYr + " ended at " + fin.share.toFixed(1) + "%" : "") : "") + "."));
+    $("#rt-leg-cur").textContent = cy + ", ballots so far";
+    $("#rt-leg-cmp-wrap").hidden = !B.length;
+    $("#rt-leg-cmp").textContent = cmpYr ? cmpYr + ", same number of days before Election Day" : "";
+    var svg = $("#race-chart");
+    drawRaceChart(svg, [{ yr: cy, pts: A, cls: "rt-cur" }].concat(B.length ? [{ yr: cmpYr, pts: B, cls: "rt-cmp" }] : []), d.markers || [], raceGroup);
+    // table view
+    var rows = A.slice().reverse().map(function (p) {
+      var q = raceAt(B, p.days);
+      return "<tr><td>" + p.t.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + "</td><td>" + p.days + "</td><td>" + fmt(p.day) + "</td><td>" +
+        (p.dayShare == null ? "—" : p.dayShare.toFixed(1) + "%") + "</td><td>" + fmt(p.cum) + "</td><td><b>" + p.share.toFixed(1) + "%</b></td>" +
+        (B.length ? "<td>" + (q ? q.share.toFixed(1) + "%" : "—") + "</td>" : "") + "</tr>";
+    }).join("");
+    var unk = cmp ? (cmp.counts.Unknown || []).reduce(function (a, b) { return a + b; }, 0) / (cmp.total || 1) * 100 : null;
+    $("#race-trend-table").innerHTML = "<table class='rt-table'><thead><tr><th>Date</th><th>Days out</th><th>Ballots that day</th><th>" +
+      "Share that day</th><th>Ballots so far</th><th>Share so far</th>" + (B.length ? "<th>" + cmpYr + " same point</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table>";
+    $("#race-trend-note").textContent = "Share of all accepted ballots through each day, by the race on each voter's registration record " +
+      "(the state's categories). Voters with no linked record count as Unknown and stay in the total, as in the table above. Days before " +
+      fmt(RACE_MIN) + " ballots had come in aren't drawn." + (cmp ? " " + cmpYr + " is lined up by days before its Election Day (" +
+      new Date(cmp.election_day + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
+      ") and uses today's voter records, so voters since removed from the rolls count as Unknown (" + unk.toFixed(1) + "% of its ballots)." : "") +
+      " Source: " + (d.source || "").split(":")[0] + ".";
+  }
+  function drawRaceChart(svg, series, markers, group) {
+    var cw = svg.parentNode.getBoundingClientRect().width || 660;   // draw at the container's width so text stays legible on phones
+    var NS = "http://www.w3.org/2000/svg", W = Math.round(Math.max(280, Math.min(660, cw))), narrow = W < 480, H = narrow ? 230 : 260, ml = 36, mr = narrow ? 52 : 92, mt = 16, mb = 34;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    function add(tag, attrs, text, parent) {
+      var e = document.createElementNS(NS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (text != null) e.textContent = text;
+      (parent || svg).appendChild(e); return e;
+    }
+    var all = []; series.forEach(function (s) { all = all.concat(s.pts); });
+    var D = Math.min(63, Math.ceil(Math.max.apply(null, all.map(function (p) { return p.days; })) / 7) * 7) || 7;
+    var vals = all.filter(function (p) { return p.days <= D; }).map(function (p) { return p.share; });
+    var lo = Math.max(0, Math.floor((Math.min.apply(null, vals) - 1) / 5) * 5), hi = Math.min(100, Math.ceil((Math.max.apply(null, vals) + 1) / 5) * 5);
+    if (hi - lo < 10) hi = Math.min(100, lo + 10);
+    var step = hi - lo > 30 ? 10 : 5;
+    var px = function (days) { return ml + (D - days) / D * (W - ml - mr); };
+    var py = function (v) { return mt + (1 - (v - lo) / (hi - lo)) * (H - mt - mb); };
+    for (var v = lo; v <= hi + 0.001; v += step) {
+      add("line", { class: "rt-grid", x1: ml, x2: W - mr, y1: py(v), y2: py(v) });
+      add("text", { class: "rt-lbl", x: ml - 6, y: py(v) + 3.5, "text-anchor": "end" }, v + "%");
+    }
+    add("line", { class: "rt-base", x1: ml, x2: W - mr, y1: H - mb, y2: H - mb });
+    for (var t = D; t >= 0; t -= 7) add("text", { class: "rt-lbl", x: px(t), y: H - mb + 15, "text-anchor": "middle" }, t === 0 ? "Election Day" : String(t));
+    add("text", { class: "rt-lbl", x: ml, y: H - 3 }, "days before Election Day");
+    markers.forEach(function (m) {
+      if (m.days_out > D) return;
+      add("line", { class: "rt-mark", x1: px(m.days_out), x2: px(m.days_out), y1: mt, y2: H - mb });
+      add("text", { class: "rt-lbl", x: px(m.days_out) + 4, y: mt + 8 }, m.label);
+    });
+    // comparison first, current on top
+    series.slice().reverse().forEach(function (s) {
+      var pts = s.pts.filter(function (p) { return p.days <= D; });
+      if (!pts.length) return;
+      add("path", { class: s.cls, d: pts.map(function (p, i) { return (i ? "L" : "M") + px(p.days).toFixed(1) + " " + py(p.share).toFixed(1); }).join("") });
+      var e = pts[pts.length - 1];
+      add("circle", { class: s.cls + "-dot", cx: px(e.days), cy: py(e.share), r: 4 });
+      var lbl = add("text", { class: "rt-end", x: px(e.days) + 8, y: py(e.share) + 4 });
+      add("tspan", { class: "rt-end-v" }, e.share.toFixed(1) + "%", lbl);
+      if (narrow) add("tspan", { x: px(e.days) + 8, dy: 13 }, s.yr, lbl);   // phones: year under the value
+      else add("tspan", {}, " " + s.yr + (s.cls === "rt-cmp" && e.days === 0 ? " final" : ""), lbl);
+    });
+    // crosshair + one tooltip for every series
+    var wrap = svg.parentNode, tip = wrap.querySelector(".rt-tip");
+    var guide = add("line", { class: "rt-guide", x1: 0, x2: 0, y1: mt, y2: H - mb, visibility: "hidden" });
+    var dots = series.map(function (s) { return add("circle", { class: s.cls + "-dot", r: 4, visibility: "hidden" }); });
+    var hit = add("rect", { x: ml, y: mt, width: W - ml - mr, height: H - mt - mb, fill: "transparent", class: "rt-hit", tabindex: "0" });
+    function show(days) {
+      days = Math.max(0, Math.min(D, days));
+      var X = px(days), rowsShown = 0;
+      guide.setAttribute("x1", X); guide.setAttribute("x2", X); guide.setAttribute("visibility", "visible");
+      tip.textContent = "";
+      var head = el("div", "rt-tip-h"); head.textContent = days === 0 ? "Election Day" : days + " days before Election Day"; tip.appendChild(head);
+      series.forEach(function (s, i) {
+        var p = raceAt(s.pts, days);
+        var cur = s.cls === "rt-cur" && s.pts.length && days < s.pts[s.pts.length - 1].days ? null : p;   // no 2026 value for days still ahead
+        if (!cur) { dots[i].setAttribute("visibility", "hidden"); return; }
+        dots[i].setAttribute("cx", px(Math.max(days, 0))); dots[i].setAttribute("cy", py(cur.share)); dots[i].setAttribute("visibility", "visible");
+        var r = el("div", "rt-tip-r"), key = el("i", "rt-key " + s.cls), val = el("b"), lab = el("span");
+        val.textContent = cur.share.toFixed(1) + "%";
+        lab.textContent = " " + s.yr + " · through " + cur.t.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " · " + fmt(cur.cum) + " ballots";
+        r.appendChild(key); r.appendChild(val); r.appendChild(lab); tip.appendChild(r); rowsShown++;
+      });
+      if (!rowsShown) { hide(); return; }
+      tip.hidden = false;
+      var bw = wrap.getBoundingClientRect().width, sx = X / W * bw;
+      tip.style.left = Math.min(Math.max(0, sx + 12), bw - tip.offsetWidth - 4) + "px";
+      tip.style.top = "8px";
+    }
+    function hide() { guide.setAttribute("visibility", "hidden"); dots.forEach(function (d) { d.setAttribute("visibility", "hidden"); }); tip.hidden = true; }
+    function fromEvent(ev) {
+      var m = svg.getScreenCTM(); if (!m) return null;
+      var pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+      var x = pt.matrixTransform(m.inverse()).x;
+      return Math.round(D - (x - ml) / (W - ml - mr) * D);
+    }
+    var focusDays = null;
+    hit.addEventListener("pointermove", function (ev) { var dd = fromEvent(ev); if (dd != null) show(dd); });
+    hit.addEventListener("pointerleave", hide);
+    hit.addEventListener("focus", function () { focusDays = series[0].pts.length ? series[0].pts[series[0].pts.length - 1].days : D; show(focusDays); });
+    hit.addEventListener("blur", hide);
+    hit.addEventListener("keydown", function (ev) {
+      if (focusDays == null) return;
+      if (ev.key === "ArrowLeft") { focusDays = Math.min(D, focusDays + 1); show(focusDays); ev.preventDefault(); }
+      if (ev.key === "ArrowRight") { focusDays = Math.max(0, focusDays - 1); show(focusDays); ev.preventDefault(); }
+    });
+    svg.setAttribute("aria-label", group + " share of ballots cast, cumulative, by days before Election Day: " +
+      series.map(function (s) { var e = s.pts[s.pts.length - 1]; return s.yr + " " + (e ? e.share.toFixed(1) + "% with " + e.days + " days to go" : "no data"); }).join("; "));
+  }
+
+  var raceResizeT = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(raceResizeT);
+    raceResizeT = setTimeout(function () { if (raceShare && !$("#race-trend").hidden) renderRaceTrend(); }, 150);
+  });
   function renderProjection() {
     var host = $("#projection"); if (!host) return;
     var cast = (data.statewide.cast || {}).total || 0;

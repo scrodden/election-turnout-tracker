@@ -17,6 +17,9 @@
     --line: #262d36; --accent: #7aa2c4; --shadow: 0 1px 3px rgba(0,0,0,.4);
   }
 }
+/* chart series (validated: scripts/validate_palette.js, light vs #fff, dark vs #161b22) */
+:root { --series-1: #2a78d6; --series-ref: #898781; }
+@media (prefers-color-scheme: dark) { :root { --series-1: #3987e5; } }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
@@ -204,3 +207,40 @@ tbody tr.sel { background: rgba(52,80,107,.12); }
 .look-margin { font-size: 30px; font-weight: 800; line-height: 1; min-width: 92px; }
 .look-bar { position: relative; display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--line); }
 .look-bar i { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--ink); opacity: .5; }
+
+/* share of ballots over time (race) */
+.rt-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.rt-pick select { font-size: 13px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+.rt-hero { margin: 6px 2px 4px; font-size: 14px; color: var(--ink); }
+.rt-hero b { font-size: 22px; font-weight: 700; margin-right: 2px; }
+.rt-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); margin: 4px 2px 2px; }
+.rt-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.rt-key { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--series-1); }
+.rt-key.rt-cmp { border-top: 2px dashed var(--series-ref); }
+.rt-wrap { position: relative; }
+.rt-chart { width: 100%; height: auto; display: block; overflow: visible; }
+.rt-chart .rt-grid { stroke: var(--line); stroke-width: 1; }
+.rt-chart .rt-base { stroke: var(--muted); stroke-width: 1; opacity: .5; }
+.rt-chart .rt-lbl { fill: var(--muted); font-size: 11px; }
+.rt-chart .rt-mark { stroke: var(--muted); stroke-width: 1; opacity: .45; }
+.rt-chart .rt-cur { fill: none; stroke: var(--series-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.rt-chart .rt-cmp { fill: none; stroke: var(--series-ref); stroke-width: 2; stroke-dasharray: 5 4; stroke-linejoin: round; }
+.rt-chart .rt-cur-dot { fill: var(--series-1); stroke: var(--card); stroke-width: 2; pointer-events: none; }
+.rt-chart .rt-cmp-dot { fill: var(--series-ref); stroke: var(--card); stroke-width: 2; pointer-events: none; }
+.rt-chart .rt-end { fill: var(--muted); font-size: 12px; }
+.rt-chart .rt-end-v { fill: var(--ink); font-weight: 700; }
+.rt-chart .rt-guide { stroke: var(--muted); stroke-width: 1; pointer-events: none; }
+.rt-chart .rt-hit { cursor: crosshair; outline: none; }
+.rt-tip { position: absolute; z-index: 5; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
+  padding: 7px 9px; font-size: 12px; box-shadow: var(--shadow); pointer-events: none; white-space: nowrap; }
+.rt-tip-h { color: var(--muted); margin-bottom: 3px; }
+.rt-tip-r { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.rt-tip-r b { font-size: 13px; }
+.rt-tip-r span { color: var(--muted); }
+.rt-details { margin: 8px 2px 0; font-size: 13px; }
+.rt-details summary { cursor: pointer; color: var(--accent); }
+.rt-table-wrap { max-height: 320px; overflow: auto; margin-top: 6px; }
+.rt-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.rt-table th, .rt-table td { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+.rt-table th:first-child, .rt-table td:first-child { text-align: left; }
+.rt-table th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--card); }
