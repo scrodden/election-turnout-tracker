@@ -35,7 +35,8 @@ def main():
         if re.search(r"not defined", p.get("NAME", ""), re.I) or not f.get("geometry"):
             continue
         feats.append({"type": "Feature", "geometry": f["geometry"],
-                      "properties": {"name": p["BASENAME"], "fips": p["GEOID"]}})
+                      # Massachusetts cities styled "Town of ..." have Census names like "Agawam Town"
+                      "properties": {"name": re.sub(r"\s+Town$", "", p["BASENAME"]), "fips": p["GEOID"]}})
     if not feats:
         raise SystemExit("no county subdivisions returned for state %s" % fips)
     out = os.path.join(ROOT, "assets", "%s-towns.geojson" % st)

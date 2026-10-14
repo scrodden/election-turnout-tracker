@@ -1479,7 +1479,24 @@
     return /independ|petition|non-?partisan|unaffiliated|no party|unenrolled/i.test(p) ? "I" : (p || "O").toUpperCase()[0];
   }
   var LOOK_COLOR = { D: "#2b6cb0", R: "#d62f2f", I: "#7e5bb5", L: "#c99a06", G: "#2f9e44" };
-  function lookSource() { return lookData && lookData.view === "locality" ? lookWeights : data; }
+  function lookSource() {
+    if (lookData && lookData.view === "locality") return lookWeights;
+    if (lookData && lookData.view === "rollup" && lookData.rollup && data && data.counties) return rollupSource();
+    return data;
+  }
+  var rollupCache = { src: null, out: null };
+  function rollupSource() {   // MA: city/town ballots summed to counties, the unit its past results come in
+    if (rollupCache.src === data) return rollupCache.out;
+    var keys = ["cast", "mail_voted", "early_voted", "election_day"], counties = {};
+    Object.keys(data.counties).forEach(function (town) {
+      var cty = lookData.rollup[town]; if (!cty) return;
+      var acc = counties[cty] = counties[cty] || {};
+      keys.forEach(function (k) { acc[k] = { total: ((acc[k] || {}).total || 0) + (block(data.counties[town], k).total || 0) }; });
+    });
+    rollupCache = { src: data, out: { counties: counties, methods_present: data.methods_present, method_labels: data.method_labels,
+      unit_label: "County", unit_label_plural: "Counties" } };
+    return rollupCache.out;
+  }
   function lookShown() { var w = lookSource(); return !!(lookData && lookData.races && lookData.races.length && w && w.counties); }
   function marginWords(m, c) {   // m = cand1 share - cand2 share
     if (Math.abs(m) < 0.05) return "Even";
@@ -1542,6 +1559,7 @@
         "<p class='fineprint dim'>This shows where ballots are coming from, not how anyone voted: within a " + uL +
         ", early and mail voters can lean differently from its voters overall." +
         (all > W ? " " + Math.round(100 * W / all) + "% of ballots are in " + uLP + " with past results." : "") +
+        (lookData.view === "rollup" ? " Ballots are reported by " + unitLabel.toLowerCase() + " and added up to counties here, the unit the past results come in." : "") +
         (lookData.view === "locality" ? " Ballots by " + uL + ": " + (typeof src.source === "string" ? src.source : (src.source && src.source.primary) || "the state's " + uL + " file") + "." : "") +
         (partisan && unitPartisan ? " The party figures above count registered party members; this estimate uses only where ballots come from." : "") +
         (basis !== method ? " (Uses all ballots cast" + (["mail_voted", "early_voted", "election_day", "cast"].indexOf(method) < 0 ? "; the selected category isn&rsquo;t votes" : "") + ".)" : "") +

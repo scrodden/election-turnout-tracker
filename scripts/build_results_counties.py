@@ -633,6 +633,16 @@ OFFICE_LABEL = {"president": "President", "senate": "U.S. Senate", "governor": "
 OFFICE_RANK = {"president": 0, "senate": 1, "governor": 2}
 
 
+def town_rollup(town_geo, county_geo):
+    """{town name: county name} from Census codes (a county subdivision's GEOID
+    starts with its county's FIPS), or None if any town can't be placed."""
+    cg = json.load(open(os.path.join(ROOT, county_geo), encoding="utf-8"))
+    tg = json.load(open(os.path.join(ROOT, town_geo), encoding="utf-8"))
+    cname = {f["properties"]["fips"]: f["properties"]["name"] for f in cg["features"]}
+    out = {f["properties"]["name"]: cname.get(str(f["properties"]["fips"])[:5]) for f in tg["features"]}
+    return out if out and all(out.values()) else None
+
+
 def write_state_extracts():
     reg = json.load(open(os.path.join(ROOT, "assets", "states.json"), encoding="utf-8"))
     states = reg["states"] if isinstance(reg, dict) else reg
@@ -663,10 +673,15 @@ def write_state_extracts():
     for s in states:
         st, geo = s["code"].upper(), s.get("geojson")
         races = [x for x in by_state.get(st, []) if x["geo"] == geo]
-        view = "primary"
+        view, rollup = "primary", None
         if not races and s.get("locality_geojson"):   # VA: main map by district, second view by locality
             races = [x for x in by_state.get(st, []) if x["geo"] == s["locality_geojson"]]
             view = "locality"
+        if not races and geo and geo.endswith("-towns.geojson"):   # MA: ballots by city/town, past results by county
+            cgeo = "assets/%s-counties.geojson" % s["code"]
+            rollup = town_rollup(geo, cgeo) if os.path.exists(os.path.join(ROOT, cgeo)) else None
+            races = [x for x in by_state.get(st, []) if x["geo"] == cgeo] if rollup else []
+            view = "rollup"
         p = os.path.join(ROOT, "data", s["code"], "past_results_county.json")
         if not races:
             if os.path.exists(p):
@@ -677,7 +692,8 @@ def write_state_extracts():
             del x["geo"]
         os.makedirs(os.path.dirname(p), exist_ok=True)
         with open(p, "w", encoding="utf-8", newline="\n") as f:
-            json.dump({"state": s["code"], "view": view, "races": races}, f, separators=(",", ":"))
+            json.dump(dict({"state": s["code"], "view": view, "races": races}, **({"rollup": rollup} if rollup else {})),
+                      f, separators=(",", ":"))
         n += 1
     print("per-state extracts: %d states" % n)
 

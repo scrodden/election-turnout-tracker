@@ -7,14 +7,19 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-10-01",
   "source": {
-    "_comment": "STAGED SKELETON. Strong early/VBM data but reported by town (town->county); enrolled party. Source pointer: https://www.sec.state.ma.us/divisions/elections/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://www.sec.state.ma.us/divisions/elections/"
+    "_comment": "UF Election Lab stand-in (US.csv statewide + MA_county.csv by city/town), from the Secretary of the Commonwealth's early and mail voting statistics; CC BY-NC-ND 4.0. Turnout only: the Secretary's by-party 'Cast' sheet doesn't reconcile with its overall totals (Lab note, 2026-10-13). The Secretary's pages (sec.state.ma.us) are behind an hCaptcha challenge, so they aren't read directly.",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/",
+    "portal": "https://www.sec.state.ma.us/divisions/elections/research-and-statistics/early-voting-statistics.htm"
   },
   "method_labels": {
     "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
-  }
+    "mail_voted": "Mail ballots returned",
+    "mail_provided": "Mail ballots outstanding",
+    "early_voted": "Voted early in person"
+  },
+  "unit_label": "City/Town",
+  "unit_label_plural": "Cities/Towns",
+  "mail_base_label": "Ballots requested"
 }
