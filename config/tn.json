@@ -7,9 +7,9 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-10-14",
   "source": {
-    "_comment": "STAGED SKELETON. Large in-person early voting by county (no party registration). Source pointer: https://sos.tn.gov/elections . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "_comment": "STAGED SKELETON, re-checked 2026-10-14 (Oct rollout routine) -- still no feed. Confirmed general-election early voting runs 2026-10-14 through 2026-10-29. Checked sos.tn.gov/elections (no data/statistics link), elections.tn.gov (the 'Election Night Reporting Dashboard', a JS app that only serves election-DAY results, not early voting, and has nothing posted pre-Nov-3) and GoVoteTN (sos.tn.gov/govotetn, a voter-lookup/registration site with no turnout numbers). TN SOS does NOT publish a persistent, machine-readable per-county daily early-voting feed -- historically (2016-2020) it issued occasional press releases with aggregate STATEWIDE totals only, at unpredictable URL slugs that are removed/404 after a few years (checked several old sos.tn.gov/press-releases/... and /node/NNN links, all 404 now), so there's nothing stable to parse even by scraping press releases, and no 2026 early-voting press release has been posted yet (checked the /elections press-releases listing). A third-party site (tnfirefly.com/elections/early-voting) says it will publish daily county counts itself starting today, but it's a Next.js/JS-rendered page with no stated official data feed behind it and isn't an SOS source, so it's not used here. Re-check sos.tn.gov/elections and its press releases during/after the Oct 14-29 EV window for a statewide or by-county release, and re-check for a 2026 county file at election.lab.ufl.edu/data-downloads/earlyvote/2026/TN_county.csv (statewide US.csv row for TN was still all-zero/'TBD' source as of this check). Reads 0 until a real source is found.",
     "portal": "https://sos.tn.gov/elections"
   },
   "method_labels": {

@@ -9,7 +9,7 @@
   },
   "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. Early voting + absentee by county & registered party. Source pointer: https://sos.wv.gov/elections/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
+    "_comment": "STAGED SKELETON -- checked 2026-10-14, no feed found. sos.wv.gov publishes only (a) 'Historical Voter Turnout' / 'Historical Election Results and Turnout' pages (past, certified elections only, not live) and (b) narrative news-style press releases during early voting (e.g. sos.wv.gov/article/warner-reports-...) that give a single statewide in-person total in prose, no per-county breakdown, no party split, and no attached CSV/XLSX -- confirmed by fetching one directly. The AbsenteeBallotTracking app at apps.sos.wv.gov is a per-voter lookup tool, not an aggregate feed. A WV Democratic Party page republishes a Google Sheet it says is sourced from WVSOS county data, but that's a third-party copy (not the SOS's own stable endpoint) and unsuitable as a primary source. No Tableau/Power BI/Qlik dashboard found either. Re-check after WV's 2026 general early-voting period opens (general_start below) by searching sos.wv.gov press releases for a linked spreadsheet/report (past general elections have been reported to have one, titled like 'General Early Vote Turnout Report'); if found, confirms a live per-county+party CSV exists and this can be wired like fl_update.py/pa_update.py. Until then this reads 0.",
     "portal": "https://sos.wv.gov/elections/"
   },
   "method_labels": {

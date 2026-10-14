@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""West Virginia turnout by county and registered party.
+"""West Virginia turnout by county and registered party (early voting +
+absentee; WV registers by party).
 
-Source: Iowa SoS "Absentee Ballot Statistics" PDF, by county and party
-(requested / issued / received). "Received" (returned) by party = ballots cast.
-The 2024 file persists, so this is upgradeable to a real pypdf parser (like
-LA/MD). STAGED SKELETON for now: writes an empty (0) partisan snapshot until the
-parser is wired against the live 2026 file (the Friday rollout routine does this
-in Oct). See config/ia.json for the exact URLs.
+STAGED SKELETON: as of 2026-10-14 no live, machine-readable, per-county feed
+was found. sos.wv.gov's own "election-data" pages are historical/post-election
+only; early-voting updates during the voting window are published only as
+narrative press releases (statewide totals in prose, no county table, no
+party split, no attached CSV/XLSX -- confirmed by fetching one directly). See
+the "_comment" in config/wv.json for the full list of what was checked and
+what to look for on the next pass. Writes an empty (0) partisan snapshot until
+a real parser can be wired against a genuine county+party feed.
 
-Run:  python scripts/ia_update.py [--force]
+Run:  python scripts/wv_update.py [--force]
 """
 import os
 import sys

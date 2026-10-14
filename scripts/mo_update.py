@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
-"""Fetch Washington ballots-returned turnout by county (turnout-only; WA has no
+"""Missouri in-person early-voting turnout by county (turnout-only; MO has no
 party registration).
 
-Source: WA Secretary of State "Ballot Return Statistics" (ballots returned & %
-by county). WA is all-mail. No persistent machine-readable county feed was found
-off-season -- the live numbers are published on a seasonal dashboard/report.
+STAGED SKELETON: as of 2026-10-14 no statewide, machine-readable, per-county
+feed was found, and MO's first-ever no-excuse in-person early-voting window
+for the general doesn't open until 2026-10-20 anyway. sos.mo.gov/elections
+links only to final, certified, post-election PDF turnout reports; the "Show
+MO Votes" tool is an empty Angular SPA shell (no data/API reference in its
+static HTML); enr.sos.mo.gov (Election Night Reporting) returns HTTP 403
+(WAF-blocked) to a non-browser fetch. Missouri elections run through 116
+independent local election authorities with no sign of centralized daily
+reporting. See the "_comment" in config/mo.json for the full list of what was
+checked and what to look for on the next pass (especially once the window
+opens 10-20, and close to election night for enr.sos.mo.gov /
+showmovotes). Writes an empty (0) turnout-only snapshot until a real parser
+can be wired against a genuine county feed.
 
-STATUS: staged skeleton. This writes an empty (0) turnout-only snapshot until a
-verified live 2026 feed is wired; the Friday rollout routine finalizes the
-parser against the live report when WA's general ballots start returning
-(~mid-Oct 2026). Kept in the same schema as Virginia's turnout-only connector so
-the front end treats it identically (green turnout-intensity map, no party UI).
-
-Run:  python scripts/wa_update.py [--force]
+Run:  python scripts/mo_update.py [--force]
 """
 import os
 import sys

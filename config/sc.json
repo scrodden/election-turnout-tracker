@@ -7,10 +7,11 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-10-19",
   "source": {
-    "_comment": "STAGED SKELETON. Two weeks of in-person early voting by county (no party registration). Source pointer: https://scvotes.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://scvotes.gov/"
+    "_comment": "WIRED (scripts/sc_update.py), Oct 2026. SC's 2026 general early voting runs Mon Oct 19 - Sat Oct 31 (closed Sun Oct 25), confirmed on https://scvotes.gov/voters/early-voting/ . The SC Election Commission posts a per-county 'Early Voting Report' CSV to scvotes.gov/wp-content/uploads/ during each statewide election's EV period (confirmed from the 2026 June primary and August special-primary reports), but the filename/folder isn't stable across elections, so the connector re-discovers the current CSV link from the Voter Registration and Participation Statistics page (https://scvotes.gov/elections-statistics/voter-participation/) each run. As of 2026-10-14 (before EV opens) no general-election report is linked yet, so this reads 0 -- expect it to start reporting once EV opens on Oct 19.",
+    "portal": "https://scvotes.gov/",
+    "stats_page": "https://scvotes.gov/elections-statistics/voter-participation/"
   },
   "method_labels": {
     "cast": "Ballots cast",

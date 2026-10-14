@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""New York turnout by county and registered party.
+"""New York early-voting turnout by county, plus enrollment by party.
 
-Source: Iowa SoS "Absentee Ballot Statistics" PDF, by county and party
-(requested / issued / received). "Received" (returned) by party = ballots cast.
-The 2024 file persists, so this is upgradeable to a real pypdf parser (like
-LA/MD). STAGED SKELETON for now: writes an empty (0) partisan snapshot until the
-parser is wired against the live 2026 file (the Friday rollout routine does this
-in Oct). See config/ia.json for the exact URLs.
+STAGED SKELETON: as of 2026-10-14 no live, machine-readable feed was found.
+www.elections.ny.gov sits fully behind a Cloudflare JS challenge for every
+page (confirmed via direct fetch -- a "Just a moment..." interstitial, HTTP
+403 to any non-browser client), and data.ny.gov (the state's own open-data
+portal) carries no early-voting/turnout/ballot dataset. See the "_comment" in
+config/ny.json for the full list of what was checked and what to look for on
+the next pass. Writes an empty (0) partisan snapshot until a real parser can
+be wired against a genuine county+party feed.
 
-Run:  python scripts/ia_update.py [--force]
+Run:  python scripts/ny_update.py [--force]
 """
 import os
 import sys
