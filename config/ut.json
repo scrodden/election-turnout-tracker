@@ -2,19 +2,23 @@
   "state": "ut",
   "state_name": "Utah",
   "state_fips": "49",
-  "partisan": true,
+  "partisan": false,
   "election": {
     "date": "2026-11-03",
     "name": "2026 General"
   },
   "general_start": "2026-10-15",
   "source": {
-    "_comment": "STAGED SKELETON. All-mail; ballots returned by county; party registration tracked. Source pointer: https://elections.utah.gov/ . The specific machine-readable turnout feed is identified & wired by the Oct rollout routine (real parser where a persistent file exists, else live-feed capture). Reads 0 until then.",
-    "portal": "https://elections.utah.gov/"
+    "_comment": "WIRED 2026-10-14 (scripts/ut_update.py), but reads 0 for this election until Utah's statewide canvass is certified (weeks after Nov 3) -- see below for why. Investigated and ruled out: (1) elections.utah.gov redirects to vote.utah.gov -- no live statewide 'ballots returned by county' feed exists there. (2) vote.utah.gov's 'Interactive Data Hub' (public.tableau.com/.../October2026Dashboard) is a MONTHLY voter-registration/demographics snapshot ('does not represent live or real-time data'), not ballots cast. (3) Utah Code 20A-3a-405 requires each of Utah's 29 COUNTIES to post its own 'estimated ballots received' on its OWN website on a Mon/Wed/Fri cadence during counting -- confirmed live on Salt Lake County's clerk page -- but there is no statewide rollup, formats differ county to county, and the statutory figure has no party split. Scraping 29 inconsistent county sites was judged too fragile/out of scope for one connector. (4) Per-county 'Standard Canvass Statistics Report' PDFs and primary-race certification PDFs exist per county but only post-certification, one file per county, not state-aggregated. REAL SOURCE WIRED: the Lt. Governor's Office publishes a single persistent statewide XLSX, 'Master Aggregated Numbers 2023-2026' (linked from vote.utah.gov/election-results-data-historical-information; ut_update.py re-discovers the current link each run), with one sheet per certified election (e.g. P26 = 2026 primary) giving every county's active voters and ballots counted by method (mail/drop box, in-person early voting, in-person, UOCAVA/disability-electronic, provisional, emergency). No party breakdown is published at this granularity (hence partisan:false), confirming the task brief's assumption only partly: UT voters DO register by party, but the state's actual machine-readable turnout source doesn't carry that split. The sheet for the 2026 general ('G26') does not exist yet -- it is added only once the statewide canvass is certified, typically weeks after election day, not during the Oct 15-Nov 3 early-voting window -- so this reads 0 until then, same as the LA/MD pattern elsewhere in this repo. The parser is proven against the live P26 (2026 primary) sheet: run `python scripts/ut_update.py --validate`. Re-check after Utah's canvass deadline (~3 weeks post-election) for the G26 sheet to appear.",
+    "workbook_page": "https://vote.utah.gov/election-results-data-historical-information",
+    "workbook_fallback_url": "https://vote.utah.gov/wp-content/uploads/2025/12/Master-Aggregated-Numbers-2023-2026.xlsx",
+    "sheet": "G26"
   },
   "method_labels": {
     "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
+    "mail_voted": "Voted by mail",
+    "early_voted": "Voted early in person",
+    "election_day": "Voted on Election Day",
+    "provisional": "Provisional"
   }
 }
