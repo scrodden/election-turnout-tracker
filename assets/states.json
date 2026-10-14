@@ -201,7 +201,9 @@
       "data": "data/ks/latest.json",
       "geojson": "assets/ks-counties.geojson",
       "history": "data/ks/history.jsonl",
-      "source_note": "Source: <a href='https://sos.ks.gov/elections/elections.html' target='_blank' rel='noopener'>Kansas Secretary of State</a> advance voting statistics by county &amp; registered party. Advance voting begins in mid-October, so figures read zero until then."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Kansas Secretary of State data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Mail ballots requested and returned and in-person advance ballots, by county and registered party (unaffiliated voters shown as NPA); the Districts map uses the Lab's U.S. House district file. In-person advance voting can begin October 14 (each county sets its own start) and ends at noon November 2. Boundaries: U.S. Census Bureau.",
+      "locality_data": "data/ks/districts.json",
+      "locality_geojson": "assets/ks-cd.geojson"
     },
     {
       "code": "ne",

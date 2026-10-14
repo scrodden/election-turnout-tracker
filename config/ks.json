@@ -7,15 +7,17 @@
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-14",
+  "general_start": "2026-10-01",
   "source": {
-    "_comment": "Kansas registers voters by party -> partisan. CHECKED 2026-10-07: sos.ks.gov/elections/advance-voting-data.html embeds a Power BI Gov dashboard ('AdvanceVotingCountsDashboard', resourceKey de3b6e3c-b94e-419a-8d9c-9435eba72780 on the wabi-us-gov-virginia-api cluster) but it only has a statewide DATE/sent/returned/in-person time series -- no county or party breakdown. Not usable for this page's schema. STAGED SKELETON; still needs a real by-county-by-party source (maybe individual county clerks once advance voting opens 2026-10-14).",
-    "portal": "https://sos.ks.gov/elections/elections.html",
-    "dashboard_checked": "https://sos.ks.gov/elections/advance-voting-data.html"
+    "_comment": "UF Election Lab stand-in (US.csv statewide, KS_county.csv, KS_cd.csv), from the Kansas Secretary of State; CC BY-NC-ND 4.0. The SoS page sos.ks.gov/elections/advance-voting-data.html embeds a Power BI report ('AdvanceVotingCountsDashboard') with only a statewide daily series (sent / returned / in person) -- no county, no party -- so it isn't used (checked 2026-10-07).",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/",
+    "portal": "https://sos.ks.gov/elections/advance-voting-data.html"
   },
   "method_labels": {
     "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
-  }
+    "mail_voted": "Mail ballots returned",
+    "mail_provided": "Mail ballots outstanding",
+    "early_voted": "Voted early in person"
+  },
+  "mail_base_label": "Ballots requested"
 }
