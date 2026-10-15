@@ -546,7 +546,7 @@
       "data": "data/tn/latest.json",
       "geojson": "assets/tn-counties.geojson",
       "history": "data/tn/history.jsonl",
-      "source_note": "Source: <a href='https://sos.tn.gov/elections' target='_blank' rel='noopener'>Tennessee Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://sos.tn.gov/govotetn' target='_blank' rel='noopener'>Tennessee Secretary of State</a> daily &ldquo;Early and Absentee Voters&rdquo; report by county, which counts in-person early voters, returned absentee by-mail ballots and voters at licensed facilities together. Tennessee has no party registration, so this is turnout only. Early voting runs October 14 &ndash; 29. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "vt",

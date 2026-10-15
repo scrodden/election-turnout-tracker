@@ -9,11 +9,12 @@
   },
   "general_start": "2026-10-14",
   "source": {
-    "_comment": "STAGED SKELETON, re-checked 2026-10-14 (Oct rollout routine) -- still no feed. Confirmed general-election early voting runs 2026-10-14 through 2026-10-29. Checked sos.tn.gov/elections (no data/statistics link), elections.tn.gov (the 'Election Night Reporting Dashboard', a JS app that only serves election-DAY results, not early voting, and has nothing posted pre-Nov-3) and GoVoteTN (sos.tn.gov/govotetn, a voter-lookup/registration site with no turnout numbers). TN SOS does NOT publish a persistent, machine-readable per-county daily early-voting feed -- historically (2016-2020) it issued occasional press releases with aggregate STATEWIDE totals only, at unpredictable URL slugs that are removed/404 after a few years (checked several old sos.tn.gov/press-releases/... and /node/NNN links, all 404 now), so there's nothing stable to parse even by scraping press releases, and no 2026 early-voting press release has been posted yet (checked the /elections press-releases listing). A third-party site (tnfirefly.com/elections/early-voting) says it will publish daily county counts itself starting today, but it's a Next.js/JS-rendered page with no stated official data feed behind it and isn't an SOS source, so it's not used here. Re-check sos.tn.gov/elections and its press releases during/after the Oct 14-29 EV window for a statewide or by-county release, and re-check for a 2026 county file at election.lab.ufl.edu/data-downloads/earlyvote/2026/TN_county.csv (statewide US.csv row for TN was still all-zero/'TBD' source as of this check). Reads 0 until a real source is found.",
-    "portal": "https://sos.tn.gov/elections"
+    "_comment": "WIRED 2026-10-15: the SoS daily 'Early and Absentee Voters' report, linked from sos.tn.gov/govotetn as <YYYYMMDD>Day<N>Turnout.xlsx (sheet EarlyAbsentee: County, Date, Day Total + a Statewide row). Totals include in-person early voters, absentee by-mail ballots returned and voters at licensed facilities (per the report's footnote) -- no method or party split. Fallback: the UF Election Lab's TN rows (same report). The page also links a '2026 vs. 2022 through N days' comparison PDF.",
+    "portal": "https://sos.tn.gov/govotetn",
+    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
   },
   "method_labels": {
     "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "early_voted": "Early & absentee ballots"
   }
 }
