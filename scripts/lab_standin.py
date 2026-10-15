@@ -272,6 +272,10 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     if note:
         body["map_note"] = note
     prev = _load(out_path, {}) or {}
+    bad = suspicious_drop(prev, statewide["cast"]["total"])
+    if bad:
+        print("%s districts: %s" % (code, bad), file=sys.stderr)
+        return
     h = C.data_hash(body)
     if h == prev.get("data_hash") and not force:
         print("%s districts: NOCHANGE (Lab as of %s)" % (code, body["as_of"]))
@@ -286,21 +290,45 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
 
 def due(prev, force=False, data_dir=None):
     """The Lab updates about once a day (mornings ET) and the turnout workflow
-    runs every 10 minutes, so: skip once we hold today's update, otherwise
-    check roughly hourly (C.checked_recently, keyed "lab")."""
+    runs every 10 minutes, so: check roughly hourly (C.checked_recently, keyed
+    "lab"), and every ~3 hours once we hold today's update -- not never: the
+    Lab sometimes re-posts the same day (NV 10/15: a half-written morning file
+    with 507 ballots, corrected to 14,589 within the hour)."""
     from datetime import datetime, timedelta, timezone
     if force:
         return True
     now = datetime.now(timezone.utc)
     et = now - timedelta(hours=4)
     today = "%d/%d/%d" % (et.month, et.day, et.year)
-    if prev.get("lab_standin") and (prev.get("source") or {}).get("as_of") == today:
-        return False
     if not prev.get("lab_standin"):
         return True
+    have_today = (prev.get("source") or {}).get("as_of") == today
     if data_dir:
-        return not C.checked_recently(data_dir, "lab")
-    return now.minute < 12
+        return not C.checked_recently(data_dir, "lab", minutes=180 if have_today else 50)
+    return now.minute < 12 and not have_today
+
+
+def suspicious_drop(prev, new_cast, now=None):
+    """Ballots cast only grow (bar small corrections). A fall of more than 20%
+    from what we last published is treated as a partial / mid-update Lab file
+    and held back -- for up to 36 hours, after which a drop that persists is
+    accepted as a real restatement. -> reason string, or None if it's fine."""
+    from datetime import datetime, timezone
+    try:
+        old = int(((prev.get("statewide") or {}).get("cast") or {}).get("total") or 0)
+    except (TypeError, ValueError):
+        return None
+    if old < 200 or new_cast >= 0.8 * old:
+        return None
+    try:
+        age_h = ((now or datetime.now(timezone.utc)) - datetime.strptime(prev.get("generated_at", ""), "%Y-%m-%dT%H:%M:%SZ")
+                 .replace(tzinfo=timezone.utc)).total_seconds() / 3600
+    except ValueError:
+        age_h = 0
+    if age_h > 36:
+        return None
+    return "ballots cast fell from %s to %s; holding the previous figures (probably a partial Lab file)" % (
+        format(old, ","), format(new_cast, ","))
 
 
 def run(code, cfg, geo_path, latest_path, history_path, partisan, force=False, role=None):
@@ -316,6 +344,10 @@ def run(code, cfg, geo_path, latest_path, history_path, partisan, force=False, r
     if not snap:
         return bool(prev0.get("lab_standin"))   # Lab unreachable: keep the last stand-in
     prev = prev0
+    bad = prev.get("lab_standin") and suspicious_drop(prev, snap["statewide"]["cast"]["total"])
+    if bad:
+        print("%s: %s" % (code, bad), file=sys.stderr)
+        return True
     changed = force or snap["data_hash"] != prev.get("data_hash")
     now = C.utc_now_iso()
     snap["generated_at"] = now if changed else prev.get("generated_at", now)
