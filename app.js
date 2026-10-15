@@ -56,6 +56,7 @@
   var compare = false, baseline = null, BASELINE_URL = null;
   // compare this year's ballots so far with a past general's final turnout (data/<st>/turnout_history.json)
   var pastFinal = null, pastYear = "", PAST_URL = null;
+  var spYear = "";   // "compare to the same point in <year>" (data.same_point, e.g. TN's comparison report)
   // turnout-vs-2026-result comparison (dormant until data/<st>/results_county.json has data)
   var rcmp = false, rcData = null, RCMP_URL = null, rcRace = "gov";
   // "if every county voted like <past race>" (data/<st>/past_results_county.json)
@@ -103,6 +104,25 @@
     return method === "cast" && cty.turnout_pct != null ? cty.turnout_pct : null;
   }
   function compareActive() { return compare && baseline && CMP_METHODS.indexOf(method) >= 0; }
+  function spActive() { return !!(spYear && data && data.same_point && data.same_point.years && data.same_point.years[spYear]); }
+  function spCountyOn() { return spActive() && unitMode === "primary" && mapMode !== "precinct"; }
+  function spOf(name) {
+    if (!spActive()) return null;
+    var v = (data.same_point.years[spYear].counties || {})[name];
+    return v == null ? null : v;
+  }
+  function spChange(name) {   // % change in ballots cast vs the same point in spYear
+    var o = spOf(name), c = data.counties[name];
+    if (!o || !c) return null;
+    return Math.round(1000 * ((block(c, "cast").total || 0) - o) / o) / 10;
+  }
+  function spChangeText(p) { return p == null ? "—" : (p > 0 ? "+" : "") + p.toFixed(1) + "%"; }
+  var SP_DOWN = [166, 97, 26], SP_UP = [1, 133, 113], SP_MID = [236, 236, 236];   // #a6611a / #018571 (palette-validated), gray midpoint
+  function colorForChange(p) {   // diverging on the ratio: half (or less) .. same .. double (or more)
+    if (p == null) return "#e9edf0";
+    var lr = Math.max(-1, Math.min(1, Math.log(1 + p / 100) / Math.LN2)), end = lr < 0 ? SP_DOWN : SP_UP, t = Math.abs(lr);
+    return "rgb(" + SP_MID.map(function (m, i) { return Math.round(m + (end[i] - m) * t); }).join(",") + ")";
+  }
   function pastActive() { return !!(pastYear && pastFinal && pastFinal.years && pastFinal.years[pastYear]); }
   function pastCountyOn() {   // county shading needs that year's county totals and the county map
     return pastActive() && unitMode === "primary" && mapMode !== "precinct" &&
@@ -454,6 +474,13 @@
 
   function updateMapCaption() {
     updateMapCaptionBase();
+    if (spCountyOn()) {
+      var sp = data.same_point, ul = unitLabel.toLowerCase();
+      $("#map-title").textContent = "Ballots so far vs the same point in " + spYear + ", by " + ul;
+      $("#map-note").textContent = "Shaded by each " + ul + "'s ballots " + sp.label + " compared with the same day in " + spYear +
+        ": teal = more than then, brown = fewer; darkest = double or half (or beyond). Source: " + sp.source + ".";
+      return;
+    }
     if (!pastActive()) return;
     var unitLc = unitLabel.toLowerCase(), basis = (pastFinal.county_basis || {})[pastYear];
     if (pastCountyOn()) {
@@ -501,7 +528,9 @@
       var name = ft.properties.name;
       var b = block(data.counties[name], method);
       var fill;
-      if (pastCountyOn()) {
+      if (spCountyOn()) {
+        fill = colorForChange(spChange(name));
+      } else if (pastCountyOn()) {
         var pp = pastPct(name);
         fill = pp == null ? "#e9edf0" : colorForFrac(Math.min(1, pp / pScale));
       } else if (!unitPartisan) {
@@ -585,7 +614,9 @@
 
   function renderLegend() {
     var lg = $("#legend");
-    if (pastCountyOn()) {
+    if (spCountyOn()) {
+      lg.innerHTML = "<span>half</span><span class='grad grad-change'></span><span>double</span><span style='margin-left:5px'>vs " + spYear + " at this point</span>";
+    } else if (pastCountyOn()) {
       var ps = pastScale();
       lg.innerHTML = "<span>0%</span><span class='grad grad-turnout'></span><span>" + ps + "%" + (ps < 100 ? "+" : "+") + " of " + pastYear + " final</span>";
     } else if (mapMode === "precinct" || !unitPartisan) {
@@ -615,6 +646,7 @@
   }
 
   function pastTipLine(name) {
+    if (spCountyOn() && spOf(name)) return "<br>" + spYear + " at this point: " + fmt(spOf(name)) + " (" + spChangeText(spChange(name)) + ")";
     if (!pastCountyOn() || !pastOf(name)) return "";
     return "<br>" + pctText(pastPct(name)) + " of " + pastYear + " final (" + fmt(pastOf(name)) + ")";
   }
@@ -674,6 +706,7 @@
       var cols0 = [{ key: "county", label: unitLabel, cls: "county" }, { key: "total", label: "Ballots" }];
       if (anyTurnout()) cols0.push({ key: "turnout", label: "Turnout" });
       if (pastCountyOn()) cols0.push({ key: "past", label: "% of " + pastYear });
+      if (spCountyOn()) cols0.push({ key: "sp", label: "vs " + spYear });
       return cols0;
     }
     var cols = COLS.slice();
@@ -681,6 +714,7 @@
     if (compareActive()) { cols.push({ key: "m22", label: "2022" }); cols.push({ key: "shift", label: "Δ vs '22" }); }
     if (rcActive()) { cols.push({ key: "res", label: "Result" }); cols.push({ key: "gap", label: "T−Result" }); }
     if (pastCountyOn()) cols.push({ key: "past", label: "% of " + pastYear });
+    if (spCountyOn()) cols.push({ key: "sp", label: "vs " + spYear });
     return cols;
   }
   function renderTableHead() {
@@ -714,7 +748,8 @@
       return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
                margin: b.margin, turnout: unitPartisan ? cty.turnout_pct : turnoutOf(data.counties[name], b),
                tqv: cty.tqv_url, source: cty.source, srcUrl: cty.source_url, srcLabel: cty.source_label,
-               m22: m22, shift: shift, res: res, gap: gap, past: pastCountyOn() ? pastPct(name) : null };
+               m22: m22, shift: shift, res: res, gap: gap, past: pastCountyOn() ? pastPct(name) : null,
+               sp: spCountyOn() ? spChange(name) : null };
     });
     if (filter) rows = rows.filter(function (r) { return r.name.toLowerCase().indexOf(filter) >= 0; });
     rows.sort(function (a, b) {
@@ -738,7 +773,8 @@
       var link = href ? " <a class='tqv-mini' href='" + href + "' target='_blank' rel='noopener' title='" + ttl + "'>&#8599;</a>" : "";
       if (!unitPartisan) {
         tr.innerHTML = "<td class='county'>" + r.name + link + "</td><td>" + fmt(r.total) + "</td>" +
-          (showT ? "<td>" + pctText(r.turnout) + "</td>" : "") + (pastCountyOn() ? "<td>" + pctText(r.past) + "</td>" : "");
+          (showT ? "<td>" + pctText(r.turnout) + "</td>" : "") + (pastCountyOn() ? "<td>" + pctText(r.past) + "</td>" : "") +
+          (spCountyOn() ? "<td>" + spChangeText(r.sp) + "</td>" : "");
         tr.addEventListener("click", function (ev) { if (ev.target.closest("a")) return; selectCounty(r.name, false); });
         tb.appendChild(tr);
         return;
@@ -760,6 +796,7 @@
           (r.gap > 0 ? "sh-r" : r.gap < 0 ? "sh-d" : "") + "'>" + shiftText(r.gap) + "</td>";
       }
       if (pastCountyOn()) tr.innerHTML += "<td>" + pctText(r.past) + "</td>";
+      if (spCountyOn()) tr.innerHTML += "<td>" + spChangeText(r.sp) + "</td>";
       tr.addEventListener("click", function (ev) {
         if (ev.target.closest("a")) return; // let the TQV link work without selecting
         selectCounty(r.name, false);
@@ -823,6 +860,11 @@
     if (pastActive() && pastOf(name))
       extra += "<p class='dim'>" + pastYear + " final: " + fmt(pastOf(name)) + " (" + pastFinal.county_basis[pastYear] + ") · " +
         pctText(pastPct(name)) + " reached so far</p>";
+    if (data.same_point && data.same_point.years) Object.keys(data.same_point.years).sort().reverse().forEach(function (y) {
+      var o = (data.same_point.years[y].counties || {})[name];
+      if (o) extra += "<p class='dim'>" + y + " " + data.same_point.label + ": " + fmt(o) + " · now " +
+        spChangeText(Math.round(1000 * ((block(cty, "cast").total || 0) - o) / o) / 10) + "</p>";
+    });
     if (cty.mail && cty.mail.return_rate != null) extra += "<p class='dim'>Mail returned: " + pctText(cty.mail.return_rate) + "</p>";
     var b0 = block(cty, method);
     if (compareActive()) { var m22 = b22(name); var sh = (b0.margin != null && m22 && m22.margin != null) ? Math.round((b0.margin - m22.margin) * 10) / 10 : null; extra += "<p class='dim'>2022 (" + methodLabel(method) + "): " + marginText(m22 ? m22.margin : null) + " · shift " + shiftText(sh) + "</p>"; }
@@ -1118,6 +1160,7 @@
     if (compare) parts.push("cmp=1");
     if (rcmp) parts.push("rc=1");
     if (pastYear) parts.push("pf=" + pastYear);
+    if (spActive()) parts.push("sp=" + spYear);
     if (lookKey && lookShown()) parts.push("lk=" + lookKey);
     if (selected) parts.push("c=" + encodeURIComponent(selected));
     try { history.replaceState(null, "", "#" + parts.join("&")); } catch (e) {}
@@ -1142,6 +1185,14 @@
     var row = $("#cmp-2022").closest(".controls-row");
     if (row) row.style.display = (BASELINE_URL || show || pastFinal) ? "" : "none";
     var pl = $("#past-label"); if (pl) pl.hidden = !pastFinal;
+    var sp = data && data.same_point && data.same_point.years, spl = $("#sp-label"), sps = $("#sp-year");
+    if (spl) spl.hidden = !sp;
+    if (sps && sp && sps.getAttribute("data-for") !== st.code) {
+      sps.setAttribute("data-for", st.code);
+      sps.innerHTML = "<option value=''>— none —</option>" + Object.keys(sp).sort().reverse().map(function (y) { return "<option value='" + y + "'>" + y + "</option>"; }).join("");
+    }
+    if (sps) sps.value = spActive() ? spYear : "";
+    if (row && sp) row.style.display = "";
     if (!show && rcmp) { rcmp = false; var rb = $("#cmp-result"); if (rb) rb.checked = false; }
   }
 
@@ -1208,7 +1259,10 @@
         var h = parseHash();
         if (h.m && methodAvailable(h.m)) method = h.m;
         if (h.cmp === "1" && BASELINE_URL) { compare = true; if (cb) cb.checked = true; }
+        spYear = h.sp || "";
       }
+      if (!spActive()) spYear = "";
+      updateResultToggle();
       renderAll();
       if (applyHash) {
         var h2 = parseHash();
@@ -1636,6 +1690,15 @@
     // e.g. SD publishes statewide totals only: no county map/table to show
     var g = document.querySelector("section.grid"); if (g) g.style.display = (data && data.statewide_only) ? "none" : "";
   }
+  function renderSpCard() {
+    if (!spActive()) return;
+    var y = data.same_point.years[spYear], cast = (data.statewide.cast || {}).total || 0;
+    if (!y.statewide) return;
+    var ch = Math.round(1000 * (cast - y.statewide) / y.statewide) / 10;
+    var card = statCard("", "vs " + spYear + " at the same point", spChangeText(ch), fmt(cast) + " vs " + fmt(y.statewide) + " " + data.same_point.label);
+    card.title = "Ballots cast so far vs " + data.same_point.label + " in the " + spYear + " general. Source: " + data.same_point.source + ".";
+    $("#summary").appendChild(card);
+  }
   function renderPastCard() {
     if (!pastActive()) return;
     var y = pastFinal.years[pastYear], cast = (data.statewide.cast || {}).total || 0;
@@ -1744,7 +1807,7 @@
     host.hidden = false;
   }
 
-  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
+  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {
@@ -1785,7 +1848,17 @@
         updateHash(); renderAll();
       });
       var py = $("#past-year");
-      if (py) py.addEventListener("change", function (e) { pastYear = e.target.value; updateHash(); renderAll(); });
+      if (py) py.addEventListener("change", function (e) {
+        pastYear = e.target.value;
+        if (pastYear && spYear) { spYear = ""; var s0 = $("#sp-year"); if (s0) s0.value = ""; }   // one comparison at a time
+        updateHash(); renderAll();
+      });
+      var spSel = $("#sp-year");
+      if (spSel) spSel.addEventListener("change", function (e) {
+        spYear = e.target.value;
+        if (spYear && pastYear) { pastYear = ""; var p0 = $("#past-year"); if (p0) p0.value = ""; }
+        updateHash(); renderAll();
+      });
       $("#cmp-result").addEventListener("change", function (e) {
         rcmp = e.target.checked;
         if (rcmp) {

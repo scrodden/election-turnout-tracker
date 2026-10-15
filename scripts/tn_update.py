@@ -40,6 +40,8 @@ LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 PAGE = "https://sos.tn.gov/govotetn"
 FILE_RE = r"(https://sos-prod\.tnsosgovfiles\.com/s3fs-public/document/%s)Day(\d+)Turnout\.xlsx"
+CMP_RE = r"https://sos-prod\.tnsosgovfiles\.com/s3fs-public/document/%sDay(\d+)_Comparison\.pdf"
+ROW_RE = r"([A-Z][A-Za-z.']*(?: [A-Z][A-Za-z.']*)*)\s+([\d,]+)\s+([\d,]+)\s+\(?[\d,]+\)?\s+\(?[\d.]+%\)?"
 
 
 def load(p, d=None):
@@ -117,7 +119,50 @@ def fetch_official(cfg):
         for k, v in counties.items():
             totals[k] = totals.get(k, 0) + v
     end = max(days)
-    return "Day %d (through %s %d)" % (last, end.strftime("%b"), end.day), totals, statewide, sorted(days)
+    return "Day %d (through %s %d)" % (last, end.strftime("%b"), end.day), totals, statewide, sorted(days), last, page
+
+
+def fetch_comparison(cfg, page, day_n, totals, sw_total):
+    """The SoS '2026 vs. <year> through N Days' report (<date>Day<N>_Comparison.pdf,
+    linked from the same page): each county's ballots through the same day of
+    early voting in past midterms. Pages 1-2 are county tables (2026 | year |
+    change | %), page 3 the statewide summary. Used only when it is for the same
+    day as our totals and its 2026 column matches them county by county.
+    -> {"day", "url", "years": {year: {"statewide", "counties"}}} or None."""
+    import io
+    from pypdf import PdfReader
+    tag = cfg["election"]["date"].replace("-", "")
+    m = [int(x) for x in re.findall(CMP_RE % tag, page)]
+    if not m or max(m) != day_n:
+        print("tn: no Day%d comparison report linked yet" % day_n)
+        return None
+    url = "https://sos-prod.tnsosgovfiles.com/s3fs-public/document/%sDay%d_Comparison.pdf" % (tag, day_n)
+    pages = [p.extract_text() or "" for p in PdfReader(io.BytesIO(C.http_get(url, binary=True, no_cache=True, retries=2))).pages]
+    years = {}
+    for t in pages:
+        h = re.search(r"2026 vs\. (\d{4}) through (\d+) Days?", t)
+        if not h:
+            continue
+        if int(h.group(2)) != day_n:
+            raise ValueError("comparison page is through %s days, not %d" % (h.group(2), day_n))
+        rows = {}
+        for name, n26, nyr in re.findall(ROW_RE, t[h.end():]):
+            rows[name.strip()] = (_int(n26), _int(nyr))
+        years.setdefault(h.group(1), {}).update(rows)
+    summary = "\n".join(pages)
+    out = {}
+    for yr, rows in years.items():
+        tot = rows.pop("Cumulative", None) or rows.pop("Statewide", None) or rows.pop("Total", None)   # the table's total row
+        mism = [k for k, (n26, _) in rows.items() if totals.get(k) != n26]
+        if len(rows) != len(totals) or mism:
+            raise ValueError("%s comparison: %d counties, 2026 column differs for %s" % (yr, len(rows), mism[:5]))
+        cty = {k: v for k, (_, v) in rows.items()}
+        sw = re.search(r"Through %d Days?\s+([\d,]+)\s+.*?%s\s+([\d,]+)" % (day_n, yr), summary, re.S)
+        sw_yr = _int(sw.group(2)) if sw else (tot[1] if tot else None)
+        if sw_yr != sum(cty.values()) or (tot and tot != (sw_total, sw_yr)) or (sw and _int(sw.group(1)) != sw_total):
+            raise ValueError("%s comparison: totals don't match the county rows (%s, %s)" % (yr, tot, sw_yr))
+        out[yr] = {"statewide": sw_yr, "counties": cty}
+    return {"day": day_n, "url": url, "years": out} if out else None
 
 
 def blk(t):
@@ -136,7 +181,7 @@ def main():
         print("tn: state report unusable (%s) -- trying the Election Lab" % str(e)[:160], file=sys.stderr)
         res = None
     if res:
-        as_of, totals, sw_total, days = res
+        as_of, totals, sw_total, days, day_n, page = res
         unmatched = [k for k in totals if _norm(k) not in gidx]
         if unmatched or len(totals) != len(gidx):
             print("tn: county names don't match the map (%s) -- trying the Election Lab" % unmatched[:5], file=sys.stderr)
@@ -149,6 +194,11 @@ def main():
             print("tn: no figures yet.")
         return 0
 
+    try:
+        comp = fetch_comparison(cfg, page, day_n, totals, sw_total)
+    except Exception as e:  # noqa: BLE001
+        print("tn: comparison report not used (%s)" % str(e)[:160], file=sys.stderr)
+        comp = None
     counties = {}
     for k, v in totals.items():
         g = gidx[_norm(k)]
@@ -159,6 +209,13 @@ def main():
         "statewide": {"cast": blk(sw_total), "early_voted": blk(sw_total), "registered": 0, "turnout_pct": None},
         "counties": counties,
     }
+    if comp:   # ballots through the same day of early voting in past midterms, by county (map names)
+        body["same_point"] = {
+            "label": "through Day %d of early voting" % comp["day"], "day": comp["day"],
+            "source": "Tennessee Secretary of State comparison report", "url": comp["url"],
+            "years": {yr: {"statewide": v["statewide"],
+                           "counties": {gidx[_norm(k)]["name"]: n for k, n in v["counties"].items()}}
+                      for yr, v in sorted(comp["years"].items(), reverse=True)}}
     prev = load(LATEST_PATH, {}) or {}
     import lab_standin as LAB
     bad = LAB.suspicious_drop(prev, sw_total)

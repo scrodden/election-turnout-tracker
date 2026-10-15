@@ -6,7 +6,7 @@
 <title>Turnout Tracker &mdash; 2026</title>
 <meta name="description" content="Live partisan composition of election turnout by county and voting method, from official state election data. Florida, North Carolina, and more." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
-<link rel="stylesheet" href="style.css?v=2026101401" />
+<link rel="stylesheet" href="style.css?v=2026101501" />
 </head>
 <body>
 <header class="site-head">
@@ -38,6 +38,8 @@
           <option value="">— none —</option><option value="2024">2024</option><option value="2022">2022</option>
           <option value="2020">2020</option><option value="2018">2018</option>
         </select></label>
+      <label class="cmp-toggle" id="sp-label" hidden><span>Compare to the same point in</span>
+        <select id="sp-year" aria-label="Compare to the same point of early voting in a past election"></select></label>
       <span id="cmp-note" class="dim"></span>
     </div>
     <p id="method-hint" class="method-hint"></p>
@@ -168,6 +170,6 @@
   </footer>
 </main>
 
-<script src="app.js?v=2026101403"></script>
+<script src="app.js?v=2026101501"></script>
 </body>
 </html>

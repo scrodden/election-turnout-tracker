@@ -100,6 +100,7 @@ a { color: var(--accent); }
 .legend { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
 .legend .grad { width: 140px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, #2166ac, #67a9cf, #f7f7f7, #ef8a62, #b2182b); }
 .legend .grad-turnout { background: linear-gradient(90deg, #eef2f4, #c7e9c0, #74c476, #31a354, #005a28); }
+.legend .grad-change { background: linear-gradient(90deg, #a6611a, #ececec, #018571); }
 .tooltip {
   position: absolute; pointer-events: none; z-index: 30; background: var(--ink); color: var(--bg);
   padding: 8px 10px; border-radius: 8px; font-size: 12px; line-height: 1.35; max-width: 220px;
