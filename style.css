@@ -210,6 +210,7 @@ tbody tr.sel { background: rgba(52,80,107,.12); }
 .look-bar i { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; background: var(--ink); opacity: .5; }
 
 /* share of ballots over time (race) */
+.rt-picks { display: inline-flex; flex-wrap: wrap; gap: 6px 12px; justify-content: flex-end; }
 .rt-pick { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .rt-pick select { font-size: 13px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
 .rt-hero { margin: 6px 2px 4px; font-size: 14px; color: var(--ink); }

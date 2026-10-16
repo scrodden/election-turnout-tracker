@@ -34,6 +34,7 @@ DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
+RACE_SHARE_PATH = os.path.join(DATA_DIR, "race_share.json")
 CD_GEO_PATH = os.path.join(ROOT, "assets", "nc-cd.geojson")
 VOTED_METHODS = ["mail_voted", "early_voted"]
 _TODAY = __import__("datetime").datetime.utcnow().strftime("%Y-%m-%d")
@@ -89,6 +90,69 @@ class Demo:
                 "gender": ordered(self.gen, ["Female", "Male", "Unknown"]),
                 "race": ordered(self.race, list(RACE.values()) + ["Not designated"]),
                 "ethnicity": ordered(self.eth, list(ETHNICITY.values()) + ["Not designated"])}
+
+
+def _day(s):
+    from datetime import date
+    d = parse_date(s)
+    try:
+        return date.fromisoformat(d) if d else None
+    except ValueError:
+        return None
+
+
+def race_label(r):
+    return RACE.get((r.get("race") or "").strip(), "Not designated")
+
+
+def past_race_series(url, election_day):
+    """A past general's final absentee file -> ballots by return date and race.
+    Final files also list requests never returned and ballots spoiled before
+    return (no return date), so only rows with a return date count -- the
+    same ballots the rolling current-cycle file holds (it lists returned
+    ballots only). The early-voting type is 'ONE-STOP' in older files."""
+    import race_share as RS
+    raw = C.http_get(url, binary=True, timeout=900)
+    z = zipfile.ZipFile(io.BytesIO(raw))
+    dc = RS.DayCounter(election_day)
+    for r in csv.DictReader(io.TextIOWrapper(z.open(z.namelist()[0]), encoding="latin-1", newline="")):
+        if not (r.get("ballot_rtn_dt") or "").strip():
+            continue
+        dc.add(_day(r.get("ballot_rtn_dt")), race_label(r))
+    return dc.series(stop=election_day)
+
+
+def write_race_share(cfg, cur_counter, max_rtn):
+    """data/nc/race_share.json: this cycle's ballots by return date and race,
+    plus past generals (config source.race_compare, read once and kept)."""
+    import race_share as RS
+    from datetime import date
+    src = cfg.get("source", {})
+    today = date.fromisoformat(_TODAY)
+    eday = date.fromisoformat(cfg["election"]["date"])
+    series = {}
+    cur = cur_counter.series(stop=min(eday, today))
+    if not cur:
+        return
+    series[cfg["election"]["date"][:4]] = dict(cur, election=cfg["election"].get("name", ""))
+    prev = RS.load(RACE_SHARE_PATH).get("series") or {}
+    for yr, c in (src.get("race_compare") or {}).items():
+        if (prev.get(yr) or {}).get("source_url") == c["url"]:
+            series[yr] = prev[yr]
+            continue
+        print("Fetching the %s absentee file for the race-share comparison..." % yr)
+        try:
+            ser = past_race_series(c["url"], date.fromisoformat(c["election_day"]))
+        except Exception as e:  # noqa: BLE001
+            print("  %s comparison unavailable: %s" % (yr, str(e)[:120]), file=sys.stderr)
+            continue
+        if ser:
+            series[yr] = dict(ser, election=c.get("name", yr + " General"), source_url=c["url"])
+    RS.write(RACE_SHARE_PATH, STATE, series, src.get("race_markers", []),
+             "NCSBE absentee voter files (mail + one-stop early voting): ballots by return date and the race on each "
+             "voter's registration record; 'Not designated' = race left blank. Past generals count ballots with a "
+             "return date in that year's final file.", max_rtn, src.get("race_compare_default"),
+             "Each year's race is as recorded in that year's file.")
 
 
 def head_etag(url):
@@ -185,6 +249,9 @@ def main():
     # aggregate county (and congressional district) -> method -> party counts
     agg, agg_cd = {}, {}
     demo_all, demo_cty, demo_cd = Demo(), {}, {}
+    import race_share as RS
+    from datetime import date as _date
+    by_day = RS.DayCounter(_date.fromisoformat(cfg["election"]["date"]))
     bad_cd = set()
     max_rtn = ""
     n_rows = 0
@@ -199,6 +266,7 @@ def main():
         slot[tgt] += 1
         demo_all.add(r)
         demo_cty.setdefault(code, Demo()).add(r)
+        by_day.add(_day(r.get("ballot_rtn_dt")), race_label(r))
         m = re.search(r"(\d+)\s*$", r.get("cong_dist_desc") or "")
         if m:
             num = int(m.group(1))
@@ -244,6 +312,10 @@ def main():
 
     os.makedirs(DATA_DIR, exist_ok=True)
     write_districts(cfg, agg_cd, demo_cd, bad_cd, statewide, max_rtn, force)
+    try:
+        write_race_share(cfg, by_day, max_rtn)
+    except Exception as e:  # noqa: BLE001 - the chart is optional; never block the turnout update
+        print("nc: race share not updated: %s" % str(e)[:160], file=sys.stderr)
     prev = prev_snap.get("data_hash")
     changed = force or (snap["data_hash"] != prev)
     if not changed:

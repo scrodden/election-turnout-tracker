@@ -2,21 +2,61 @@
   "state": "nc",
   "state_name": "North Carolina",
   "state_fips": "37",
-  "election": { "number": "2026_11_03", "date": "2026-11-03", "name": "2026 General" },
+  "election": {
+    "number": "2026_11_03",
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
   "source": {
     "_comment": "NCSBE voter-level absentee file (mail + one-stop early voting), returned ballots only (NC law: request info isn't public until the ballot is returned). Rolling file, stable URL, updated daily.",
     "absentee_zip": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/absentee_20261103.zip",
-    "page": "https://www.ncsbe.gov/results-data/absentee-and-provisional-data"
+    "page": "https://www.ncsbe.gov/results-data/absentee-and-provisional-data",
+    "race_compare": {
+      "2024": {
+        "url": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2024_11_05/absentee_20241105.zip",
+        "election_day": "2024-11-05",
+        "name": "2024 General"
+      },
+      "2022": {
+        "url": "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2022_11_08/absentee_20221108.zip",
+        "election_day": "2022-11-08",
+        "name": "2022 General"
+      }
+    },
+    "race_compare_default": "2022",
+    "race_markers": [
+      {
+        "days_out": 19,
+        "label": "In-person early voting opens"
+      }
+    ]
   },
-  "party_map": { "DEM": "dem", "REP": "rep", "UNA": "npa" },
-  "method_map": { "MAIL": "mail_voted", "EARLY VOTING": "early_voted" },
+  "party_map": {
+    "DEM": "dem",
+    "REP": "rep",
+    "UNA": "npa"
+  },
+  "method_map": {
+    "MAIL": "mail_voted",
+    "EARLY VOTING": "early_voted"
+  },
   "method_labels": {
     "cast": "All ballots cast",
     "mail_voted": "Voted by mail",
     "early_voted": "Voted early in person"
   },
   "races": [
-    { "id": "sen", "office": "U.S. Senate", "note": "2026 NC U.S. Senate (Tillis seat) — a top-tier battleground race.", "results": null },
-    { "id": "gov", "office": "Council of State / down-ballot", "note": "No governor in 2026 (elected 2024); various Council of State/legislative races.", "results": null }
+    {
+      "id": "sen",
+      "office": "U.S. Senate",
+      "note": "2026 NC U.S. Senate (Tillis seat) — a top-tier battleground race.",
+      "results": null
+    },
+    {
+      "id": "gov",
+      "office": "Council of State / down-ballot",
+      "note": "No governor in 2026 (elected 2024); various Council of State/legislative races.",
+      "results": null
+    }
   ]
 }

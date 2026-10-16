@@ -495,6 +495,7 @@ def write_race_share(cfg, elec, rbd, as_of):
     series = {yr: dict(rbd["current"], election=elec)}
     series.update(rbd.get("compare") or {})
     body = {"state": STATE, "series": series, "markers": (cfg.get("source") or {}).get("race_markers", []),
+            "compare_note": "Past elections use today's voter records, so voters since removed from the rolls count as Unknown.",
             "source": "GA SoS Election Data Hub (Qlik): accepted ballots by Ballot Accepted Date and the race on each "
                       "voter's registration record (the hub's categories; Unknown = no linked voter record). Past "
                       "elections use today's voter records, so voters since removed from the rolls count as Unknown."}

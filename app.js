@@ -1473,9 +1473,10 @@
   // ---- share of ballots over time by race (data/<st>/race_share.json; GA) ----
   // Cumulative share of accepted ballots through each day from voters of one
   // race, this election vs a past general lined up by days before Election Day.
-  var raceShare = null, raceGroup = "Black", RACE_MIN = 1000;   // days before 1,000 ballots aren't drawn
+  var raceShare = null, raceGroup = "Black", raceCmp = "", RACE_MIN = 1000;   // days before 1,000 ballots aren't drawn
+  var RACE_UNKNOWN = ["Unknown", "Not designated", "Other/Unknown"];
   function loadRaceShare() {
-    raceShare = null;
+    raceShare = null; raceCmp = "";
     var host = $("#race-trend"); if (host) host.hidden = true;
     if (!st || !st.race_share) return;
     var want = st;
@@ -1502,10 +1503,12 @@
     var host = $("#race-trend"); if (!host) return;
     var d = raceShare, yrs = d && d.series ? Object.keys(d.series).sort().reverse() : [];
     if (!yrs.length) { host.hidden = true; return; }
-    var cur = d.series[yrs[0]], cmpYr = yrs[1], cmp = cmpYr ? d.series[cmpYr] : null;
+    var cmpYrs = yrs.slice(1);
+    if (cmpYrs.indexOf(raceCmp) < 0) raceCmp = cmpYrs.indexOf(d.compare_default) >= 0 ? d.compare_default : (cmpYrs[0] || "");
+    var cur = d.series[yrs[0]], cmpYr = raceCmp, cmp = cmpYr ? d.series[cmpYr] : null;
     var totals = {};
     Object.keys(cur.counts).forEach(function (k) { totals[k] = cur.counts[k].reduce(function (a, b) { return a + b; }, 0); });
-    var groups = Object.keys(totals).filter(function (k) { return k !== "Unknown" && k !== "Other/Unknown" && totals[k]; })
+    var groups = Object.keys(totals).filter(function (k) { return RACE_UNKNOWN.indexOf(k) < 0 && totals[k]; })
       .sort(function (a, b) { return totals[b] - totals[a]; });
     if (groups.indexOf(raceGroup) < 0) raceGroup = groups.indexOf("Black") >= 0 ? "Black" : groups[0];
     var A = raceSeries(cur, raceGroup), B = cmp ? raceSeries(cmp, raceGroup) : [];
@@ -1517,6 +1520,15 @@
       sel.onchange = function () { raceGroup = sel.value; renderRaceTrend(); };
     }
     sel.value = raceGroup;
+    var csel = $("#race-cmp"), cwrap = $("#race-cmp-wrap");
+    cwrap.hidden = cmpYrs.length < 2;
+    if (csel.getAttribute("data-for") !== yrs.join(",")) {
+      csel.setAttribute("data-for", yrs.join(","));
+      csel.innerHTML = "";
+      cmpYrs.forEach(function (y) { var o = document.createElement("option"); o.value = y; o.textContent = y; csel.appendChild(o); });
+      csel.onchange = function () { raceCmp = csel.value; renderRaceTrend(); };
+    }
+    csel.value = raceCmp;
     host.hidden = false;
     if (!A.length) { body.innerHTML = "<p class='dim'>Not enough ballots yet.</p>"; return; }
     var last = A[A.length - 1], then = raceAt(B, last.days), fin = B.length ? B[B.length - 1] : null;
@@ -1538,15 +1550,19 @@
         (p.dayShare == null ? "—" : p.dayShare.toFixed(1) + "%") + "</td><td>" + fmt(p.cum) + "</td><td><b>" + p.share.toFixed(1) + "%</b></td>" +
         (B.length ? "<td>" + (q ? q.share.toFixed(1) + "%" : "—") + "</td>" : "") + "</tr>";
     }).join("");
-    var unk = cmp ? (cmp.counts.Unknown || []).reduce(function (a, b) { return a + b; }, 0) / (cmp.total || 1) * 100 : null;
+    function unkShare(ser) {
+      var n = 0; RACE_UNKNOWN.slice(0, 2).forEach(function (k) { (ser.counts[k] || []).forEach(function (v) { n += v; }); });
+      return 100 * n / (ser.total || 1);
+    }
+    var unkLabel = Object.keys(cur.counts).filter(function (k) { return RACE_UNKNOWN.slice(0, 2).indexOf(k) >= 0; })[0] || "Unknown";
     $("#race-trend-table").innerHTML = "<table class='rt-table'><thead><tr><th>Date</th><th>Days out</th><th>Ballots that day</th><th>" +
       "Share that day</th><th>Ballots so far</th><th>Share so far</th>" + (B.length ? "<th>" + cmpYr + " same point</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table>";
-    $("#race-trend-note").textContent = "Share of all accepted ballots through each day, by the race on each voter's registration record " +
-      "(the state's categories). Voters with no linked record count as Unknown and stay in the total, as in the table above. Days before " +
+    $("#race-trend-note").textContent = "Share of all ballots through each day, by the race on each voter's registration record " +
+      "(the state's categories). Ballots with no race on record count as “" + unkLabel + "” and stay in the total, as in the table above (" +
+      unkShare(cur).toFixed(1) + "% of " + yrs[0] + " ballots" + (cmp ? ", " + unkShare(cmp).toFixed(1) + "% in " + cmpYr : "") + "). Days before " +
       fmt(RACE_MIN) + " ballots had come in aren't drawn." + (cmp ? " " + cmpYr + " is lined up by days before its Election Day (" +
-      new Date(cmp.election_day + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
-      ") and uses today's voter records, so voters since removed from the rolls count as Unknown (" + unk.toFixed(1) + "% of its ballots)." : "") +
-      " Source: " + (d.source || "").split(":")[0] + ".";
+      new Date(cmp.election_day + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) + ")." : "") +
+      (d.compare_note ? " " + d.compare_note : "") + " Source: " + (d.source || "").split(":")[0] + ".";
   }
   function drawRaceChart(svg, series, markers, group) {
     var cw = svg.parentNode.getBoundingClientRect().width || 660;   // draw at the container's width so text stays legible on phones
@@ -1577,7 +1593,7 @@
     markers.forEach(function (m) {
       if (m.days_out > D) return;
       add("line", { class: "rt-mark", x1: px(m.days_out), x2: px(m.days_out), y1: mt, y2: H - mb });
-      add("text", { class: "rt-lbl", x: px(m.days_out) + 4, y: mt + 8 }, m.label);
+      add("text", { class: "rt-lbl", x: px(m.days_out) + 4, y: H - mb - 6 }, m.label);   // bottom: the latest value's label sits at the top
     });
     // comparison first, current on top
     series.slice().reverse().forEach(function (s) {
