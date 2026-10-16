@@ -255,7 +255,7 @@
       "data": "data/tx/latest.json",
       "geojson": "assets/tx-counties.geojson",
       "history": "data/tx/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.state.tx.us/elections/earlyvoting/index.shtml' target='_blank' rel='noopener'>Texas Secretary of State</a> early-voting turnout for the ~30 largest counties plus statewide. Texas has no party registration, so this is turnout-only. Early voting begins ~Oct 19, so figures read zero until then."
+      "source_note": "Source: <a href='https://goelect.txelections.civixapps.com/ivis-evr-ui/evr' target='_blank' rel='noopener'>Texas Secretary of State</a> Election Information &amp; Turnout Data: unofficial early voting turnout for all 254 counties (in-person early votes and mail ballots received), as submitted by county election officials, with each county's registered voters. Texas has no party registration, so this is turnout only. Early voting runs October 19 &ndash; 30. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "az",
