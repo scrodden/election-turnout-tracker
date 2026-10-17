@@ -97,10 +97,12 @@ def main():
         slot[party] += int(n)
 
     src_date = ""
+    feed_stamps = []   # the feeds' own generatedAt (ISO, UTC): the in-person feed refreshes through the day
 
     # 1) in-person early voting (sum days within the general window)
     try:
         t = json.loads(C.http_get(cfg["source"]["turnout_seed"], referer=ref, no_cache=True))
+        used_ev = False
         for day in t.get("days", []):
             d = day.get("date", "")
             if not ignore_gate and d < gstart:
@@ -109,8 +111,11 @@ def main():
                 add(r.get("county"), "early_voted", "dem", r.get("dem"))
                 add(r.get("county"), "early_voted", "rep", r.get("rep"))
                 add(r.get("county"), "early_voted", "oth", r.get("other"))
+                used_ev = True
                 if d > src_date:
                     src_date = d
+        if used_ev and t.get("generatedAt"):
+            feed_stamps.append(t["generatedAt"])
     except Exception as e:  # noqa: BLE001
         print("WARN early-voting feed: %s" % str(e)[:60], file=sys.stderr)
 
@@ -135,6 +140,8 @@ def main():
                         add(county, "mail_provided", party_of(code), out)
             if gen > src_date:
                 src_date = gen
+            if b.get("generatedAt"):
+                feed_stamps.append(b["generatedAt"])
     except Exception as e:  # noqa: BLE001
         print("WARN mail feed: %s" % str(e)[:60], file=sys.stderr)
 
@@ -167,11 +174,13 @@ def main():
     snap = {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
         "source": {"primary": "NV SoS VIVID (in-person early voting + mail ballot tracker), by registered party"},
-        "source_compiled": src_date, "source_compiled_iso": (src_date + "T00:00:00") if src_date else "",
+        "source_compiled": src_date,
+        # newest feed refresh, e.g. the in-person feed's 16:58 UTC update (was the date at midnight)
+        "source_compiled_iso": (max(feed_stamps)[:19] + "Z") if feed_stamps else ((src_date + "T00:00:00") if src_date else ""),
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
-    snap["data_hash"] = C.data_hash(snap)
+    snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
     snap["generated_at"] = C.utc_now_iso()
 
     prev = None
