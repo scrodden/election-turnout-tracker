@@ -36,6 +36,62 @@ def latest_hash(code):
         return None
 
 
+GUARDED = ("latest.json", "history.jsonl")
+
+
+def read_files(code):
+    out = {}
+    for name in GUARDED:
+        try:
+            with open(os.path.join(ROOT, "data", code, name), "rb") as f:
+                out[name] = f.read()
+        except OSError:
+            out[name] = None
+    return out
+
+
+def cast_of(raw):
+    try:
+        d = json.loads(raw)
+        return int(((d.get("statewide") or {}).get("cast") or {}).get("total") or 0), d
+    except (TypeError, ValueError):
+        return None, {}
+
+
+def held_back(code, before):
+    """A connector that hit an empty or half-loaded source (MT's Tableau mid-
+    refresh on 10/17 returned no counties; NV's Lab file on 10/15 was half
+    written) must not replace real figures. If ballots cast fell to zero, or
+    by more than 20% (lab_standin.suspicious_drop: held up to 36 hours), put
+    the previous files back. -> reason string or None."""
+    import lab_standin as LAB
+    old_cast, old = cast_of(before.get("latest.json"))
+    if not old_cast:
+        return None
+    after = read_files(code)
+    if after.get("latest.json") == before.get("latest.json"):
+        return None
+    new_cast, new = cast_of(after.get("latest.json"))
+    if new.get("frozen"):
+        return None
+    reason = None
+    if not new_cast:
+        reason = "the source returned no ballots (was %s); holding the previous figures" % format(old_cast, ",")
+    else:
+        reason = LAB.suspicious_drop(old, new_cast)
+    if not reason:
+        return None
+    for name, raw in before.items():
+        p = os.path.join(ROOT, "data", code, name)
+        if raw is None:
+            if os.path.exists(p):
+                os.remove(p)
+        else:
+            with open(p, "wb") as f:
+                f.write(raw)
+    return reason
+
+
 def main():
     reg = json.load(open(os.path.join(ROOT, "assets", "states.json"), encoding="utf-8"))
     codes = [s["code"] for s in reg.get("states", [])]
@@ -54,6 +110,7 @@ def main():
             continue
         rec = {"checked_at": C.utc_now_iso()}
         before = latest_hash(code)
+        saved = read_files(code)
         try:
             mod = importlib.import_module("%s_update" % code)
             buf = io.StringIO()
@@ -74,6 +131,13 @@ def main():
                 msgs = [l.strip() for l in out.splitlines() if re.search(r"unavailable|failed|error|!", l, re.I)]
                 rec["status"] = "error"; rec["error"] = (msgs[-1][:200] if msgs else "exit %s" % rc); errors += 1
                 rec["last_error_at"] = rec["checked_at"]
+            held = held_back(code, saved)
+            if held:
+                after = before
+                if rec.get("status") == "ok":
+                    ok -= 1; errors += 1
+                rec.update(status="error", error="held: " + held, last_error_at=rec["checked_at"])
+                print("!! %s %s" % (code, held), file=sys.stderr)
             rec["changed"] = (before != after)
             if rec["changed"]:
                 changed += 1

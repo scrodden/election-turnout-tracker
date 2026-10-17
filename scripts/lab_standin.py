@@ -327,7 +327,7 @@ def suspicious_drop(prev, new_cast, now=None):
         age_h = 0
     if age_h > 36:
         return None
-    return "ballots cast fell from %s to %s; holding the previous figures (probably a partial Lab file)" % (
+    return "ballots cast fell from %s to %s; holding the previous figures (probably a partial or mid-update source file)" % (
         format(old, ","), format(new_cast, ","))
 
 

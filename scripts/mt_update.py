@@ -215,6 +215,9 @@ def main():
             sent_total += s
     except Exception as e:  # noqa: BLE001
         print("MT fetch/parse failed: %s" % str(e)[:120], file=sys.stderr)
+    if not counties:   # an error or a dashboard mid-refresh (10/17 13:02 UTC): keep what we have
+        print("MT: no county rows from the dashboard -- keeping the previous figures", file=sys.stderr)
+        return 1
 
     statewide = {"cast": _block(cast_total), "sent": sent_total, "registered": 0, "turnout_pct": None}
     snap = {
