@@ -24,9 +24,9 @@
   },
   "method_labels": {
     "cast": "Ballots cast (absentee by mail + in person)",
-    "mail_voted": "Absentee ballots returned by mail",
-    "early_voted": "Absentee in person",
-    "mail_provided": "Absentee ballots outstanding"
+    "mail_voted": "Absentee by mail",
+    "early_voted": "Voted early in person",
+    "mail_provided": "Mail ballots outstanding"
   },
   "mail_base_label": "Ballots requested"
 }
