@@ -8,7 +8,7 @@
     "name": "2026 General"
   },
   "source": {
-    "_comment": "California SoS 'VBM Ballot Statistics' workbook (by county, no party) linked from the 2026 general election page; registration from the SoS Report of Registration county workbook (15-day when posted, else 60-day). UF Election Lab statewide row as fallback.",
+    "_comment": "California SoS 'VBM Ballot Statistics' workbook (by county, no party) linked from the 2026 general election page; registration from the SoS Report of Registration county workbook (15-day when posted, else 60-day). UF Election Lab statewide row as fallback. The workbook's file name carries its data date since 10/17 (bsr-statistics-MM-DD-YYYY.xlsx); ca_update reads the current link off the election page.",
     "page": "https://www.sos.ca.gov/elections/upcoming-elections/general-election-november-3-2026",
     "vbm_xlsx": "https://elections.cdn.sos.ca.gov/statewide-elections/2026-general/bsr-statistics.xlsx",
     "registration": [

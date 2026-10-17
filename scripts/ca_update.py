@@ -180,6 +180,26 @@ def lab_party(statewide):
                 (" (more than the SoS's %s; the party data is ahead)" % format(ret, ",") if known > ret else "")))
 
 
+def vbm_url(src):
+    """The workbook's current link on the election page. Since 10/17 the SoS
+    names it by data date (bsr-statistics-10-16-2026.xlsx) and the old fixed
+    name returns 403, so read the link off the page each run; newest date wins.
+    Falls back to the configured URL if the page can't be read."""
+    try:
+        page = C.http_get(src["page"], no_cache=True, retries=2)
+    except Exception as e:  # noqa: BLE001
+        print("CA: election page unavailable (%s) -- trying the configured workbook URL" % str(e)[:80], file=sys.stderr)
+        return src["vbm_xlsx"]
+    links = set(re.findall(r'href="(https://elections\.cdn\.sos\.ca\.gov/[^"]*bsr-statistics[^"]*\.xlsx)"', page))
+    if not links:
+        return src["vbm_xlsx"]
+
+    def when(u):
+        m = re.search(r"(\d{1,2})-(\d{1,2})-(\d{4})\.xlsx$", u)
+        return (int(m.group(3)), int(m.group(1)), int(m.group(2))) if m else (0, 0, 0)
+    return max(links, key=when)
+
+
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {}) or {}
@@ -190,7 +210,7 @@ def main():
         print("ca: checked under 20 minutes ago.")
         return 0
     try:
-        as_of, rows = read_vbm(C.http_get(src["vbm_xlsx"], binary=True, no_cache=True, retries=2),
+        as_of, rows = read_vbm(C.http_get(vbm_url(src), binary=True, no_cache=True, retries=2),
                                file_date=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=7))   # Pacific
     except Exception as e:  # noqa: BLE001
         print("CA SoS VBM statistics unavailable: %s" % str(e)[:140], file=sys.stderr)

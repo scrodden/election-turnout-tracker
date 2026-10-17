@@ -58,6 +58,21 @@ def cast_of(raw):
         return None, {}
 
 
+def party_known(d):
+    c = ((d.get("statewide") or {}).get("cast") or {})
+    return sum(int(c.get(k) or 0) for k in ("rep", "dem", "npa", "oth")) > 0
+
+
+def recent(d, hours=36):
+    """Held for up to 36 hours: a feed can legitimately drop party for a while (ME on 10/2)."""
+    from datetime import datetime, timezone
+    try:
+        t = datetime.strptime(d.get("generated_at", ""), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return False
+    return (datetime.now(timezone.utc) - t).total_seconds() < hours * 3600
+
+
 def held_back(code, before):
     """A connector that hit an empty or half-loaded source (MT's Tableau mid-
     refresh on 10/17 returned no counties; NV's Lab file on 10/15 was half
@@ -79,6 +94,9 @@ def held_back(code, before):
         reason = "the source returned no ballots (was %s); holding the previous figures" % format(old_cast, ",")
     else:
         reason = LAB.suspicious_drop(old, new_cast)
+    if not reason and party_known(old) and not party_known(new) and recent(old):
+        # e.g. CA 10/17: the SoS renamed its workbook (403) and the fallback had no party split
+        reason = "the new figures have no party breakdown (the previous ones did); holding the previous figures"
     if not reason:
         return None
     for name, raw in before.items():
