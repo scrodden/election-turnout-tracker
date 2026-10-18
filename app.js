@@ -1660,6 +1660,63 @@
     clearTimeout(raceResizeT);
     raceResizeT = setTimeout(function () { if (raceShare && !$("#race-trend").hidden) renderRaceTrend(); }, 150);
   });
+  // ---- who hasn't voted yet (party-registration states, statewide) ----
+  // Registered voters by party (data/registration.json, the Registration vs
+  // Turnout page's file) minus ballots cast so far by party. Shown as R / D /
+  // "no party or other" because some sources lump nonpartisan and minor-party
+  // voters together in their ballot counts.
+  var REG_URL = "data/registration.json", regData = null, regLoading = false;
+  var MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+  function regDate(t) {   // '2026-09-30' / 'September 2026' / 'OCT 2026' / 'September 1, 2026' -> Date (1st of month if no day)
+    t = String(t || "").trim();
+    var m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    m = t.match(/([A-Za-z]{3})[A-Za-z]*\.?\s+(?:(\d{1,2}),\s*)?(\d{4})/);
+    if (m && MONTHS.indexOf(m[1].toLowerCase()) >= 0) return new Date(+m[3], MONTHS.indexOf(m[1].toLowerCase()), m[2] ? +m[2] : 1);
+    return null;
+  }
+  function regDateText(t) {
+    var d = regDate(t); if (!d) return String(t || "");
+    return /\d{1,2},|^\d{4}-\d{2}-\d{2}/.test(String(t)) ? d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+      : d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  }
+  function renderRemaining() {
+    var host = $("#remaining"); if (!host) return;
+    host.hidden = true;
+    if (!partisan || !data || !data.statewide || !st) return;
+    if (!regData) {
+      if (!regLoading) { regLoading = true; getJSON(REG_URL).then(function (r) { regData = r || {}; renderRemaining(); }).catch(function () { regData = {}; }); }
+      return;
+    }
+    var r = (regData.states || {})[st.code], c = data.statewide.cast || {};
+    if (!r || !c.total) return;
+    var when = regDate(r.as_of), eday = new Date(((data.election || {}).date || "2026-11-03") + "T12:00:00");
+    if (!when || (eday - when) / 86400000 > 366) return;   // registration snapshot over a year old: not shown
+    var R = (r.rep || 0) - (c.rep || 0), D = (r.dem || 0) - (c.dem || 0), O = (r.npa || 0) + (r.oth || 0) - (c.npa || 0) - (c.oth || 0);
+    if (R < 0 || D < 0 || O < 0 || !(c.rep + c.dem + c.npa + c.oth)) return;   // categories don't line up
+    var left = R + D + O, regTot = (r.rep || 0) + (r.dem || 0) + (r.npa || 0) + (r.oth || 0);
+    var lean = left ? Math.round(1000 * (R - D) / left) / 10 : null;
+    var regLean = regTot ? Math.round(1000 * ((r.rep || 0) - (r.dem || 0)) / regTot) / 10 : null;
+    function pc(n) { return left ? (100 * n / left).toFixed(1) + "%" : "—"; }
+    function col(m) { return m == null ? "var(--muted)" : m > 0 ? "var(--rep)" : m < 0 ? "var(--dem)" : "var(--ink)"; }
+    var segs = [["Republican", R, "var(--rep)"], ["Democratic", D, "var(--dem)"], ["No party / other", O, "var(--npa)"]];
+    $("#remaining-body").innerHTML =
+      "<p class='rem-top'><b>" + fmt(left) + "</b> registered voters haven&rsquo;t voted yet (" + (regTot ? (100 * left / regTot).toFixed(1) : "—") +
+        "% of registration). Those left lean <b style='color:" + col(lean) + "'>" + marginText(lean) + "</b>.</p>" +
+      "<div class='rem-bar' role='img' aria-label='Not yet voted: " + segs.map(function (x) { return x[0] + " " + pc(x[1]); }).join(", ") + "'>" +
+        segs.map(function (x) { return left && x[1] ? "<span style='width:" + (100 * x[1] / left).toFixed(2) + "%;background:" + x[2] + "' title='" + x[0] + ": " + fmt(x[1]) + " (" + pc(x[1]) + ")'></span>" : ""; }).join("") + "</div>" +
+      "<div class='rem-legend'>" + segs.map(function (x) {
+        return "<span><i style='background:" + x[2] + "'></i>" + x[0] + " <b>" + fmt(x[1]) + "</b> <span class='dim'>" + pc(x[1]) + "</span></span>"; }).join("") + "</div>" +
+      "<div class='rem-compare'><span>Registration overall <b style='color:" + col(regLean) + "'>" + marginText(regLean) + "</b></span>" +
+        "<span>Ballots cast so far <b style='color:" + col(c.margin) + "'>" + marginText(c.margin) + "</b></span>" +
+        "<span>Not yet voted <b style='color:" + col(lean) + "'>" + marginText(lean) + "</b></span></div>" +
+      "<p class='fineprint'>Registered voters by party (<a href='" + (r.source || "#") + "' target='_blank' rel='noopener'>state registration statistics</a>, as of " +
+        regDateText(r.as_of) + ") minus ballots cast so far by party. Registration is a periodic snapshot, so people who registered after that date aren&rsquo;t in it" +
+        (c.unk ? ", and " + fmt(c.unk) + " ballots with no party in the source aren&rsquo;t subtracted, so the remaining counts run slightly high" : "") +
+        ". This is the pool of registered voters left, not a forecast: many of them won&rsquo;t vote.</p>";
+    host.hidden = false;
+  }
+
   function renderProjection() {
     var host = $("#projection"); if (!host) return;
     var cast = (data.statewide.cast || {}).total || 0;
@@ -1823,7 +1880,7 @@
     host.hidden = false;
   }
 
-  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
+  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderRemaining(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {

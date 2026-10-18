@@ -6,7 +6,7 @@
 <title>Turnout Tracker &mdash; 2026</title>
 <meta name="description" content="Live partisan composition of election turnout by county and voting method, from official state election data. Florida, North Carolina, and more." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
-<link rel="stylesheet" href="style.css?v=2026101601" />
+<link rel="stylesheet" href="style.css?v=2026101801" />
 </head>
 <body>
 <header class="site-head">
@@ -46,6 +46,10 @@
   </section>
 
   <section id="summary" class="summary" aria-label="Statewide summary"></section>
+  <section id="remaining" class="card rem-card" hidden aria-label="Registered voters who have not voted yet, by party">
+    <div class="card-head"><h2>Who hasn&rsquo;t voted yet</h2><span class="dim">registered voters minus ballots cast, by party (statewide)</span></div>
+    <div id="remaining-body"></div>
+  </section>
 
   <section id="mail-panel" class="card mail-card" hidden aria-label="Mail ballot return rate">
     <div class="card-head">
@@ -171,6 +175,6 @@
   </footer>
 </main>
 
-<script src="app.js?v=2026101601"></script>
+<script src="app.js?v=2026101801"></script>
 </body>
 </html>
