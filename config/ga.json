@@ -11,9 +11,9 @@
   "source": {
     "_comment": "LIVE: the hub loaded the 2026 general on 2026-10-13, under three Election Name variants ('NOVEMBER 3, 2026 - GENERAL ELECTION', '... - GENERAL & SPECIAL ELECTIONS', '... - GENERAL AND SPECIAL ELECTIONS'), with counties' ballots split between the last two; ga_update.py sums every name matching election_match. The Districts view also comes from the hub (Snapshot.CONGRESSIONAL_DISTRICT of each ballot's registration record) once the general is in; the Lab district stand-in stops then. GA SoS 'Election Data Hub - Unofficial Turnout' is a Qlik Cloud app. Its sos.ga.gov page is behind a Cloudflare browser challenge; the Qlik tenant and the public token endpoint the page's S3-hosted mashup (gasos-elections-mashups-mashup-bucket/DH.ELECTION2024) calls for every visitor are not. scripts/qlik.py opens the app like the page does; ga_update.py sums Ballots_*_Counter by County x Ballot Style for the Election Name matching election_match, plus active voters from the newest Snapshot.AsOfDate <= today. Each fetch opens one anonymous Qlik session (as each page visit does). Since the general went live the hub reloads about every 10-20 minutes, so every_minutes=8 reads it on every ~10-minute run (like Florida); fetch_hours_utc (7am/7pm ET) applies only if every_minutes is removed. Verified against NOVEMBER 5, 2024 - GENERAL ELECTION (5,295,967 accepted ballots statewide). The 2026 general was not yet in the hub on 2026-09-23 (26 elections, latest the Aug 25 2026 runoff).",
     "hub": "https://sos.ga.gov/page/election-data-hub-unofficial-turnout",
-    "token_url": "https://fn4akbihvavvcmki6ih67rmuky0ezils.lambda-url.us-east-1.on.aws/",
+    "token_url": "https://d11khjvhu86vzz.cloudfront.net/qlik-oauth-create-user",
     "qlik_host": "sos-ga-gov.us.qlikcloudgov.com",
-    "app_id": "7d780725-d407-4db8-b287-005bb85eda87",
+    "app_id": "137c0a43-928b-427a-a267-eb55aa7fa8a9",
     "election_match": [
       "NOVEMBER 3, 2026",
       "GENERAL"
@@ -38,7 +38,8 @@
         "days_out": 21,
         "label": "In-person early voting opens"
       }
-    ]
+    ],
+    "_hub_comment": "2026-10-18: the SoS moved the hub to a new Qlik app (public_DH.Unofficial_Turnout_LIVE, 137c0a43-...; was 7d780725-...) and a new anonymous token endpoint on the hub's CloudFront domain (qlik-oauth-create-user, returns access_token + client_id; the old lambda URL now returns 403). Both are read from the hub frame's ../shared-config.js and js/vars.js (d11khjvhu86vzz.cloudfront.net/DH.ELECTION2024/)."
   },
   "method_labels": {
     "cast": "Ballots cast",

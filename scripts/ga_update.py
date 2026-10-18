@@ -574,6 +574,9 @@ def main():
         if snap:
             snap["source"]["hub_checked_at"] = now
             write_lab(snap, prev, now)
+            if status.startswith("error"):   # the page stays current, but flag the hub on the status page
+                print("ga hub failed (%s) -- showing the Election Lab fallback" % status)   # (10/18: new token URL / app id)
+                return 2
             return 0
         # record the attempt so the next try waits for the next window
         snap = prev or {"state": STATE, "state_name": cfg.get("state_name", "Georgia"),
