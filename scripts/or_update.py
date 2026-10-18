@@ -124,6 +124,115 @@ def parse_pdf(raw_bytes, county_names):
     return best
 
 
+# ---- 2026 general: the "Ballot Return Dashboard" PDF (Power BI export) ----
+# Page "Unofficial Ballots Returns by County" (active voters, ballots received)
+# and page "... by County by Party" (one column per party; blank cells are
+# dropped by plain text extraction, so numbers are placed by column position
+# using pypdf's layout mode, then checked: every county's parties add up to
+# its Total, every party column adds up to the Total row, and each county's
+# Total equals its "Ballots Received" on the county page).
+DASH_PARTIES = ["Democrat", "Independent", "Libertarian", "No Labels", "Nonaffiliated", "Other", "Pacific Green",
+                "Progressive", "Republican", "Working Families", "Total"]
+DASH_MAP = {"Democrat": "dem", "Republican": "rep", "Nonaffiliated": "npa"}   # the rest: minor parties -> oth
+
+
+def _layout_rows(text, header_names):
+    lines = text.splitlines()
+    hi = next((i for i, l in enumerate(lines) if all(n in l for n in (header_names[0], header_names[-1]))), None)
+    if hi is None:
+        return None
+    hdr, cols, pos = lines[hi], [], 0
+    for n in header_names:
+        j = hdr.find(n, pos)
+        if j < 0:
+            return None
+        cols.append((n, j + len(n)))
+        pos = j + len(n)
+    rows = {}
+    for l in lines[hi + 1:]:
+        m = re.match(r"^\s*([A-Za-z][A-Za-z .]+?)(?:\s{2,}|$)", l)
+        if not m:
+            continue
+        vals = {}
+        for t in re.finditer(r"[\d,]+", l[m.end(1):]):
+            end = m.end(1) + t.end()
+            col = min(cols, key=lambda c: abs(c[1] - end))[0]
+            vals[col] = vals.get(col, 0) + int(t.group().replace(",", ""))
+        rows[m.group(1).strip().upper()] = vals
+    return rows
+
+
+def parse_dashboard(raw_bytes, county_names):
+    """-> ({COUNTY: {"active", "received", "party": {rep,dem,npa,oth}}}, report_time_text) or raises ValueError."""
+    import io
+    import pypdf
+    reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
+    texts = [pg.extract_text(extraction_mode="layout") or "" for pg in reader.pages]
+    cty_page = next((t for t in texts if "Ballots Returns by County" in t and "Active Voters" in t and "by Party" not in t), None)
+    party_page = next((t for t in texts if "by County by Party" in t), None)
+    if not cty_page or not party_page:
+        raise ValueError("dashboard pages not found")
+    base = {}
+    for l in cty_page.splitlines():
+        m = re.match(r"^\s*([A-Z][A-Z .]+?)\s{2,}([\d,]+)(?:\s+([\d,]+))?", l)
+        if m and m.group(1).strip() in county_names:
+            base[m.group(1).strip()] = (int(m.group(2).replace(",", "")), int((m.group(3) or "0").replace(",", "")))
+    rows = _layout_rows(party_page, DASH_PARTIES)
+    if not rows or "TOTAL" not in rows:
+        raise ValueError("party table not found")
+    tot = rows.pop("TOTAL")
+    rows = {k: v for k, v in rows.items() if k in county_names}
+    if set(base) != county_names or set(rows) != county_names:
+        raise ValueError("counties: %d on the county page, %d in the party table (of %d)" % (len(base), len(rows), len(county_names)))
+    out = {}
+    for c in county_names:
+        v = rows[c]
+        parties = sum(x for k, x in v.items() if k != "Total")
+        if parties != v.get("Total", 0) or v.get("Total", 0) != base[c][1]:
+            raise ValueError("%s: parties %d, Total %s, received %d" % (c, parties, v.get("Total"), base[c][1]))
+        p = {"rep": 0, "dem": 0, "npa": 0, "oth": 0}
+        for k, x in v.items():
+            if k != "Total":
+                p[DASH_MAP.get(k, "oth")] += x
+        out[c] = {"active": base[c][0], "received": base[c][1], "party": p}
+    if any(sum(v.get(n, 0) for v in rows.values()) != tot.get(n, 0) for n in DASH_PARTIES):
+        raise ValueError("party columns don't add up to the Total row")
+    m = re.search(r"Report Generated:\s*(\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}\s*[AP]M)", "\n".join(texts))
+    return out, (m.group(1) if m else "")
+
+
+def report_time_iso(text):
+    """'10/16/2026 7:00 AM' (Pacific) -> ISO UTC."""
+    from datetime import datetime, timedelta
+    try:
+        t = datetime.strptime(re.sub(r"\s+", " ", text.strip()), "%m/%d/%Y %I:%M %p")
+    except ValueError:
+        return ""
+    return (t + timedelta(hours=7 if 3 <= t.month <= 11 else 8)).strftime("%Y-%m-%dT%H:%M:%SZ")   # PDT / PST
+
+
+def build_dashboard_snapshot(cfg, rows, gidx, url, report_time):
+    counties_out = {}
+    for name_upper, r in rows.items():
+        g = gidx[name_upper]
+        p = r["party"]
+        blk = C.party_block(p["rep"], p["dem"], p["oth"], p["npa"])
+        counties_out[g["name"]] = {"fips": g["fips"], "registered": r["active"], "mail_voted": blk, "cast": dict(blk),
+                                   "turnout_pct": C.pct(r["received"], r["active"])}
+    mv = C.add_blocks(*[c["mail_voted"] for c in counties_out.values()])
+    reg = sum(c["registered"] for c in counties_out.values())
+    statewide = {"mail_voted": mv, "cast": dict(mv), "registered": reg, "turnout_pct": C.pct(mv["total"], reg)}
+    return {
+        "state": STATE, "state_name": cfg.get("state_name", "Oregon"), "election": cfg.get("election", {}),
+        "partisan": True,
+        "source": {"primary": "Oregon Secretary of State, Ballot Return Dashboard (unofficial ballots received by county and "
+                              "registered party; active voters)", "url": url, "as_of": report_time},
+        "source_compiled": report_time, "source_compiled_iso": report_time_iso(report_time) or C.utc_now_iso(),
+        "methods_present": ["mail_voted"] if mv["total"] else [], "method_labels": cfg.get("method_labels", {}),
+        "statewide": statewide, "counties": counties_out,
+    }
+
+
 def fetch_live(cfg):
     """Try each candidate URL; return (raw_bytes, url) for the first that
     looks like a real PDF, or (None, None)."""
@@ -193,7 +302,24 @@ def main():
         return 0
 
     raw, url = fetch_live(cfg)
-    if raw is None:
+    snap = None
+    if raw is not None and "Dashboard" in (url or ""):
+        try:
+            rows, report_time = parse_dashboard(raw, county_names)
+            snap = build_dashboard_snapshot(cfg, rows, gidx, url, report_time)
+            snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
+            snap["generated_at"] = C.utc_now_iso()
+        except Exception as e:  # noqa: BLE001
+            print("OR: dashboard not usable (%s) -- trying the Election Lab" % str(e)[:160], file=sys.stderr)
+            import lab_standin as LAB
+            os.makedirs(DATA_DIR, exist_ok=True)
+            if not LAB.run(STATE, cfg, os.path.join(ROOT, "assets", "or-counties.geojson"), LATEST_PATH, HISTORY_PATH,
+                           partisan=True, force=force, role="stand-in while the SoS dashboard can't be read"):
+                print("or: no figures yet.")
+            return 2
+    if snap is not None:
+        pass
+    elif raw is None:
         tried = candidate_urls(cfg)
         print("OR: no live Daily Ballot Returns file yet (tried %d candidate URLs; the 2-week pre-election "
               "count window hasn't started). First tried: %s" % (len(tried), tried[0] if tried else "(none configured)"))

@@ -2,25 +2,27 @@
   "state": "or",
   "state_name": "Oregon",
   "state_fips": "41",
-  "partisan": false,
+  "partisan": true,
   "election": {
     "date": "2026-11-03",
     "name": "2026 General"
   },
-  "general_start": "2026-10-15",
+  "general_start": "2026-10-01",
   "source": {
     "_comment": "WIRED 2026-10-14 (scripts/or_update.py). CONFIRMED: Oregon does register voters by party, and the SoS's post-certification 'Official Voter Registration & Turnout Statistics' PDF (published weeks after election day, e.g. the 2026 May primary's version dated after its June 26 canvass) does break ballots-returned out by county AND party -- verified by downloading and parsing it (table 'Voter Registration and Participation by County & Party', Dem/Rep/Nonaffiliated/minor parties, one row per county). But that report is not live during the count; the only thing published WHILE ballots are coming in is the 'Daily Ballot Returns' PDF (County / Active or Eligible Voters / Ballots Returned / Percent Returned, no party column) -- confirmed from the 2026 May primary's version and news-indexed copies of the 2024/2025 versions -- so the live feed is turnout-only (partisan:false here, overriding the task brief's open question). REMAINING GAP: the Daily Ballot Returns filename is keyed to the election date and its naming convention has changed nearly every cycle (2024 general: static 'G24-Daily-Ballot-Returns.pdf' under /voting/Documents/; Nov 2025: 'november-2025-Daily-Ballot-Returns.pdf'; May 2026 primary: 'May-19-2026-Daily-Ballot-Returns.pdf', both under /elections/Documents/) and the file is taken OFFLINE once its cycle ends (all of the above now 404, confirmed), so there's no persisted copy to pin the exact URL or re-verify the parser against. or_update.py tries the 'candidates' list below each run (all 404 as of 2026-10-14, which also matches: the SoS's own dataset description says this daily count 'tracks...during the 2 week period leading up to a statewide election', i.e. not expected to start until ~2026-10-20). Re-check once early counting is underway (~10-20 days out) and, ideally, grab one live copy to confirm the regex still matches before trusting a long run of CHANGED outputs.",
     "base": "https://sos.oregon.gov/elections/Documents/",
     "alt_base": "https://sos.oregon.gov/voting/Documents/",
     "candidates": [
+      "Ballot-Return-Dashboard-Nov-3-2026.pdf",
       "November-3-2026-Daily-Ballot-Returns.pdf",
       "November-03-2026-Daily-Ballot-Returns.pdf",
       "november-2026-Daily-Ballot-Returns.pdf",
       "G26-Daily-Ballot-Returns.pdf"
-    ]
+    ],
+    "_dashboard_comment": "2026-10-18: the SoS publishes the 2026 general as 'Ballot-Return-Dashboard-Nov-3-2026.pdf' (Power BI export): ballots received + active voters by county, and ballots received by county AND registered party (Democrat, Republican, Nonaffiliated -> npa, minor parties -> oth). Parsed with pypdf layout mode and checked (row sums, column totals, county page). Fallback: UF Election Lab OR_county.csv (same source)."
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "mail_voted": "Voted by mail"
+    "cast": "Ballots received",
+    "mail_voted": "Ballots received"
   }
 }

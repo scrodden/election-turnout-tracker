@@ -386,7 +386,7 @@
       "data": "data/or/latest.json",
       "geojson": "assets/or-counties.geojson",
       "history": "data/or/history.jsonl",
-      "source_note": "Source: <a href='https://sos.oregon.gov/voting-elections/' target='_blank' rel='noopener'>Oregon Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://sos.oregon.gov/elections/Documents/Ballot-Return-Dashboard-Nov-3-2026.pdf' target='_blank' rel='noopener'>Oregon Secretary of State Ballot Return Dashboard</a>: unofficial ballots received by county and registered party (Nonaffiliated voters shown as NPA; Independent, Libertarian, Pacific Green, Progressive, Working Families, No Labels and other parties as Other), with each county's active voters. Oregon votes by mail and mails a ballot to every active voter. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "ri",
