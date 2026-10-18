@@ -1,6 +1,6 @@
 {
  "_comment": "General-election candidates per race, from Wikipedia's 2026 election articles (CC BY-SA 4.0), whose race tables cite each state's certified candidate list. Shown on the results page until official results arrive. Built by scripts/build_ballot_2026.py.",
- "built_at": "2026-10-18T00:43:11Z",
+ "built_at": "2026-10-18T20:48:41Z",
  "sources": {
   "senate": {
    "title": "2026 United States Senate elections",
@@ -24,8 +24,8 @@
   },
   "house": {
    "title": "2026 United States House of Representatives elections",
-   "url": "https://en.wikipedia.org/w/index.php?oldid=1380689037",
-   "revision": 1380689037,
+   "url": "https://en.wikipedia.org/w/index.php?oldid=1380909624",
+   "revision": 1380909624,
    "races": 435,
    "found": 435,
    "with_candidates": 435,
@@ -4800,6 +4800,10 @@
    {
     "name": "Matthew Laszacs",
     "party": "Libertarian"
+   },
+   {
+    "name": "Brian McGinnis",
+    "party": "Write-in"
    },
    {
     "name": "Deborah Ross",
