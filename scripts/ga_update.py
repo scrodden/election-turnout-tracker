@@ -546,6 +546,9 @@ def main():
             if snap:
                 snap["source"]["hub_checked_at"] = hub_last
                 write_lab(snap, prev, now)
+                if str(psrc.get("status", "")).startswith("error"):   # keep the hub error on the status page
+                    print("ga hub failed at its last check (%s) -- showing the Election Lab fallback" % str(psrc["status"])[:160])
+                    return 2
                 return 0
         print("ga: hub checked %s; next window not reached — skipping." % hub_last)
         return 0
