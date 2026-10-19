@@ -71,7 +71,9 @@ def main():
                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
         out = (run.stdout + run.stderr).strip().splitlines()
         summary = next((l for l in reversed(out) if l.startswith(("CHANGED", "NOCHANGE", "ga:"))), out[-1] if out else "")
-        if run.returncode or "GA SoS" not in open(os.path.join(CLONE, "data", "ga", "latest.json"), encoding="utf-8").read()[:4000]:
+        import json
+        src = (json.load(open(os.path.join(CLONE, "data", "ga", "latest.json"), encoding="utf-8")).get("source") or {})
+        if run.returncode or not str(src.get("primary", "")).startswith("GA SoS"):
             log("hub read failed (rc %s): %s" % (run.returncode, " | ".join(out[-3:])[:400]))
             return 1
         git("add", "--", *[f for f in GA_FILES if os.path.exists(os.path.join(CLONE, f))])
