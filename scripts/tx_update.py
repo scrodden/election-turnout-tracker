@@ -285,7 +285,8 @@ def main():
             raise
         sos_down = str(e)[:120]
         print("tx: SoS turnout app unavailable (%s) -- using its last figures; live county pages still update" % sos_down)
-        elec = {"election_name": (prev.get("source") or {}).get("election")}
+        elec = {"election_name": (prev.get("source") or {}).get("election"),
+                "id": (prev.get("source") or {}).get("election_id") or cfg["source"].get("election_id")}
         rep = {"date_updated": (prev.get("source") or {}).get("as_of", "")}
         rows = []
         for n, c in prev["counties"].items():
@@ -347,7 +348,8 @@ def main():
         print("tx: live county pages used for %d counties: %s" % (len(live_used), ", ".join(live_used)))
     cast = t["ip"] + t["mail"] + t.get("eday", 0)
     # party by primary history (theoelections), on the all-ballots figures
-    ph = party_history(cfg, elec.get("id") or (prev.get("source") or {}).get("election_id"), force=force)
+    ph = party_history(cfg, elec.get("id") or (prev.get("source") or {}).get("election_id") or cfg["source"].get("election_id"),
+                       force=force)
     party_used, roster_ahead, ph_known = [], [], 0
     if ph and ph.get("counties"):
         for name, ent in counties.items():

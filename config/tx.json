@@ -13,7 +13,9 @@
     "portal": "https://goelect.txelections.civixapps.com/ivis-evr-ui/evr",
     "election_match": [
       "2026 NOVEMBER GENERAL"
-    ]
+    ],
+    "election_id": 53815,
+    "_election_id_comment": "The SoS app's id for the Nov 3, 2026 general (from EVR_ELECTION); used when the app is down (it 502'd under load on 10/19) so the theoelections file (keyed by the same id) can still be found."
   },
   "method_labels": {
     "cast": "Ballots cast",
