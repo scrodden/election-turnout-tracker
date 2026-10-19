@@ -219,35 +219,67 @@ def find_general_file(cfg):
         t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", H.unescape(txt))).strip()
         u = urllib.parse.urljoin(page, H.unescape(href))
         if re.search(r"daily absentee statistics\W+by county", t, re.I) and GENERAL_LINK.search(u):
-            return newest_upload(u)
+            prev_url = ((load(LATEST_PATH) if os.path.exists(LATEST_PATH) else {}).get("source") or {}).get("url")
+            return newest_upload(u, also=prev_url)
     return None
 
 
-def newest_upload(u):
+def newest_upload(u, also=None):
     """The SoS site stores each re-upload under the next number (AbsenteeCounty2026_1.pdf,
-    _2.pdf, ...) and the page's link can lag behind (on 10/19 it still pointed at _1 from
-    10/16 while _2 was posted that morning). Check the next few numbers and return the
-    one most recently modified."""
+    _2.pdf, ...), the page's link can lag, and an older day's file can be re-posted under a
+    new number (10/19: _2 = 10/19 data, then _3 = the 10/16 file again). So check numbers
+    1 .. linked+5 plus `also` (the last file used), read each one's "Data Pulled" stamp
+    (cached in data/ia/_uploads.json by Last-Modified, so a file is only downloaded when
+    it changes) and return the one with the newest data. Each existence check is a HEAD,
+    or a 1-byte ranged GET where HEAD is refused (it was from GitHub's runners)."""
+    import urllib.error
     import urllib.request
-    from email.utils import parsedate_to_datetime
     m = re.match(r"^(.*?)(?:_(\d+))?\.pdf$", u)
     if not m:
         return u
     base, n = m.group(1), int(m.group(2) or 0)
-    best, best_t = u, None
-    for k in range(n, n + 6):
-        cand = "%s_%d.pdf" % (base, k) if k else base + ".pdf"
-        try:
-            req = urllib.request.Request(cand, method="HEAD", headers={"User-Agent": C.USER_AGENT})
-            with urllib.request.urlopen(req, timeout=30, context=C._SSL_CTX) as r:
-                t = parsedate_to_datetime(r.headers.get("Last-Modified")) if r.headers.get("Last-Modified") else None
-        except Exception:  # noqa: BLE001 - not posted (404)
-            if k > n:
-                break
+
+    def modified(url):
+        for method, extra in (("HEAD", {}), ("GET", {"Range": "bytes=0-0"})):
+            try:
+                req = urllib.request.Request(url, method=method, headers=dict({"User-Agent": C.USER_AGENT, "Accept": "*/*"}, **extra))
+                with urllib.request.urlopen(req, timeout=30, context=C._SSL_CTX) as r:
+                    return r.headers.get("Last-Modified") or "?"
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    return None
+            except Exception:  # noqa: BLE001
+                pass
+        return None
+    cache_path = os.path.join(DATA_DIR, "_uploads.json")
+    try:
+        cache = load(cache_path)
+    except (OSError, ValueError):
+        cache = {}
+    cands = [base + ".pdf"] + ["%s_%d.pdf" % (base, k) for k in range(1, n + 6)]
+    if also and also not in cands and also.startswith(base):
+        cands.append(also)
+    found = []
+    for c in cands:
+        lm = modified(c)
+        if lm is None:
             continue
-        if t and (best_t is None or t > best_t):
-            best, best_t = cand, t
-    return best
+        ent = cache.get(c) or {}
+        if ent.get("last_modified") != lm or not ent.get("pulled"):
+            try:
+                ent = {"last_modified": lm, "pulled": pulled_at(read_pdf_text(C.http_get(c, binary=True, no_cache=True, retries=2)))}
+            except Exception as e:  # noqa: BLE001
+                print("IA: couldn't read %s (%s)" % (c.rsplit("/", 1)[-1], str(e)[:60]))
+                continue
+            cache[c] = ent
+        found.append((ent.get("pulled") or "", c))
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(cache_path, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(cache, f, indent=1)
+    print("IA uploads: %s" % ", ".join("%s=%s" % (c.rsplit("/", 1)[-1], p or "?") for p, c in sorted(found)))
+    if not found:
+        return u
+    return max(found)[1]   # newest "Data Pulled" (ties: the later-numbered name sorts last)
 
 
 def main():
