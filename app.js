@@ -897,10 +897,10 @@
       "Registered: <b>" + fmt(cty.registered || 0) + "</b> · Cast: <b>" + fmt((cty.cast || {}).total || 0) +
       "</b> · Turnout: <b>" + pctText(cty.turnout_pct) + "</b>" +
       (cty.source === "dos-fallback" ? " <span class='src-note'>(state file — live precinct feed not yet publishing)</span>" :
-       cty.source === "county-dashboard" ? " <span class='src-note'>(county's own vote-by-mail dashboard + state file — this county doesn't publish precinct-level turnout)</span>" : "") +
+       cty.source === "county-dashboard" ? " <span class='src-note'>(the county's own turnout dashboard)</span>" : "") +
       "</div>";
     body.innerHTML = summary + "<div class='loading'>Loading precincts…</div>";
-    if (!cty.code || (cty.source && cty.source !== "tqv")) {
+    if (!cty.code || (cty.source && cty.source !== "tqv" && cty.source !== "county-dashboard")) {   // Broward: own dashboard has precincts
       body.innerHTML = summary + "<p class='fineprint'>Precinct-level data isn't available for this county yet.</p>";
       return;
     }

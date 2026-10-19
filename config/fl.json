@@ -100,5 +100,18 @@
     "base": "https://florida-live-turnout.politicalgrl0318.workers.dev",
     "index": "/data/general-districts.json",
     "page": "https://florida-live-turnout.politicalgrl0318.workers.dev/general/districts"
+  },
+  "broward_turnout": {
+    "_comment": "Broward SOE TED ElectionLink 'Unofficial Voter Turnout' dashboard (added 2026-10-19): ballots cast by party x method + eligible voters (turnout-party) and by precinct (precinct-turnout, 346 precincts matching the Broward County GIS VoterPrecincts2026 layer). Server-rendered via the dashboard html endpoint.",
+    "view": "https://my.browardvotes.gov/TEDElectionLink/TurnOutWidget/dashboard/view/turnout-party",
+    "party_html": "https://my.browardvotes.gov/TEDElectionLink/api/v1/dashboards/html/turnout-party",
+    "precinct_html": "https://my.browardvotes.gov/TEDElectionLink/api/v1/dashboards/html/precinct-turnout",
+    "election_label": "11/03/2026 - 2026 November General Election",
+    "party_map": {
+      "Florida Democratic Party": "dem",
+      "Republican Party Of Florida": "rep",
+      "No Party Affiliation": "npa",
+      "Other": "oth"
+    }
   }
 }

@@ -120,6 +120,13 @@
       "county": "Volusia",
       "url": "https://maps5.vcgov.org/arcgis/rest/services/Election_Voter/MapServer/1",
       "precinct_field": "Precinct_Number"
+    },
+    {
+      "code": "BRO",
+      "county": "Broward",
+      "url": "https://services.arcgis.com/JMAJrTsHNLrSsWf5/arcgis/rest/services/VoterPrecincts2026/FeatureServer/3",
+      "precinct_field": "PRECINCT",
+      "_note": "2026 boundaries (346 precincts), Broward County GIS; ids match the SOE TED turnout dashboard"
     }
   ]
 }
