@@ -209,7 +209,7 @@ def find_general_file(cfg):
     folder or /2026/general/ (the June primary's file is in 2026-06)."""
     page = cfg["source"]["stats_page"]
     try:
-        h = C.http_get(page, retries=2, timeout=60)
+        h = C.http_get(page, retries=2, timeout=60, no_cache=True)
     except Exception as e:  # noqa: BLE001
         print("IA statistics page unavailable: %s" % str(e)[:80])
         return None
@@ -219,8 +219,35 @@ def find_general_file(cfg):
         t = re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", H.unescape(txt))).strip()
         u = urllib.parse.urljoin(page, H.unescape(href))
         if re.search(r"daily absentee statistics\W+by county", t, re.I) and GENERAL_LINK.search(u):
-            return u
+            return newest_upload(u)
     return None
+
+
+def newest_upload(u):
+    """The SoS site stores each re-upload under the next number (AbsenteeCounty2026_1.pdf,
+    _2.pdf, ...) and the page's link can lag behind (on 10/19 it still pointed at _1 from
+    10/16 while _2 was posted that morning). Check the next few numbers and return the
+    one most recently modified."""
+    import urllib.request
+    from email.utils import parsedate_to_datetime
+    m = re.match(r"^(.*?)(?:_(\d+))?\.pdf$", u)
+    if not m:
+        return u
+    base, n = m.group(1), int(m.group(2) or 0)
+    best, best_t = u, None
+    for k in range(n, n + 6):
+        cand = "%s_%d.pdf" % (base, k) if k else base + ".pdf"
+        try:
+            req = urllib.request.Request(cand, method="HEAD", headers={"User-Agent": C.USER_AGENT})
+            with urllib.request.urlopen(req, timeout=30, context=C._SSL_CTX) as r:
+                t = parsedate_to_datetime(r.headers.get("Last-Modified")) if r.headers.get("Last-Modified") else None
+        except Exception:  # noqa: BLE001 - not posted (404)
+            if k > n:
+                break
+            continue
+        if t and (best_t is None or t > best_t):
+            best, best_t = cand, t
+    return best
 
 
 def main():
