@@ -207,7 +207,7 @@ def party_history(cfg, elec_id, force=False):
         cache = {}
     now = datetime.now(timezone.utc)
     age = (now - datetime.fromisoformat(cache["checked"])).total_seconds() / 60 if cache.get("checked") else 1e9
-    if cache.get("counties") and age < ph.get("every_minutes", 30) and not force:
+    if cache.get("counties") and "state_series" in cache and age < ph.get("every_minutes", 30) and not force:
         return cache
 
     def save(c):
@@ -217,7 +217,7 @@ def party_history(cfg, elec_id, force=False):
             json.dump(c, f, indent=0, separators=(",", ":"))
         return c
     hdr = {"User-Agent": C.USER_AGENT}
-    if cache.get("etag") and cache.get("counties"):
+    if cache.get("etag") and cache.get("counties") and "state_series" in cache:   # an older copy lacks the series
         hdr["If-None-Match"] = cache["etag"]
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=90, context=C._SSL_CTX) as r:
@@ -252,11 +252,115 @@ def party_history(cfg, elec_id, force=False):
                                 "none": g["none"], "as_of": when}
             latest = max(latest, when)
         assert len(out) >= 5, "only %d counties" % len(out)
+        series = day_series((d.get("units") or {}).get("state") or {}, picks, year)
     except Exception as e:  # noqa: BLE001
         print("tx: party history (theoelections) unreadable (%s) -- %s"
               % (str(e)[:100], "keeping the last copy" if cache.get("counties") else "not used"), file=sys.stderr)
         return cache or None
-    return save({"url": url, "page": ph.get("page", ""), "etag": etag, "as_of": latest, "counties": out})
+    return save({"url": url, "page": ph.get("page", ""), "etag": etag, "as_of": latest, "counties": out,
+                 "state_series": series})
+
+
+def day_series(u, picks, year):
+    """theoelections' cumulative day-by-day arrays for one unit -> {"dates", "voters", "dem", "rep", "none"}
+    ("both" counts with none); days with no voters yet, or whose parts don't add up, are left out."""
+    out = {"dates": [], "voters": [], "dem": [], "rep": [], "none": []}
+    v = u.get("voters") or []
+    for i, n in enumerate(v):
+        md = (picks[i] if i < len(picks) else "").split("/")
+        if not n or len(md) != 2 or not (md[0].isdigit() and md[1].isdigit()):
+            continue
+        g = {k: (u.get(k) or [None] * len(v))[i] for k in ("dem", "rep", "both", "none")}
+        if any(g[k] is None for k in ("dem", "rep", "none")) or sum(x or 0 for x in g.values()) != n:
+            continue
+        out["dates"].append("%s-%02d-%02d" % (year, int(md[0]), int(md[1])))
+        out["voters"].append(n)
+        out["dem"].append(g["dem"])
+        out["rep"].append(g["rep"])
+        out["none"].append(g["none"] + (g["both"] or 0))
+    return out
+
+
+PAST_CACHE = os.path.join(DATA_DIR, "_party_history_past.json")
+SHARE_PATH = os.path.join(DATA_DIR, "party_share.json")
+
+
+def past_party(cfg):
+    """Past generals' early voters by last party primary, per county and day (theoelections; final
+    figures, so each is fetched once and kept in data/tx/_party_history_past.json):
+    {year: {"id", "election_day", "primaries", "dates", "counties": {fips3: [voters[], dem[], rep[], none[]]}}}."""
+    ph = cfg.get("party_history") or {}
+    cache = load(PAST_CACHE, {}) or {}
+    changed = False
+    for yr, spec in (ph.get("compare") or {}).items():
+        if yr.startswith("_") or (cache.get(yr) or {}).get("id") == spec["id"]:
+            continue
+        try:
+            raw = C.http_get(ph["url"].format(id=spec["id"]), binary=True, retries=1, timeout=120)
+            d = json.loads(gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw)
+            assert str(d.get("id")) == str(spec["id"]), "id %s" % d.get("id")
+            picks, year = d.get("picks") or [], spec["election_day"][:4]
+            dates = []
+            for pk in picks:
+                md = pk.split("/")
+                dates.append("%s-%02d-%02d" % (year, int(md[0]), int(md[1])) if len(md) == 2 and md[0].isdigit() and md[1].isdigit() else None)
+            cs = {}
+            for f3, c in ((d.get("units") or {}).get("county") or {}).items():
+                arr = [[(c.get(k) or [None] * len(picks))[i] or 0 for i in range(len(picks))] for k in ("voters", "dem", "rep", "none")]
+                if any(arr[0]):
+                    cs[f3.zfill(3)] = arr
+            st = (d.get("units") or {}).get("state") or {}
+            assert st.get("voters") and st["voters"][-1] == sum(st[k][-1] for k in ("dem", "rep", "none")), "state parts"
+            dem_row = [r for r in d.get("rows") or [] if r.get("k") == "dem"]
+            cache[yr] = {"id": spec["id"], "election_day": spec["election_day"], "word": d.get("word", ""),
+                         "primaries": len(dem_row[0].get("sub") or []) if dem_row else None, "dates": dates, "counties": cs}
+            changed = True
+        except Exception as e:  # noqa: BLE001
+            print("tx: past party history %s (theoelections) unavailable (%s)" % (yr, str(e)[:100]), file=sys.stderr)
+    if changed:
+        with open(PAST_CACHE, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(cache, f, separators=(",", ":"))
+    return cache
+
+
+def write_party_share(cfg, ph):
+    """data/tx/party_share.json for the page's party-over-time chart: the 2026 statewide series and, for
+    each past general, the same counties (those with 2026 roster data) summed day by day."""
+    ss = (ph or {}).get("state_series") or {}
+    if not ss.get("dates"):
+        return
+    eday = cfg["election"]["date"]
+    yr = eday[:4]
+    series = {yr: dict(ss, election_day=eday, primaries=(int(yr) - 2020) // 2 + 1)}
+    cset = set((ph.get("counties") or {}).keys())
+    for py, p in past_party(cfg).items():
+        n = len(p["dates"])
+        sums = [[0] * n for _ in range(4)]
+        matched = 0
+        for f3 in cset:
+            arr = p["counties"].get(f3)
+            if not arr:
+                continue
+            matched += 1
+            for k in range(4):
+                for i in range(n):
+                    sums[k][i] += arr[k][i]
+        keep = [i for i in range(n) if p["dates"][i] and sums[0][i]]
+        if not keep:
+            continue
+        series[py] = {"dates": [p["dates"][i] for i in keep], "voters": [sums[0][i] for i in keep],
+                      "dem": [sums[1][i] for i in keep], "rep": [sums[2][i] for i in keep], "none": [sums[3][i] for i in keep],
+                      "election_day": p["election_day"], "primaries": p.get("primaries"), "counties": matched}
+    today = (datetime.now(timezone.utc) - timedelta(hours=5)).strftime("%Y-%m-%d")   # Texas (Central) date
+    body = {"state": STATE, "source": "theoelections.com: early voters on the counties' rosters by the last party primary each voted in",
+            "url": ph.get("page") or "", "as_of": ph.get("as_of"), "counties": len(cset), "partial_from": today,
+            "compare_default": (cfg.get("party_history") or {}).get("compare_default", ""), "series": series}
+    old = load(SHARE_PATH, {}) or {}
+    if {k: v for k, v in old.items() if k != "generated_at"} == body:
+        return
+    body["generated_at"] = C.utc_now_iso()
+    with open(SHARE_PATH, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(body, f, separators=(",", ":"))
 
 
 def main():
@@ -373,6 +477,10 @@ def main():
             party_used.append(name)
             ph_known += p["voters"]
     if party_used:
+        try:
+            write_party_share(cfg, ph)
+        except Exception as e:  # noqa: BLE001 - the chart file must never sink the turnout update
+            print("tx: party_share.json not written (%s)" % str(e)[:120], file=sys.stderr)
         print("tx: party by primary history (theoelections) for %d counties, %d voters; roster counts ahead of the SoS in %d: %s"
               % (len(party_used), ph_known, len(roster_ahead),
                  ", ".join("%s %d>%d" % r for r in sorted(roster_ahead, key=lambda r: -r[1])[:6])))

@@ -39,6 +39,22 @@
     "_comment": "theoelections.com (a third-party Texas elections site, GitHub Pages; robots allow all; no stated reuse terms) publishes per-county early voters split by the last party primary each voted in (2020-2026), from the counties' early-voting rosters matched to primary history: data/early/past/<SoS election id>.json(.gz), the file behind theoelections.com/early-vote ('by primary voter'). Used unaltered with attribution for the all-ballots party split (Sam asked 2026-10-19). Fields per county: voters, dem, rep, both, none (by day; the last non-null day is used); counties whose parts don't add up are skipped. Its hourly feed (data/live/hourly.json) covers the same ElectionLink counties we read directly plus Dallas's map (read directly via live_arcgis).",
     "page": "https://theoelections.com/early-vote",
     "url": "https://theoelections.com/data/early/past/{id}.json.gz",
-    "every_minutes": 30
+    "every_minutes": 30,
+    "compare": {
+      "_comment": "Past generals for the party-over-time chart (data/tx/party_share.json), same theoelections file layout; final figures, fetched once into data/tx/_party_history_past.json. Each year's primary window runs from 2020 through that year (2020: the 2020 primary only), so 'no primary' shares aren't like for like.",
+      "2024": {
+        "id": "49664",
+        "election_day": "2024-11-05"
+      },
+      "2022": {
+        "id": "47009",
+        "election_day": "2022-11-08"
+      },
+      "2020": {
+        "id": "44144",
+        "election_day": "2020-11-03"
+      }
+    },
+    "compare_default": "2024"
   }
 }

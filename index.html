@@ -6,7 +6,7 @@
 <title>Turnout Tracker &mdash; 2026</title>
 <meta name="description" content="Live partisan composition of election turnout by county and voting method, from official state election data. Florida, North Carolina, and more." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
-<link rel="stylesheet" href="style.css?v=2026101801" />
+<link rel="stylesheet" href="style.css?v=2026101902" />
 </head>
 <body>
 <header class="site-head">
@@ -168,6 +168,16 @@
     <p id="race-trend-note" class="fineprint"></p>
   </section>
 
+  <section id="party-trend" class="card" hidden aria-label="Party breakdown of early voters over time">
+    <div class="card-head"><h2>Party breakdown over time</h2>
+      <span class="rt-picks"><label class="rt-pick" id="party-cmp-wrap" hidden><span class="dim">vs</span> <select id="party-cmp" aria-label="Compare with"></select></label></span></div>
+    <p id="party-trend-hero" class="rt-hero"></p>
+    <div class="rt-legend" id="party-legend"></div>
+    <div class="rt-wrap"><svg id="party-chart" class="rt-chart" role="img"></svg><div class="rt-tip" hidden></div></div>
+    <details class="rt-details"><summary>Show the numbers</summary><div id="party-trend-table" class="rt-table-wrap"></div></details>
+    <p id="party-trend-note" class="fineprint"></p>
+  </section>
+
   <footer class="site-foot">
     <p id="source-note">Loading source&hellip;</p>
     <p class="dim">This is an independent, non-partisan data project. &ldquo;Partisan composition&rdquo; reflects the <em>party registration</em> of voters who have cast (or been sent) ballots &mdash; not how they voted.</p>
@@ -175,6 +185,6 @@
   </footer>
 </main>
 
-<script src="app.js?v=2026101903"></script>
+<script src="app.js?v=2026101905"></script>
 </body>
 </html>

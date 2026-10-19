@@ -233,6 +233,13 @@ tbody tr.sel { background: rgba(52,80,107,.12); }
 .rt-chart .rt-end-v { fill: var(--ink); font-weight: 700; }
 .rt-chart .rt-guide { stroke: var(--muted); stroke-width: 1; pointer-events: none; }
 .rt-chart .rt-hit { cursor: crosshair; outline: none; }
+/* party breakdown over time (TX): one line per party, colour set inline */
+.rt-chart .pt-cur { fill: none; stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.rt-chart .pt-part { fill: none; stroke-width: 2; stroke-dasharray: 2 3; stroke-linecap: round; }
+.rt-chart .pt-cmp { fill: none; stroke-width: 1.75; stroke-dasharray: 5 4; opacity: .5; }
+.rt-chart .pt-dot { stroke: var(--card); stroke-width: 2; pointer-events: none; }
+.rt-chart .pt-dot-part { fill: var(--card); stroke-width: 2; pointer-events: none; }
+.rt-chart .pt-end { paint-order: stroke; stroke: var(--card); stroke-width: 4px; stroke-linejoin: round; }
 .rt-tip { position: absolute; z-index: 5; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 8px;
   padding: 7px 9px; font-size: 12px; box-shadow: var(--shadow); pointer-events: none; white-space: nowrap; }
 .rt-tip-h { color: var(--muted); margin-bottom: 3px; }

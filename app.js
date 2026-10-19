@@ -984,7 +984,7 @@
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
           precinctData = pd; if (mapMode === "precinct") renderMap();
         }).catch(function () {});
-        loadTrends(); loadRaceShare();
+        loadTrends(); loadRaceShare(); loadPartyShare();
         flashUpdated();
       } else { data.generated_at = nd.generated_at; renderMeta(); }
     }).catch(function () { /* transient; try again next tick */ });
@@ -1290,7 +1290,7 @@
         if (h2.v === "precinct" && PRECINCT_GEO_URL) setMode("precinct");
         if (h2.c && data.counties[h2.c]) selectCounty(h2.c, true);
       }
-      loadTrends(); loadRaceShare();
+      loadTrends(); loadRaceShare(); loadPartyShare();
       loadLocalityLookup(wantUnit);
       if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
       PAST_URL = st.data ? st.data.replace(/latest\.json$/, "turnout_history.json") : null;
@@ -1679,8 +1679,186 @@
   var raceResizeT = null;
   window.addEventListener("resize", function () {
     clearTimeout(raceResizeT);
-    raceResizeT = setTimeout(function () { if (raceShare && !$("#race-trend").hidden) renderRaceTrend(); }, 150);
+    raceResizeT = setTimeout(function () {
+      if (raceShare && !$("#race-trend").hidden) renderRaceTrend();
+      if (partyShare && !$("#party-trend").hidden) renderPartyTrend();
+    }, 150);
   });
+
+  // ---- party breakdown over time (data/<st>/party_share.json; TX: last party primary voted in) ----
+  // Cumulative shares of early voters through each day, this election vs a past
+  // general (the same counties) lined up by days before Election Day.
+  var partyShare = null, partyCmp = null, PARTY_MIN = 1000;   // days before 1,000 voters aren't drawn
+  var PARTY_KEYS = [["dem", "Democratic primary", "D", "var(--dem)"], ["rep", "Republican primary", "R", "var(--rep)"],
+                    ["none", "No primary", "None", "var(--npa)"]];
+  function loadPartyShare() {
+    partyShare = null; partyCmp = null;
+    var host = $("#party-trend"); if (host) host.hidden = true;
+    if (!st || !st.party_share) return;
+    var want = st;
+    getJSON(st.party_share).then(function (d) { if (st === want) { partyShare = d; renderPartyTrend(); } }).catch(function () {});
+  }
+  function partySeries(ser, partialFrom) {
+    var eday = new Date(ser.election_day + "T12:00:00"), out = [];
+    ser.dates.forEach(function (d, i) {
+      var n = ser.voters[i];
+      if (!n || n < PARTY_MIN) return;
+      var t = new Date(d + "T12:00:00");
+      out.push({ t: t, days: Math.round((eday - t) / 86400000), cum: n, partial: !!partialFrom && d >= partialFrom,
+        dem: 100 * ser.dem[i] / n, rep: 100 * ser.rep[i] / n, none: 100 * ser.none[i] / n,
+        lean: Math.round(1000 * (ser.rep[i] - ser.dem[i]) / n) / 10 });
+    });
+    return out;
+  }
+  function primariesText(ser, yr) {
+    var n = ser && ser.primaries;
+    return n ? (n === 1 ? "the 2020 primary" : "primaries 2020–" + yr) : "primaries since 2020";
+  }
+  function renderPartyTrend() {
+    var host = $("#party-trend"); if (!host) return;
+    var d = partyShare, yrs = d && d.series ? Object.keys(d.series).sort().reverse() : [];
+    if (!yrs.length) { host.hidden = true; return; }
+    var cy = yrs[0], cmpYrs = yrs.slice(1);
+    if (partyCmp === null || (partyCmp && cmpYrs.indexOf(partyCmp) < 0))
+      partyCmp = cmpYrs.indexOf(d.compare_default) >= 0 ? d.compare_default : (cmpYrs[0] || "");
+    var csel = $("#party-cmp");
+    $("#party-cmp-wrap").hidden = !cmpYrs.length;
+    if (csel.getAttribute("data-for") !== yrs.join(",")) {
+      csel.setAttribute("data-for", yrs.join(","));
+      csel.innerHTML = "";
+      cmpYrs.concat([""]).forEach(function (y) { var o = document.createElement("option"); o.value = y; o.textContent = y || "none"; csel.appendChild(o); });
+      csel.onchange = function () { partyCmp = csel.value; renderPartyTrend(); };
+    }
+    csel.value = partyCmp;
+    var cur = d.series[cy], cmp = partyCmp ? d.series[partyCmp] : null, cmpYr = partyCmp;
+    var A = partySeries(cur, d.partial_from), B = cmp ? partySeries(cmp) : [];
+    host.hidden = false;
+    var hero = $("#party-trend-hero"), svg = $("#party-chart");
+    hero.textContent = "";
+    if (!A.length) { hero.textContent = "Not enough voters on the rosters yet."; while (svg.firstChild) svg.removeChild(svg.firstChild); return; }
+    // the latest day the rosters have filled in (today's voters are added over the next day or so)
+    var full = A.filter(function (p) { return !p.partial; }), last = full.length ? full[full.length - 1] : A[A.length - 1];
+    var then = raceAt(B, last.days), fin = B.length ? B[B.length - 1] : null;
+    function trio(p) { return p.dem.toFixed(1) + "% D · " + p.rep.toFixed(1) + "% R · " + p.none.toFixed(1) + "% none"; }
+    var big = el("b"); big.textContent = marginText(last.lean);
+    big.style.color = last.lean > 0 ? "var(--rep)" : last.lean < 0 ? "var(--dem)" : "var(--ink)";
+    hero.appendChild(big);
+    hero.appendChild(document.createTextNode(" among the " + fmt(last.cum) + " early voters through " +
+      last.t.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " (" + last.days + " days before Election Day): " + trio(last) + "." +
+      (then ? " Same counties at the same point in " + cmpYr + ": " + marginText(then.lean) + " (" + trio(then) + ")" +
+        (fin && fin.days === 0 ? "; " + cmpYr + " ended at " + marginText(fin.lean) : "") + "." : "")));
+    var leg = $("#party-legend");
+    leg.innerHTML = PARTY_KEYS.map(function (k) {
+      return "<span><i class='rt-key' style='border-top-color:" + k[3] + "'></i>" + k[1] + "</span>";
+    }).join("") + "<span class='dim'>solid = " + cy + (B.length ? " · dashed = " + cmpYr + ", same counties" : "") + "</span>";
+    drawPartyChart(svg, A, B, cy, cmpYr);
+    var rows = A.slice().reverse().map(function (p) {
+      var q = raceAt(B, p.days);
+      return "<tr><td>" + p.t.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + (p.partial ? "*" : "") + "</td><td>" + p.days + "</td><td>" +
+        fmt(p.cum) + "</td><td>" + p.dem.toFixed(1) + "%</td><td>" + p.rep.toFixed(1) + "%</td><td>" + p.none.toFixed(1) + "%</td><td><b>" +
+        marginText(p.lean) + "</b></td>" + (B.length ? "<td>" + (q ? marginText(q.lean) : "—") + "</td>" : "") + "</tr>";
+    }).join("");
+    $("#party-trend-table").innerHTML = "<table class='rt-table'><thead><tr><th>Date</th><th>Days out</th><th>Voters so far</th><th>Dem primary</th>" +
+      "<th>Rep primary</th><th>No primary</th><th>Lean</th>" + (B.length ? "<th>" + cmpYr + " same point</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table>";
+    $("#party-trend-note").textContent = "Share of early voters through each day by the last party primary each voted in (" + cy + ": " +
+      primariesText(cur, cy) + "; none = no primary in that span, including new voters), from " + (d.source || "").split(":")[0] +
+      "'s match of the counties' early-voting rosters to primary voting history: " + fmt(d.counties) + " counties have roster data so far, " +
+      "so the " + cy + " line also moves as counties join." + (cmp ? " " + cmpYr + " is the same " + fmt(cmp.counties || d.counties) +
+      " counties, lined up by days before its Election Day (" + new Date(cmp.election_day + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
+      "), with " + primariesText(cmp, cmpYr) + ". Each year counts primaries from 2020 through that year, so the years aren't strictly like for like " +
+      "(more primaries means fewer voters with none)." : "") + " The latest day (*) fills in as counties post their rosters; today's in-person voters " +
+      "appear a day or so later. Days before " + fmt(PARTY_MIN) + " voters aren't drawn.";
+  }
+  function drawPartyChart(svg, A, B, cy, cmpYr) {
+    var cw = svg.parentNode.getBoundingClientRect().width || 660;
+    var NS = "http://www.w3.org/2000/svg", W = Math.round(Math.max(280, Math.min(660, cw))), narrow = W < 480, H = narrow ? 240 : 270, ml = 36, mr = narrow ? 58 : 96, mt = 14, mb = 34;
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    function add(tag, attrs, text, parent) {
+      var e = document.createElementNS(NS, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (text != null) e.textContent = text;
+      (parent || svg).appendChild(e); return e;
+    }
+    var all = A.concat(B);
+    var D = Math.min(63, Math.ceil(Math.max.apply(null, all.map(function (p) { return p.days; })) / 7) * 7) || 7;
+    var vals = [];
+    all.forEach(function (p) { if (p.days <= D) PARTY_KEYS.forEach(function (k) { vals.push(p[k[0]]); }); });
+    var hi = Math.min(100, Math.ceil((Math.max.apply(null, vals) + 2) / 10) * 10), lo = 0, step = 10;
+    var px = function (days) { return ml + (D - days) / D * (W - ml - mr); };
+    var py = function (v) { return mt + (1 - (v - lo) / (hi - lo)) * (H - mt - mb); };
+    for (var v = lo; v <= hi + 0.001; v += step) {
+      add("line", { class: "rt-grid", x1: ml, x2: W - mr, y1: py(v), y2: py(v) });
+      add("text", { class: "rt-lbl", x: ml - 6, y: py(v) + 3.5, "text-anchor": "end" }, v + "%");
+    }
+    add("line", { class: "rt-base", x1: ml, x2: W - mr, y1: H - mb, y2: H - mb });
+    for (var t = D; t >= 0; t -= 7) add("text", { class: "rt-lbl", x: px(t), y: H - mb + 15, "text-anchor": "middle" }, t === 0 ? (narrow ? "E-Day" : "Election Day") : String(t));
+    add("text", { class: "rt-lbl", x: ml, y: H - 3 }, "days before Election Day");
+    function path(pts, key) { return pts.map(function (p, i) { return (i ? "L" : "M") + px(p.days).toFixed(1) + " " + py(p[key]).toFixed(1); }).join(""); }
+    var a = A.filter(function (p) { return p.days <= D; }), b = B.filter(function (p) { return p.days <= D; });
+    var solid = a.filter(function (p) { return !p.partial; }), tail = a.slice(Math.max(0, solid.length - 1));
+    PARTY_KEYS.forEach(function (k) { if (b.length) add("path", { class: "pt-cmp", d: path(b, k[0]), style: "stroke:" + k[3] }); });
+    var ends = [];
+    PARTY_KEYS.forEach(function (k) {
+      if (solid.length) add("path", { class: "pt-cur", d: path(solid, k[0]), style: "stroke:" + k[3] });
+      if (tail.length > 1) add("path", { class: "pt-part", d: path(tail, k[0]), style: "stroke:" + k[3] });
+      var e = a[a.length - 1];
+      if (!e) return;
+      add("circle", { class: e.partial ? "pt-dot-part" : "pt-dot", cx: px(e.days), cy: py(e[k[0]]), r: 4, style: (e.partial ? "stroke:" : "fill:") + k[3] });
+      ends.push({ y: py(e[k[0]]), x: px(e.days) + 8, v: e[k[0]].toFixed(1) + "%", k: k });
+    });
+    // end labels, nudged apart so close lines stay readable
+    ends.sort(function (p, q) { return p.y - q.y; });
+    for (var i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 14) ends[i].y = ends[i - 1].y + 14;
+    ends.forEach(function (e) {
+      var lbl = add("text", { class: "rt-end pt-end", x: e.x, y: e.y + 4 });
+      add("tspan", { class: "rt-end-v", style: "fill:" + e.k[3] }, e.v, lbl);
+      add("tspan", {}, " " + e.k[2], lbl);
+    });
+    // crosshair + one tooltip with every line
+    var wrap = svg.parentNode, tip = wrap.querySelector(".rt-tip");
+    var guide = add("line", { class: "rt-guide", x1: 0, x2: 0, y1: mt, y2: H - mb, visibility: "hidden" });
+    var hit = add("rect", { x: ml, y: mt, width: W - ml - mr, height: H - mt - mb, fill: "transparent", class: "rt-hit", tabindex: "0" });
+    function show(days) {
+      days = Math.max(0, Math.min(D, days));
+      var X = px(days), p = a.length && days >= a[a.length - 1].days ? raceAt(a, days) : null, q = raceAt(b, days);
+      if (!p && !q) { hide(); return; }
+      guide.setAttribute("x1", X); guide.setAttribute("x2", X); guide.setAttribute("visibility", "visible");
+      tip.textContent = "";
+      var head = el("div", "rt-tip-h"); head.textContent = days === 0 ? "Election Day" : days + " days before Election Day"; tip.appendChild(head);
+      [[p, cy], [q, cmpYr]].forEach(function (pr) {
+        var s = pr[0]; if (!s) return;
+        var r = el("div", "rt-tip-r"), val = el("b"), lab = el("span");
+        val.textContent = pr[1] + " " + marginText(s.lean);
+        lab.textContent = " " + s.dem.toFixed(1) + "% D · " + s.rep.toFixed(1) + "% R · " + s.none.toFixed(1) + "% none · " + fmt(s.cum) + " voters" +
+          (s.partial ? " (filling in)" : "");
+        r.appendChild(val); r.appendChild(lab); tip.appendChild(r);
+      });
+      tip.hidden = false;
+      var bw = wrap.getBoundingClientRect().width, sx = X / W * bw;
+      tip.style.left = Math.min(Math.max(0, sx + 12), bw - tip.offsetWidth - 4) + "px";
+      tip.style.top = "8px";
+    }
+    function hide() { guide.setAttribute("visibility", "hidden"); tip.hidden = true; }
+    function fromEvent(ev) {
+      var m = svg.getScreenCTM(); if (!m) return null;
+      var pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+      return Math.round(D - (pt.matrixTransform(m.inverse()).x - ml) / (W - ml - mr) * D);
+    }
+    var focusDays = null;
+    hit.addEventListener("pointermove", function (ev) { var dd = fromEvent(ev); if (dd != null) show(dd); });
+    hit.addEventListener("pointerleave", hide);
+    hit.addEventListener("focus", function () { focusDays = a.length ? a[a.length - 1].days : D; show(focusDays); });
+    hit.addEventListener("blur", hide);
+    hit.addEventListener("keydown", function (ev) {
+      if (focusDays == null) return;
+      if (ev.key === "ArrowLeft") { focusDays = Math.min(D, focusDays + 1); show(focusDays); ev.preventDefault(); }
+      if (ev.key === "ArrowRight") { focusDays = Math.max(0, focusDays - 1); show(focusDays); ev.preventDefault(); }
+    });
+    var e = a[a.length - 1];
+    svg.setAttribute("aria-label", "Early voters by last party primary, cumulative share by days before Election Day. " + cy +
+      (e ? ", " + e.days + " days out: " + e.dem.toFixed(1) + "% Democratic, " + e.rep.toFixed(1) + "% Republican, " + e.none.toFixed(1) + "% no primary" : "") + ".");
+  }
   // ---- who hasn't voted yet (party-registration states, statewide) ----
   // Registered voters by party (data/registration.json, the Registration vs
   // Turnout page's file) minus ballots cast so far by party. Shown as R / D /
