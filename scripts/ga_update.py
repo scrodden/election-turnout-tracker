@@ -561,6 +561,9 @@ def main():
                     print("ga hub failed at its last check (%s) -- showing the Election Lab fallback" % str(psrc["status"])[:160])
                     return 2
                 return 0
+        if recent_hub_read(psrc, src.get("hold_hub_minutes", 60)):   # the local reader keeps the hub figures current
+            print("ga: hub figures read at %s are current (local reader)" % psrc.get("fetched_at"))
+            return 0
         print("ga: hub checked %s; next window not reached — skipping." % hub_last)
         return 0
 
