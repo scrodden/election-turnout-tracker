@@ -31,7 +31,10 @@ GA_FILES = ["data/ga/latest.json", "data/ga/history.jsonl", "data/ga/race_share.
 
 def log(msg):
     line = "%s  %s" % (dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), msg)
-    print(line)
+    try:   # pythonw has no console; a cp1252 console can't print every character
+        print(line.encode("ascii", "replace").decode("ascii"))
+    except Exception:  # noqa: BLE001
+        pass
     path = os.path.join(os.path.dirname(CLONE), "ga-reader.log")
     try:
         old = open(path, encoding="utf-8").read().splitlines()[-499:] if os.path.exists(path) else []
