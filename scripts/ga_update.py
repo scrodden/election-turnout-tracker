@@ -508,6 +508,17 @@ def write_race_share(cfg, elec, rbd, as_of):
     print("ga: race_share.json updated (%s)" % ", ".join("%s: %d ballots" % (k, v["total"]) for k, v in sorted(series.items())))
 
 
+def recent_hub_read(psrc, minutes):
+    """True if the current figures came from the hub less than `minutes` ago."""
+    if not str(psrc.get("primary", "")).startswith("GA SoS"):
+        return False
+    try:
+        t = datetime.fromisoformat(str(psrc.get("fetched_at", "")).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return (datetime.now(timezone.utc) - t).total_seconds() < minutes * 60
+
+
 def main():
     force = "--force" in sys.argv
     dry = "--dry-run" in sys.argv
@@ -570,6 +581,13 @@ def main():
                      sw["mail_provided"]["total"], sw["registered"], sw["turnout_pct"], um))
         return 0
 
+    if not rows and recent_hub_read(psrc, src.get("hold_hub_minutes", 60)):
+        # The hub's CloudFront refuses GitHub's runners (since 10/18) but not a home
+        # connection: scripts/local_ga_reader.py reads it from Sam's PC every ~20 min.
+        # Keep those figures while they're fresh; after that, the Lab fallback below.
+        print("ga: hub refused this run (%s) -- keeping the hub figures read at %s by the local reader"
+              % (status[:100], psrc.get("fetched_at")))
+        return 0
     if not rows:
         # Until the hub carries the general, fall back to the UF Election Lab's
         # Georgia figures (built from the SoS absentee voter file).
