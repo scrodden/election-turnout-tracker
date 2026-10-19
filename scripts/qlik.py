@@ -109,8 +109,9 @@ class QlikSession:
         except urllib.error.HTTPError as e:   # say who refused (CloudFront / WAF / the token function) for the status page
             hdr = {k: v for k, v in e.headers.items() if k.lower() in ("server", "x-cache", "x-amz-cf-pop", "x-amzn-errortype",
                                                                        "x-amzn-waf-action", "content-type", "retry-after")}
-            try:
-                body = e.read()[:120].decode("utf-8", "replace")
+            try:   # the refusal page's own words (CloudFront: "Request blocked" = WAF; "...from your country" = geo)
+                import re as _re
+                body = _re.sub(r"\s+", " ", _re.sub(r"<[^>]+>", " ", e.read()[:4000].decode("utf-8", "replace")))[:260]
             except Exception:  # noqa: BLE001
                 body = ""
             raise RuntimeError("token endpoint HTTP %s %s %s" % (e.code, hdr, body.strip())) from None
