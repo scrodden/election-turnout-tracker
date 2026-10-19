@@ -20,7 +20,9 @@ changed page layout or a bot-check page keeps the previous list.
 
 In CI it runs every cycle but rebuilds a list at most once every 20 hours, and
 not at all from Election Day on (official results take over then, and the
-articles start marking winners).
+articles start marking winners). Ballotpedia sends GitHub's runners an empty
+page, so measures.json is rebuilt daily from Sam's PC instead by
+scripts/refresh_measures_home.py (Windows Task Scheduler).
 """
 import html
 import json
