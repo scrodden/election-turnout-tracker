@@ -250,12 +250,12 @@
     {
       "code": "tx",
       "name": "Texas",
-      "partisan": false,
+      "partisan": true,
       "hidden": true,
       "data": "data/tx/latest.json",
       "geojson": "assets/tx-counties.geojson",
       "history": "data/tx/history.jsonl",
-      "source_note": "Source: <a href='https://goelect.txelections.civixapps.com/ivis-evr-ui/evr' target='_blank' rel='noopener'>Texas Secretary of State</a> Election Information &amp; Turnout Data: unofficial early voting turnout for all 254 counties (in-person early votes and mail ballots received), as submitted by county election officials, with each county's registered voters. Texas has no party registration, so this is turnout only. Early voting runs October 19 &ndash; 30. Boundaries: U.S. Census Bureau."
+      "source_note": "Source: <a href='https://goelect.txelections.civixapps.com/ivis-evr-ui/evr' target='_blank' rel='noopener'>Texas Secretary of State</a> Election Information &amp; Turnout Data: unofficial early voting turnout for all 254 counties (in-person early votes and mail ballots received), as submitted by county election officials, with each county's registered voters; in-person votes through the day from counties' own live pages (ElectionLink widgets and <a href='https://experience.arcgis.com/experience/8204fc2e36cd4fac8729efcedd4fda7f/page/Page?views=Early-Voting' target='_blank' rel='noopener'>Dallas County's vote-center map</a>). Texas has no party registration; party here is the last party primary each voter voted in (2020&ndash;2026), from <a href='https://theoelections.com/early-vote' target='_blank' rel='noopener'>theoelections.com</a>'s match of the counties' early-voting rosters to primary history, shown for all ballots combined (not by voting method). Ballots not yet on those rosters count as party not reported. Early voting runs October 19 &ndash; 30. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "az",

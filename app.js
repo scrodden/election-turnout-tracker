@@ -30,7 +30,16 @@
     mail_requested: "Party of voters who have requested an absentee (mail) ballot - applications, not ballots cast."
   };
 
+  // e.g. TX: party (from primary history) covers all ballots combined, not each voting method
+  function partyFor(m) { return !(data && data.party_methods && data.party_methods.indexOf(m) < 0); }
+  function applyMethodParty() {
+    if (!st || !data) return;
+    partisan = (st.partisan !== false) && data.partisan !== false && partyFor(method);
+    unitPartisan = partisan && data.units_partisan !== false;
+  }
   function noPartyText() {
+    if (data && !partyFor(method) && data.partisan !== false)
+      return data.party_methods_note || "Party is shown for all ballots combined only, so this view is turnout only.";
     if (partisan && data && data.units_partisan === false)
       return "Party is reported statewide only (see the cards above), so " + (unitLabelPlural || "counties").toLowerCase() + " show turnout.";
     if (st && st.partisan !== false) return "The source isn't reporting party for these ballots right now, so this is turnout only.";
@@ -292,7 +301,7 @@
       b.addEventListener("click", function () { if (!avail) return; method = m.key; updateHash(); renderAll(); });
       host.appendChild(b);
     });
-    $("#method-hint").textContent = partisan ? (HINTS[method] || "") : (TURNOUT_HINTS[method] || TURNOUT_HINTS.cast) + (method === "cast" ? " " + noPartyText() : "");
+    $("#method-hint").textContent = partisan ? ((data && data.party_hints && data.party_hints[method]) || HINTS[method] || "") : (TURNOUT_HINTS[method] || TURNOUT_HINTS.cast) + (method === "cast" ? " " + noPartyText() : "");
   }
 
   function statCard(cls, k, v, d, barParts) {
@@ -336,9 +345,10 @@
         { w: b.dem_pct, c: "var(--dem)", t: "Democratic" },
         { w: (b.npa_pct || 0) + (b.oth_pct || 0), c: "var(--npa)", t: "NPA / Other" }
       ] : null));
-    host.appendChild(statCard("rep", "Republican", fmt(b.rep), pctText(b.rep_pct)));
-    host.appendChild(statCard("dem", "Democratic", fmt(b.dem), pctText(b.dem_pct)));
-    host.appendChild(statCard("", "No party / Other", fmt(b.npa + b.oth),
+    var pl = data.party_labels || {};   // e.g. TX: party = last primary voted in
+    host.appendChild(statCard("rep", pl.rep || "Republican", fmt(b.rep), pctText(b.rep_pct)));
+    host.appendChild(statCard("dem", pl.dem || "Democratic", fmt(b.dem), pctText(b.dem_pct)));
+    host.appendChild(statCard("", pl.npa || "No party / Other", fmt(b.npa + b.oth),
       pctText(b.npa_pct == null ? null : Math.round((b.npa_pct + b.oth_pct) * 10) / 10)));
     // e.g. OH: a county's own daily report ahead of the state's party data -> ballots without a party yet
     if (b.unk) host.appendChild(statCard("", "Party not reported", fmt(b.unk), data.unk_label || "counted, but no party in the source yet"));
@@ -500,7 +510,8 @@
     $("#map-note").textContent = mapMode === "precinct"
       ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
       : (unitPartisan
-        ? "Red = Republican lean, blue = Democratic lean, by party registration of ballots in the selected category. Gray = no ballots yet."
+        ? "Red = Republican lean, blue = Democratic lean, by " + ((data && data.party_basis) || "party registration") + " of ballots in the selected category. Gray = no ballots" +
+          (data && data.party_basis ? " with a known party" : "") + " yet."
         : hasT
           ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). " + noPartyText()
           : "Shaded by early-ballot volume in the selected category (darker = more ballots). " + noPartyText() + " Gray = no ballots yet.");
@@ -841,6 +852,10 @@
       mlist.forEach(function (m) {
         if (m.key !== "cast" && !cty[m.key]) return;
         var b = block(cty, m.key);
+        if (!partyFor(m.key)) {   // e.g. TX: party (primary history) is on all ballots only
+          rows.push("<tr><td>" + m.label + "</td><td colspan='4' class='dim'>party not split by method</td><td>" + fmt(b.total) + "</td><td>—</td></tr>");
+          return;
+        }
         rows.push("<tr><td>" + m.label + "</td><td>" + fmt(b.rep) + "</td><td>" + fmt(b.dem) + "</td><td>" + fmt(b.npa) +
           "</td><td>" + fmt(b.oth) + "</td><td>" + fmt(b.total) + "</td><td>" + marginText(b.margin) + "</td></tr>");
       });
@@ -856,6 +871,12 @@
         (cr.partisan ? " Each voter's party comes from the county's list." :
           " Ballots beyond the state's count have no party yet" + ((cty.cast || {}).unk ? " (" + fmt(cty.cast.unk) + " cast)" : "") + ".") + "</p>";
     }
+    // e.g. TX: a county's own live page, and party from primary history (theoelections)
+    if (cty.live && cty.live.as_of) extra += "<p class='dim'>In-person early votes from the " + (cty.live.source || "county's live page") +
+      " (" + fmt(cty.live.in_person) + " as of " + new Date(cty.live.as_of).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + ").</p>";
+    if (cty.party_history && unitPartisan) extra += "<p class='dim'>Party for " + fmt(cty.party_history.voters) + " voters on the early-voting rosters" +
+      (cty.party_history.as_of ? " (through " + cty.party_history.as_of + ")" : "") + ", by the last party primary each voted in" +
+      ((cty.cast || {}).unk ? "; " + fmt(cty.cast.unk) + " more ballots aren't on those rosters yet" : "") + ".</p>";
     if (cty.registered) extra += "<p class='dim'>Registered: " + fmt(cty.registered) + " · Turnout: " + pctText(cty.turnout_pct) + "</p>";
     if (pastActive() && pastOf(name))
       extra += "<p class='dim'>" + pastYear + " final: " + fmt(pastOf(name)) + " (" + pastFinal.county_basis[pastYear] + ") · " +
@@ -1880,7 +1901,7 @@
     host.hidden = false;
   }
 
-  function renderAll() { renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderRemaining(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
+  function renderAll() { applyMethodParty(); renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderRemaining(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {

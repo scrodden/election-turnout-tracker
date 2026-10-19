@@ -18,9 +18,22 @@ officials. Ballots cast = in-person early votes + mail ballots received.
 
 Early voting: October 19 - 30, 2026 (mail ballots are counted before that).
 
+Two more layers sit on top of the SoS figures:
+  * counties' own live pages (in-person early votes through the day): ElectionLink
+    widgets (found by probing every county) and Dallas County's vote-center map
+    (an ArcGIS layer with each site's votes; config live_arcgis).
+  * party by primary history (config party_history): theoelections.com publishes,
+    per county, the early voters on the counties' rosters split by the last party
+    primary each voted in (2020-2026). Used unaltered, with attribution, for the
+    all-ballots figures only (it isn't split by voting method). Ballots the rosters
+    don't include yet are counted as party not reported; where the rosters count
+    more voters than the state's own report (e.g. Bexar's mail ballots), the extra
+    voters are added to that county's total (on top of any live in-person count).
+
 Run:  python scripts/tx_update.py [--force]
 """
 import base64
+import gzip
 import json
 import os
 import re
@@ -146,6 +159,106 @@ def read_live(name, eday):
             "as_of": when, "url": u.replace("BallotTypeTurnout.html", "index.html")}
 
 
+def read_arcgis(name, src):
+    """A county vote-center map's feature layer (Dallas): each site's running total of
+    in-person early votes -> {"early", "eday", "provisional", "as_of", "url", "source"} or None.
+    Election Day rows aren't read yet (their fields' meaning on Nov 3 is unverified)."""
+    lay = src["layer"].rstrip("/")
+    tf, df = src["total_field"], src.get("daily_field", src["total_field"])
+    try:
+        meta = json.loads(C.http_get(lay + "?f=json", no_cache=True, retries=1, timeout=30))
+        q = json.loads(C.http_get(lay + "/query?" + urllib.parse.urlencode({
+            "where": "1=1", "outFields": "%s,%s,%s" % (src["type_field"], tf, df),
+            "returnGeometry": "false", "resultRecordCount": 5000, "f": "json"}), no_cache=True, retries=1, timeout=30))
+    except Exception as e:  # noqa: BLE001
+        print("tx: %s vote-center map unavailable (%s)" % (name, str(e)[:100]), file=sys.stderr)
+        return None
+    rows = [f.get("attributes") or {} for f in q.get("features") or []]
+    ev = [r for r in rows if r.get(src["type_field"]) == src.get("ev", "EV")]
+    if q.get("exceededTransferLimit") or len(ev) < src.get("min_sites", 10):
+        print("tx: %s vote-center map: %d early-voting sites -- not used" % (name, len(ev)), file=sys.stderr)
+        return None
+    if any(not isinstance(r.get(tf), int) or r[tf] < 0 or (isinstance(r.get(df), int) and r[df] > r[tf]) for r in ev):
+        print("tx: %s vote-center map: a site's running total is missing or below its daily count -- not used" % name,
+              file=sys.stderr)
+        return None
+    edit = ((meta.get("editingInfo") or {}).get("dataLastEditDate") or 0) / 1000
+    when = datetime.fromtimestamp(edit, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if edit else ""
+    return {"early": sum(r[tf] for r in ev), "eday": 0, "provisional": 0, "as_of": when,
+            "url": src.get("page", lay), "source": src.get("label", "county vote-center map"), "sites": len(ev)}
+
+
+PARTY_CACHE = os.path.join(DATA_DIR, "_party_history.json")
+
+
+def party_history(cfg, elec_id, force=False):
+    """theoelections.com's early voters by last party primary, per county (FIPS without 48)
+    -> {"as_of", "url", "page", "counties": {fips3: {"voters","dem","rep","both","none","as_of"}}} or None.
+    Kept in data/tx/_party_history.json; refetched (If-None-Match) every party_history.every_minutes,
+    and the last good copy is kept if a fetch fails."""
+    import urllib.error
+    import urllib.request
+    ph = cfg.get("party_history") or {}
+    if not ph.get("url") or not elec_id:
+        return None
+    url = ph["url"].format(id=elec_id)
+    cache = load(PARTY_CACHE, {}) or {}
+    if cache.get("url") != url:
+        cache = {}
+    now = datetime.now(timezone.utc)
+    age = (now - datetime.fromisoformat(cache["checked"])).total_seconds() / 60 if cache.get("checked") else 1e9
+    if cache.get("counties") and age < ph.get("every_minutes", 30) and not force:
+        return cache
+
+    def save(c):
+        c["checked"] = now.isoformat(timespec="seconds")
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(PARTY_CACHE, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(c, f, indent=0, separators=(",", ":"))
+        return c
+    hdr = {"User-Agent": C.USER_AGENT}
+    if cache.get("etag") and cache.get("counties"):
+        hdr["If-None-Match"] = cache["etag"]
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=90, context=C._SSL_CTX) as r:
+            raw, etag = r.read(), r.headers.get("ETag", "")
+    except urllib.error.HTTPError as e:
+        if e.code == 304:
+            return save(cache)
+        print("tx: party history (theoelections) HTTP %s -- %s"
+              % (e.code, "keeping the last copy" if cache.get("counties") else "none yet"), file=sys.stderr)
+        return cache or None
+    except Exception as e:  # noqa: BLE001
+        print("tx: party history (theoelections) unavailable (%s)" % str(e)[:100], file=sys.stderr)
+        return cache or None
+    try:
+        d = json.loads(gzip.decompress(raw) if raw[:2] == b"\x1f\x8b" else raw)
+        assert str(d.get("id")) == str(elec_id), "election id %s" % d.get("id")
+        assert {"dem", "rep", "none"} <= {r.get("k") for r in d.get("rows") or []}, "rows"
+        picks, units = d.get("picks") or [], (d.get("units") or {}).get("county") or {}
+        year = cfg["election"]["date"][:4]
+        out, latest = {}, ""
+        for f3, c in units.items():
+            v = c.get("voters") or []
+            idx = max([i for i, x in enumerate(v) if x is not None] or [-1])
+            if idx < 0 or not v[idx]:
+                continue
+            g = {k: (c.get(k) or [None] * len(v))[idx] for k in ("dem", "rep", "both", "none")}
+            if any(g[k] is None for k in ("dem", "rep", "none")) or sum(x or 0 for x in g.values()) != v[idx]:
+                continue   # the parts don't add up: skip the county rather than guess
+            md = (picks[idx] if idx < len(picks) else "").split("/")
+            when = "%s-%02d-%02d" % (year, int(md[0]), int(md[1])) if len(md) == 2 and md[0].isdigit() and md[1].isdigit() else ""
+            out[f3.zfill(3)] = {"voters": v[idx], "dem": g["dem"], "rep": g["rep"], "both": g["both"] or 0,
+                                "none": g["none"], "as_of": when}
+            latest = max(latest, when)
+        assert len(out) >= 5, "only %d counties" % len(out)
+    except Exception as e:  # noqa: BLE001
+        print("tx: party history (theoelections) unreadable (%s) -- %s"
+              % (str(e)[:100], "keeping the last copy" if cache.get("counties") else "not used"), file=sys.stderr)
+        return cache or None
+    return save({"url": url, "page": ph.get("page", ""), "etag": etag, "as_of": latest, "counties": out})
+
+
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {})
@@ -204,8 +317,13 @@ def main():
     # counties' own live pages: in-person early votes (and Election Day) more current than the SoS's daily figures
     eday = cfg["election"]["date"]
     live_used, live_latest = [], ""
-    for name in live_counties(sorted(counties), eday, force="--rediscover" in sys.argv):
-        lv = read_live(name, eday)
+    readers = {n: (lambda n=n: read_live(n, eday))
+               for n in live_counties(sorted(counties), eday, force="--rediscover" in sys.argv)}
+    for n, src in (cfg.get("live_arcgis") or {}).items():
+        if not n.startswith("_"):
+            readers[n] = (lambda n=n, src=src: read_arcgis(n, src))
+    for name in sorted(readers):
+        lv = readers[name]()
         ent = counties.get(name)
         if not lv or not ent:
             continue
@@ -221,14 +339,52 @@ def main():
         cast_c = ent["early_voted"]["total"] + mail + lv["eday"]
         ent["cast"] = blk(cast_c)
         ent["turnout_pct"] = round(100.0 * cast_c / ent["registered"], 2) if ent.get("registered") else None
-        ent["live"] = {"source": "county turnout page (ElectionLink)", "url": lv["url"], "as_of": lv["as_of"],
+        ent["live"] = {"source": lv.get("source", "county turnout page (ElectionLink)"), "url": lv["url"], "as_of": lv["as_of"],
                        "in_person": lv["early"], "sos_in_person": sos_ip}
         live_used.append(name)
         live_latest = max(live_latest, lv["as_of"])
     if live_used:
         print("tx: live county pages used for %d counties: %s" % (len(live_used), ", ".join(live_used)))
     cast = t["ip"] + t["mail"] + t.get("eday", 0)
-    statewide = {"cast": blk(cast), "registered": t["reg"], "turnout_pct": round(100.0 * cast / t["reg"], 2) if t["reg"] else None}
+    # party by primary history (theoelections), on the all-ballots figures
+    ph = party_history(cfg, elec.get("id") or (prev.get("source") or {}).get("election_id"), force=force)
+    party_used, roster_ahead, ph_known = [], [], 0
+    if ph and ph.get("counties"):
+        for name, ent in counties.items():
+            p = ph["counties"].get(ent["fips"][2:])
+            tot = ent["cast"]["total"]
+            if not p:
+                ent["cast"] = C.party_block(0, 0, 0, 0, unk=tot)
+                continue
+            # the rosters ahead of the state's own count (mail + in-person, before any live page):
+            # those extra voters are added (a live page only replaces the state's in-person figure)
+            sos = (ent.get("mail_voted") or {}).get("total", 0) + \
+                (ent["live"]["sos_in_person"] if ent.get("live") else (ent.get("early_voted") or {}).get("total", 0))
+            if p["voters"] > sos:
+                roster_ahead.append((name, p["voters"], sos))
+                cast += p["voters"] - sos
+                tot += p["voters"] - sos
+            # "both" (voted in both parties' primaries; none so far) counts with no party
+            ent["cast"] = C.party_block(p["rep"], p["dem"], 0, p["none"] + p.get("both", 0), unk=tot - p["voters"])
+            ent["turnout_pct"] = round(100.0 * tot / ent["registered"], 2) if ent.get("registered") else None
+            ent["party_history"] = {"voters": p["voters"], "as_of": p["as_of"]}
+            party_used.append(name)
+            ph_known += p["voters"]
+    if party_used:
+        print("tx: party by primary history (theoelections) for %d counties, %d voters; roster counts ahead of the SoS in %d: %s"
+              % (len(party_used), ph_known, len(roster_ahead),
+                 ", ".join("%s %d>%d" % r for r in sorted(roster_ahead, key=lambda r: -r[1])[:6])))
+        for c in counties.values():
+            c["cast"].pop("compiled", None)
+            c["cast"].pop("compiled_iso", None)
+    statewide = {"cast": C.add_blocks(*[c["cast"] for c in counties.values()]) if party_used else blk(cast),
+                 "registered": t["reg"], "turnout_pct": round(100.0 * cast / t["reg"], 2) if t["reg"] else None}
+    if party_used:
+        statewide["cast"].pop("compiled", None)
+        statewide["cast"].pop("compiled_iso", None)
+        if statewide["cast"]["total"] != cast:
+            print("tx: county party blocks sum to %d, not %d -- not used" % (statewide["cast"]["total"], cast), file=sys.stderr)
+            return 1
     if t["ip"]:
         statewide["early_voted"] = blk(t["ip"])
     if t["mail"]:
@@ -243,21 +399,48 @@ def main():
     as_of = rep.get("date_updated") or ""
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Texas"), "election": cfg.get("election", {}),
-        "partisan": False, "methods_present": [m for m in ("early_voted", "mail_voted", "election_day") if statewide.get(m)],
+        "partisan": bool(party_used), "methods_present": [m for m in ("early_voted", "mail_voted", "election_day") if statewide.get(m)],
         "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
     }
+    notes = []
     if live_used:
-        body["map_note"] = ("In-person early votes for %s come from the county's own live turnout page (updated through the day). "
-                            "Every other county's come from the Secretary of State's daily report, which adds each day's "
-                            "in-person votes the next morning, so during the day those counties lag behind."
-                            % (", ".join(live_used) if len(live_used) < 4 else "%d counties (%s)" % (len(live_used), ", ".join(live_used))))
+        notes.append("In-person early votes for %s come from the county's own live turnout page (updated through the day). "
+                     "Every other county's come from the Secretary of State's daily report, which adds each day's "
+                     "in-person votes the next morning, so during the day those counties lag behind."
+                     % (", ".join(live_used) if len(live_used) < 4 else "%d counties (%s)" % (len(live_used), ", ".join(live_used))))
+    if party_used:
+        body.update({
+            "party_methods": ["cast"],
+            "party_basis": "the last party primary each voter voted in (2020-2026)",
+            "party_methods_note": "Party (the last party primary each voter voted in) is shown for all ballots combined; "
+                                  "it isn't split by voting method, so this view is turnout only.",
+            "party_hints": {"cast": "Everyone who has voted so far, by the last party primary they voted in (2020-2026), "
+                                    "as matched by theoelections.com from the counties' early-voting rosters. "
+                                    "No party = no primary since 2020, including new voters."},
+            "unk_label": "counted, but not yet on the rosters matched to primary history",
+            "party_labels": {"rep": "Republican primary voters", "dem": "Democratic primary voters",
+                             "npa": "No primary since 2020"},
+        })
+        notes.append("Party is the last party primary each voter voted in (2020-2026), from theoelections.com's match of "
+                     "the counties' early-voting rosters to primary voting history (%d counties, %s voters as of %s); "
+                     "ballots not on those rosters yet, such as today's in-person votes, count as party not reported."
+                     % (len(party_used), format(ph_known, ","), ph.get("as_of") or "?")
+                     + (" Where the rosters count more voters than the state's report, the extra voters are added: %s."
+                        % ", ".join("%s %s (state %s)" % (n, format(v, ","), format(s_, ","))
+                                    for n, v, s_ in sorted(roster_ahead, key=lambda r: -r[1])[:8])
+                        if roster_ahead else ""))
+    if notes:
+        body["map_note"] = " ".join(notes)
     h = C.data_hash(body)
     changed = force or h != prev.get("data_hash")
     now = C.utc_now_iso()
     snap = dict(body, source={"primary": "Texas Secretary of State, Election Information & Turnout Data (unofficial early voting "
                                          "turnout by county, as submitted by county election officials)",
                               "url": PAGE, "election": elec.get("election_name"), "as_of": as_of,
-                              "live_counties": live_used, "live_as_of": live_latest,
+                              "election_id": elec.get("id"), "live_counties": live_used, "live_as_of": live_latest,
+                              **({"party_history": {"label": "theoelections.com (early voters by last party primary)",
+                                                    "url": ph.get("page") or ph.get("url"), "as_of": ph.get("as_of"),
+                                                    "counties": len(party_used), "voters": ph_known}} if party_used else {}),
                               **({"sos_unavailable": sos_down} if sos_down else {})},
                 source_compiled=as_of, source_compiled_iso=live_latest or ((as_of + "T00:00:00") if as_of else now),
                 data_hash=h, generated_at=now if changed else prev.get("generated_at", now))

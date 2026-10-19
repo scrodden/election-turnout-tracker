@@ -59,7 +59,7 @@ def main():
         th = load(os.path.join(ROOT, "data", code, "turnout_history.json")) or {}
         past_final = {y: v.get("total") for y, v in (th.get("years") or {}).items() if v.get("total")}
         out_states.append({
-            "code": code, "name": s.get("name"), "partisan": s.get("partisan", True) is not False,
+            "code": code, "name": s.get("name"), "partisan": s.get("partisan", True) is not False and d.get("partisan") is not False,
             "hidden": bool(s.get("hidden")), "has_data": has_data, "frozen": frozen,
             "cast": cast, "registered": registered, "registered_source": reg_src, "past_final": past_final,
             "rep": int(castb.get("rep", 0) or 0), "dem": int(castb.get("dem", 0) or 0),
