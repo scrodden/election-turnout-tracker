@@ -557,7 +557,7 @@ def main():
         elec, snap_date, rows, drows, reload_at, demo = fetch(src, override)
         status = "ok" if elec else "waiting: no election matching %s in the hub yet" % src["election_match"]
     except Exception as e:  # noqa: BLE001
-        elec, snap_date, rows, drows, reload_at, demo, status = None, None, {}, {}, "", {}, "error: %s" % str(e)[:160]
+        elec, snap_date, rows, drows, reload_at, demo, status = None, None, {}, {}, "", {}, "error: %s" % str(e)[:520]
     print("ga: %s" % status)
 
     if dry:
