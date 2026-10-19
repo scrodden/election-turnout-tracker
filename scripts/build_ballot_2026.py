@@ -13,8 +13,8 @@ before Election Night (official results replace it as they're reported).
                                 list (each with its Ballotpedia page)
 
 A file is only replaced when the new parse is complete enough (every race found
-and most with candidates / a plausible number of measures), so a bad edit or a
-changed page layout keeps the previous list.
+and most with candidates / a plausible number of measures), so a bad edit, a
+changed page layout or a bot-check page keeps the previous list.
 
   python scripts/build_ballot_2026.py [--candidates] [--measures] [--force]   (default: both)
 
@@ -150,12 +150,28 @@ def build_candidates():
     return 0
 
 
+def describe_page(h):
+    """What came back instead of the list: a bot check / block page, or the
+    article itself with a changed layout. (The article carries a newsletter
+    reCAPTCHA, so a bare 'captcha' doesn't count as a bot check.)"""
+    t = re.search(r"<title[^>]*>(.*?)</title>", h, re.S | re.I)
+    title = text(t.group(1))[:80] if t else "no <title>"
+    check = re.search(r"(?i)awswaf|gokuprops|challenge\.js|just a moment|cf-chl|challenge-platform|incapsula|"
+                      r"px-captcha|captcha-delivery|verify you are human|pardon our interruption|access denied|"
+                      r"request blocked", h)
+    if check:
+        what = "Ballotpedia sent a bot check (%r), not the article" % check.group(0)
+    else:
+        what = "page layout changed" if "Ballotpedia" in title else "unexpected page, not the article"
+    return "%s [%d bytes, title %r]" % (what, len(h), title)
+
+
 def build_measures():
     url = "https://ballotpedia.org/2026_ballot_measures"
     h = C.http_get(url, retries=2, timeout=90)
     a, b = h.find('id="List_of_state_ballot_measures"'), h.find('id="List_of_election_dates"')
     if a < 0 or b < 0:
-        print("measures: NOT written — page layout changed")
+        print("measures: NOT written — %s; previous list kept" % describe_page(h))
         return 1
     measures = []
     for part in re.split(r"<h3[^>]*>", h[a:b])[1:]:
