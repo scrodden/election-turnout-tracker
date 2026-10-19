@@ -17,6 +17,7 @@ import os
 import socket
 import ssl
 import struct
+import urllib.error
 import urllib.request
 
 import common as C
@@ -101,9 +102,18 @@ class _WebSocket:
 
 class QlikSession:
     def __init__(self, token_url, host, app_id):
-        with urllib.request.urlopen(urllib.request.Request(token_url, headers={"User-Agent": C.USER_AGENT}),
-                                    timeout=30, context=C._SSL_CTX) as r:
-            token = json.loads(r.read())["access_token"]
+        try:
+            with urllib.request.urlopen(urllib.request.Request(token_url, headers={"User-Agent": C.USER_AGENT}),
+                                        timeout=30, context=C._SSL_CTX) as r:
+                token = json.loads(r.read())["access_token"]
+        except urllib.error.HTTPError as e:   # say who refused (CloudFront / WAF / the token function) for the status page
+            hdr = {k: v for k, v in e.headers.items() if k.lower() in ("server", "x-cache", "x-amz-cf-pop", "x-amzn-errortype",
+                                                                       "x-amzn-waf-action", "content-type", "retry-after")}
+            try:
+                body = e.read()[:120].decode("utf-8", "replace")
+            except Exception:  # noqa: BLE001
+                body = ""
+            raise RuntimeError("token endpoint HTTP %s %s %s" % (e.code, hdr, body.strip())) from None
         self.ws = _WebSocket(host, "/app/%s" % app_id, {"Authorization": "Bearer %s" % token})
         self.id = 0
         self.doc = self.call(-1, "OpenDoc", {"qDocName": app_id})["qReturn"]["qHandle"]
