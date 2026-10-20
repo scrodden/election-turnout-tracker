@@ -147,13 +147,16 @@ def registration(gidx, stats_html):
 
 
 def parse_csv(text, gidx):
-    """-> ({county_name: total}, state_check_total, as_of). A county's FIRST
+    """-> ({county_name: total}, state_check_total, as_of, ev_days). A county's FIRST
     matching row is its main-contest total; a county can repeat later in the
     file for a concurrent down-ballot special election sharing the same early
     voting period (seen on a 2026 primary report), which is a different vote
     count entirely and must not overwrite or add onto the main one."""
     rows = list(csv.reader(io.StringIO(text)))
     counties, state_total = {}, None
+    # the day columns (" 10/19/2026" ...) in the header row: how many days of early voting the report covers
+    head = next((r for r in rows if r and (r[0] or "").strip().lower() == "jurisdiction"), [])
+    ev_days = sum(1 for c in head if re.fullmatch(r"\s*\d{1,2}/\d{1,2}/\d{4}\s*", c or ""))
     for row in rows:
         if not row or not (row[0] or "").strip():
             continue
@@ -176,7 +179,83 @@ def parse_csv(text, gidx):
     if not as_of:
         m = re.search(r"\d{1,2}/\d{1,2}/\d{4}", text[:400])
         as_of = m.group(0).strip() if m else ""
-    return counties, state_total, as_of
+    return counties, state_total, as_of, ev_days
+
+
+PAST_EV = os.path.join(DATA_DIR, "_ev_past.json")
+
+
+def _day_cell(c):
+    """A header cell that is an early-voting date: ' 10/21/2024' or an Excel serial (44858)."""
+    c = str(c or "").strip()
+    return bool(re.fullmatch(r"\d{1,2}/\d{1,2}/\d{4}", c) or (c.isdigit() and 40000 < int(c) < 60000))
+
+
+def read_past_ev(rows, gidx):
+    """A past general's final early-voting statistics sheet (2024: 'Jurisdiction' header, a county row then
+    its centers; 2022: 'County' header, '<County> Total' rows, 'Statewide Total') -> (days, {county: [daily]})
+    after checking each county's days add up to its total and the counties add up to the statewide row."""
+    hi = next(i for i, r in enumerate(rows) if sum(_day_cell(c) for c in r) >= 5)
+    head = rows[hi]
+    cols = [j for j, c in enumerate(head) if _day_cell(c)]
+    tot_col = next((j for j, c in enumerate(head) if "total" in str(c).lower()), None)
+    suffix = sum(1 for r in rows[hi + 1:] if r and str(r[0]).strip().lower().endswith(" total")) >= len(gidx) // 2
+    out, state = {}, None
+    for r in rows[hi + 1:]:
+        if not r or not str(r[0]).strip():
+            continue
+        name = str(r[0]).strip()
+        if suffix:
+            if not name.lower().endswith("total"):
+                continue
+            name = re.sub(r"\s*total$", "", name, flags=re.I).strip()
+        vals = [int(C.parse_number(r[j]) or 0) if j < len(r) else 0 for j in cols]
+        if _norm(name) in ("southcarolina", "statewide"):
+            state = vals
+            continue
+        g = gidx.get(_norm(name))
+        if not g or g["name"] in out:
+            continue
+        if tot_col is not None and tot_col < len(r) and str(r[tot_col]).strip() and int(C.parse_number(r[tot_col]) or 0) != sum(vals):
+            raise ValueError("%s: days add up to %d, not its total %s" % (name, sum(vals), r[tot_col]))
+        out[g["name"]] = vals
+    if len(out) != len(gidx):
+        raise ValueError("%d of %d counties" % (len(out), len(gidx)))
+    if state and any(sum(v[i] for v in out.values()) != state[i] for i in range(len(cols))):
+        raise ValueError("counties don't add up to the statewide row")
+    def iso(c):
+        c = str(c).strip()
+        if c.isdigit():   # Excel serial (2022's sheet)
+            from datetime import date, timedelta
+            return (date(1899, 12, 30) + timedelta(days=int(c))).isoformat()
+        m, d, y = c.split("/")
+        return "%s-%02d-%02d" % (y, int(m), int(d))
+    return [iso(head[j]) for j in cols], out
+
+
+def past_ev(cfg, gidx):
+    """{year: {"days", "counties": {county: [daily in-person early votes]}}} for config same_point years, read
+    once from the SC Election Commission's archived reports (zip + member) into data/sc/_ev_past.json."""
+    import zipfile
+    cache = load(PAST_EV, {}) or {}
+    changed = False
+    for yr, spec in ((cfg.get("same_point") or {}).get("years") or {}).items():
+        if (cache.get(yr) or {}).get("member") == spec["member"]:
+            continue
+        try:
+            z = zipfile.ZipFile(io.BytesIO(C.http_get(spec["zip"], binary=True, timeout=120)))
+            raw = z.read(spec["member"])
+            rows = (list(csv.reader(io.StringIO(raw.decode("utf-8-sig", "replace")))) if spec["member"].lower().endswith(".csv")
+                    else next(iter(C.read_xlsx(raw, positional=True).values())))
+            days, counties = read_past_ev(rows, gidx)
+            cache[yr] = {"member": spec["member"], "zip": spec["zip"], "days": days, "counties": counties}
+            changed = True
+        except Exception as e:  # noqa: BLE001
+            print("sc: %s early-voting report not used (%s)" % (yr, str(e)[:120]), file=sys.stderr)
+    if changed:
+        with open(PAST_EV, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(cache, f, separators=(",", ":"))
+    return cache
 
 
 def main():
@@ -198,11 +277,11 @@ def main():
     if stats_html is not None:
         csv_url, status = discover_csv_url(stats_html)
     reg, reg_as_of, reg_url = registration(gidx, stats_html)
-    counties, state_check, as_of = {}, None, ""
+    counties, state_check, as_of, ev_days = {}, None, "", 0
     if csv_url:
         try:
             text = C.http_get(csv_url, no_cache=True, timeout=60)
-            counties, state_check, as_of = parse_csv(text, gidx)
+            counties, state_check, as_of, ev_days = parse_csv(text, gidx)
             if not counties:
                 status = "CSV found (%s) but no county rows matched" % csv_url.rsplit("/", 1)[-1]
         except Exception as e:  # noqa: BLE001
@@ -245,6 +324,20 @@ def main():
         "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": (counties_out if use_counties else {}),
     }
+    if use_counties and ev_days:
+        # the same day of early voting in past generals (each opened on the Monday 15 days out, closed the
+        # middle Sunday, 12 days), from the Commission's archived final reports
+        years = {}
+        for yr, p in sorted(past_ev(cfg, gidx).items(), reverse=True):
+            if ev_days > len(p["days"]):
+                continue
+            cty = {n: sum(v[:ev_days]) for n, v in p["counties"].items()}
+            years[yr] = {"statewide": sum(cty.values()), "counties": cty}
+        if years:
+            snap["same_point"] = {"label": "through Day %d of early voting" % ev_days, "day": ev_days,
+                                  "source": "SC Election Commission early-voting statistics (%s general elections)"
+                                            % " and ".join(sorted(years)),
+                                  "url": STATS_PAGE, "years": years}
     if not use_counties and counties_out:
         snap["source"]["status"] = ("county rows (%s) don't sum to the statewide row (%s) -- "
                                     "statewide total only" % (cast_total, state_check))

@@ -16,5 +16,18 @@
   "method_labels": {
     "cast": "Ballots cast (early in person)",
     "early_voted": "Voted early in person"
+  },
+  "same_point": {
+    "_comment": "Past generals' final in-person early-voting reports from the Commission's archive zips (scvotes.gov/elections-statistics/voter-participation/, 'Historical Absentee and Early Voting Reports'). Read once into data/sc/_ev_past.json; the page compares through the same day of early voting. 2024: Oct 21 - Nov 2; 2022: Oct 24 - Nov 5 (both 12 days, Mon-Sat x2, closed the middle Sunday) -- the same shape as 2026's Oct 19 - 31.",
+    "years": {
+      "2024": {
+        "zip": "https://scvotes.gov/wp-content/uploads/2025/06/2024-Historical-Absentee-EV-Reports-1.zip",
+        "member": "2024 Historical Absentee - EV Reports/2024-GE-Early-Voting-Statistics.xlsx"
+      },
+      "2022": {
+        "zip": "https://scvotes.gov/wp-content/uploads/2022/12/2022-Historical-Absentee-EV-Reports.zip",
+        "member": "2022 Historical Absentee - EV Reports/EV Stats (2022 GE - scVOTES).xlsx"
+      }
+    }
   }
 }
