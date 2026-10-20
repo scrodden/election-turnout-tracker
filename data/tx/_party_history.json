@@ -1,7 +1,7 @@
 {
 "url":"https://theoelections.com/data/early/past/53815.json.gz",
 "page":"https://theoelections.com/early-vote",
-"etag":"\"6ad7dae9-160c1d\"",
+"etag":"\"6ad7dae8-160c1d\"",
 "as_of":"2026-10-20",
 "counties":{
 "101":{
@@ -1811,5 +1811,5 @@
 476
 ]
 },
-"checked":"2026-10-20T21:21:17+00:00"
+"checked":"2026-10-20T21:54:02+00:00"
 }
