@@ -188,6 +188,60 @@ def read_arcgis(name, src):
             "url": src.get("page", lay), "source": src.get("label", "county vote-center map"), "sites": len(ev)}
 
 
+LIVE_PDF_CACHE = os.path.join(DATA_DIR, "_live_pdf.json")
+
+
+def read_pdf_report(name, src, force=False):
+    """A county clerk's early-voting PDF (Harris: EVPA_unofficial.pdf, one row per site with each
+    day's check-ins and the site's total, then Early In-Person Voters / Mail Ballots Received /
+    Total Early Voters / Ballots Mailed). Posted in the evening of each voting day, ahead of the
+    SoS's next-morning figure. Large, so fetched every `every_minutes`; the last good read is kept
+    in data/tx/_live_pdf.json. -> {"early", "eday", "provisional", "as_of", "url", "source"} or None."""
+    cache = load(LIVE_PDF_CACHE, {}) or {}
+    last = cache.get(name)
+    if last and not force and C.checked_recently(DATA_DIR, "pdf_" + name, minutes=src.get("every_minutes", 25)):
+        return last
+    import io
+    import urllib.request
+    from email.utils import parsedate_to_datetime
+    try:
+        from pypdf import PdfReader
+        req = urllib.request.Request(src["url"], headers={"User-Agent": "Mozilla/5.0 (election turnout tracker; non-commercial)",
+                                                          "Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            raw, lm = r.read(), r.headers.get("Last-Modified")
+        text = "\n".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(raw)).pages)
+    except Exception as e:  # noqa: BLE001
+        print("tx: %s early-voting PDF unavailable (%s)" % (name, str(e)[:100]), file=sys.stderr)
+        return last
+    num = lambda s: int(s.replace(",", ""))  # noqa: E731
+    lines = [ln.strip() for ln in text.splitlines()]
+    # site rows: "<n> <site name> <site id> <day counts...> <site total>"
+    sites = [num(ln.split()[-1]) for ln in lines if re.match(r"^\d{1,3} \D.* [\d,]+$", ln)]
+    # the totals block: four lines of numbers only, the last number on each the running total
+    tots = [num(ln.split()[-1]) for ln in lines if re.match(r"^[\d,]+( [\d,]+)+$", ln)][:4]
+    when = parsedate_to_datetime(lm).astimezone(timezone.utc) if lm else None
+    why = None
+    if src.get("election_label", "") not in text:
+        why = "not the %s report" % src.get("election_label")
+    elif len(sites) < src.get("min_sites", 40) or len(tots) < 4:
+        why = "%d site rows, %d total lines" % (len(sites), len(tots))
+    elif sum(sites) != tots[0] or tots[0] + tots[1] != tots[2]:
+        why = "sites sum to %d; in person %d + mail %d vs total %d" % (sum(sites), tots[0], tots[1], tots[2])
+    elif not when or when.strftime("%Y-%m-%d") < src["ev_start"]:
+        why = "posted %s, before early voting" % (when and when.isoformat())
+    if why:
+        print("tx: %s early-voting PDF: %s -- not used" % (name, why), file=sys.stderr)
+        return None
+    out = {"early": tots[0], "eday": 0, "provisional": 0, "mail": tots[1], "as_of": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
+           "url": src.get("page", src["url"]), "source": src.get("label", "county early-voting report"),
+           "sites": len(sites), "nightly": True}
+    cache[name] = out
+    with open(LIVE_PDF_CACHE, "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=1, sort_keys=True)
+    return out
+
+
 PARTY_CACHE = os.path.join(DATA_DIR, "_party_history.json")
 
 
@@ -421,12 +475,15 @@ def main():
         return 0
     # counties' own live pages: in-person early votes (and Election Day) more current than the SoS's daily figures
     eday = cfg["election"]["date"]
-    live_used, live_latest = [], ""
+    live_used, live_latest, nightly = [], "", []
     readers = {n: (lambda n=n: read_live(n, eday))
                for n in live_counties(sorted(counties), eday, force="--rediscover" in sys.argv)}
     for n, src in (cfg.get("live_arcgis") or {}).items():
         if not n.startswith("_"):
             readers[n] = (lambda n=n, src=src: read_arcgis(n, src))
+    for n, src in (cfg.get("live_pdf") or {}).items():
+        if not n.startswith("_"):
+            readers[n] = (lambda n=n, src=src: read_pdf_report(n, src, force=force))
     for name in sorted(readers):
         lv = readers[name]()
         ent = counties.get(name)
@@ -447,6 +504,8 @@ def main():
         ent["live"] = {"source": lv.get("source", "county turnout page (ElectionLink)"), "url": lv["url"], "as_of": lv["as_of"],
                        "in_person": lv["early"], "sos_in_person": sos_ip}
         live_used.append(name)
+        if lv.get("nightly"):
+            nightly.append(name)
         live_latest = max(live_latest, lv["as_of"])
     if live_used:
         print("tx: live county pages used for %d counties: %s" % (len(live_used), ", ".join(live_used)))
@@ -513,11 +572,16 @@ def main():
         "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
     }
     notes = []
+    intraday = [n for n in live_used if n not in nightly]
+    if intraday:
+        notes.append("In-person early votes for %s come from the county's own live turnout page (updated through the day)."
+                     % (", ".join(intraday) if len(intraday) < 4 else "%d counties (%s)" % (len(intraday), ", ".join(intraday))))
+    if nightly:
+        notes.append("%s in-person early votes come from the county's own early-voting report, posted each voting "
+                     "evening (ahead of the state's next-morning figure)." % " and ".join(n + "'s" for n in nightly))
     if live_used:
-        notes.append("In-person early votes for %s come from the county's own live turnout page (updated through the day). "
-                     "Every other county's come from the Secretary of State's daily report, which adds each day's "
-                     "in-person votes the next morning, so during the day those counties lag behind."
-                     % (", ".join(live_used) if len(live_used) < 4 else "%d counties (%s)" % (len(live_used), ", ".join(live_used))))
+        notes.append("Every other county's come from the Secretary of State's daily report, which adds each day's "
+                     "in-person votes the next morning, so during the day those counties lag behind.")
     if party_used:
         body.update({
             "party_methods": ["cast"],
