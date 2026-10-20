@@ -266,10 +266,10 @@ def main():
     os.makedirs(DATA_DIR, exist_ok=True)
     if not changed:
         snap["generated_at"] = prev.get("generated_at", snap["generated_at"])
-    with open(LATEST_PATH, "w", encoding="utf-8") as f:
+    with open(LATEST_PATH, "w", encoding="utf-8", newline="\n") as f:
         json.dump(snap, f, separators=(",", ":"))
     if changed and cast_total:
-        with open(HISTORY_PATH, "a", encoding="utf-8") as f:
+        with open(HISTORY_PATH, "a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps({"generated_at": snap["generated_at"], "compiled": as_of,
                                 "cast": cast_total}, separators=(",", ":")) + "\n")
     print("%s  %s | counties=%d  cast=%d  (%s)"
