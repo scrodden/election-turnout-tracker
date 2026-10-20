@@ -26,9 +26,10 @@ Two more layers sit on top of the SoS figures:
     per county, the early voters on the counties' rosters split by the last party
     primary each voted in (2020-2026). Used unaltered, with attribution, for the
     all-ballots figures only (it isn't split by voting method). Ballots the rosters
-    don't include yet are counted as party not reported; where the rosters count
-    more voters than the state's own report (e.g. Bexar's mail ballots), the extra
-    voters are added to that county's total (on top of any live in-person count).
+    don't include yet are counted as party not reported. The rosters also split
+    each county's voters into mail and in person: where either is higher than the
+    state's report (or a county's live in-person page), that figure is used for
+    the method (e.g. Bexar's mail ballots), so no voter is counted twice.
 
 Run:  python scripts/tx_update.py [--force]
 """
@@ -243,6 +244,7 @@ def read_pdf_report(name, src, force=False):
 
 
 PARTY_CACHE = os.path.join(DATA_DIR, "_party_history.json")
+PARTY_CACHE_V = 3   # bump when the extraction changes, so a cached copy isn't kept on a 304
 
 
 def party_history(cfg, elec_id, force=False):
@@ -261,7 +263,8 @@ def party_history(cfg, elec_id, force=False):
         cache = {}
     now = datetime.now(timezone.utc)
     age = (now - datetime.fromisoformat(cache["checked"])).total_seconds() / 60 if cache.get("checked") else 1e9
-    if cache.get("counties") and "state_series" in cache and age < ph.get("every_minutes", 30) and not force:
+    current = cache.get("v") == PARTY_CACHE_V   # an older copy (no series, or the 10/20 "both" bug) is rebuilt
+    if cache.get("counties") and current and age < ph.get("every_minutes", 30) and not force:
         return cache
 
     def save(c):
@@ -271,7 +274,7 @@ def party_history(cfg, elec_id, force=False):
             json.dump(c, f, indent=0, separators=(",", ":"))
         return c
     hdr = {"User-Agent": C.USER_AGENT}
-    if cache.get("etag") and cache.get("counties") and "state_series" in cache:   # an older copy lacks the series
+    if cache.get("etag") and cache.get("counties") and current:
         hdr["If-None-Match"] = cache["etag"]
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=90, context=C._SSL_CTX) as r:
@@ -298,12 +301,16 @@ def party_history(cfg, elec_id, force=False):
             if idx < 0 or not v[idx]:
                 continue
             g = {k: (c.get(k) or [None] * len(v))[idx] for k in ("dem", "rep", "both", "none")}
-            if any(g[k] is None for k in ("dem", "rep", "none")) or sum(x or 0 for x in g.values()) != v[idx]:
+            # dem + rep + none = voters; "both" (voted in both parties' primaries) is already inside dem/rep,
+            # like "new" inside none (checked on 10/20: true in all 246 counties, never with both added)
+            if any(g[k] is None for k in ("dem", "rep", "none")) or g["dem"] + g["rep"] + g["none"] != v[idx]:
                 continue   # the parts don't add up: skip the county rather than guess
             md = (picks[idx] if idx < len(picks) else "").split("/")
             when = "%s-%02d-%02d" % (year, int(md[0]), int(md[1])) if len(md) == 2 and md[0].isdigit() and md[1].isdigit() else ""
+            m, ip = (c.get("mail") or [None] * len(v))[idx], (c.get("inp") or [None] * len(v))[idx]
+            split = m is not None and ip is not None and m + ip == v[idx]   # the rosters' mail / in-person split
             out[f3.zfill(3)] = {"voters": v[idx], "dem": g["dem"], "rep": g["rep"], "both": g["both"] or 0,
-                                "none": g["none"], "as_of": when}
+                                "none": g["none"], "as_of": when, "mail": m if split else None, "inp": ip if split else None}
             latest = max(latest, when)
         assert len(out) >= 5, "only %d counties" % len(out)
         series = day_series((d.get("units") or {}).get("state") or {}, picks, year)
@@ -311,13 +318,13 @@ def party_history(cfg, elec_id, force=False):
         print("tx: party history (theoelections) unreadable (%s) -- %s"
               % (str(e)[:100], "keeping the last copy" if cache.get("counties") else "not used"), file=sys.stderr)
         return cache or None
-    return save({"url": url, "page": ph.get("page", ""), "etag": etag, "as_of": latest, "counties": out,
+    return save({"v": PARTY_CACHE_V, "url": url, "page": ph.get("page", ""), "etag": etag, "as_of": latest, "counties": out,
                  "state_series": series})
 
 
 def day_series(u, picks, year):
     """theoelections' cumulative day-by-day arrays for one unit -> {"dates", "voters", "dem", "rep", "none"}
-    ("both" counts with none); days with no voters yet, or whose parts don't add up, are left out."""
+    ("both" is already inside dem/rep); days with no voters yet, or whose parts don't add up, are left out."""
     out = {"dates": [], "voters": [], "dem": [], "rep": [], "none": []}
     v = u.get("voters") or []
     for i, n in enumerate(v):
@@ -325,13 +332,13 @@ def day_series(u, picks, year):
         if not n or len(md) != 2 or not (md[0].isdigit() and md[1].isdigit()):
             continue
         g = {k: (u.get(k) or [None] * len(v))[i] for k in ("dem", "rep", "both", "none")}
-        if any(g[k] is None for k in ("dem", "rep", "none")) or sum(x or 0 for x in g.values()) != n:
+        if any(g[k] is None for k in ("dem", "rep", "none")) or g["dem"] + g["rep"] + g["none"] != n:
             continue
         out["dates"].append("%s-%02d-%02d" % (year, int(md[0]), int(md[1])))
         out["voters"].append(n)
         out["dem"].append(g["dem"])
         out["rep"].append(g["rep"])
-        out["none"].append(g["none"] + (g["both"] or 0))
+        out["none"].append(g["none"])
     return out
 
 
@@ -521,26 +528,37 @@ def main():
             if not p:
                 ent["cast"] = C.party_block(0, 0, 0, 0, unk=tot)
                 continue
-            # the rosters ahead of the state's own count (mail + in-person, before any live page):
-            # those extra voters are added (a live page only replaces the state's in-person figure)
-            sos = (ent.get("mail_voted") or {}).get("total", 0) + \
-                (ent["live"]["sos_in_person"] if ent.get("live") else (ent.get("early_voted") or {}).get("total", 0))
-            if p["voters"] > sos:
-                roster_ahead.append((name, p["voters"], sos))
-                cast += p["voters"] - sos
-                tot += p["voters"] - sos
-            # "both" (voted in both parties' primaries; none so far) counts with no party
-            ent["cast"] = C.party_block(p["rep"], p["dem"], 0, p["none"] + p.get("both", 0), unk=tot - p["voters"])
+            # the rosters ahead of our figures, method by method: mail vs the state's mail, in person vs the
+            # county's live page (or the state's in-person count). Taking the higher of each never counts a voter
+            # twice -- on 10/20 adding the rosters' whole lead on top of Harris's live in-person count did
+            mail0, ip0 = (ent.get("mail_voted") or {}).get("total", 0), (ent.get("early_voted") or {}).get("total", 0)
+            if p.get("mail") is not None and p.get("inp") is not None:
+                mail1, ip1 = max(mail0, p["mail"]), max(ip0, p["inp"])
+            elif p["voters"] > tot:   # no method split from the rosters: their total, if it's higher
+                mail1, ip1 = mail0 + p["voters"] - tot, ip0
+            else:
+                mail1, ip1 = mail0, ip0
+            if (mail1, ip1) != (mail0, ip0):
+                roster_ahead.append((name, mail1 + ip1, mail0 + ip0))
+                t["mail"] += mail1 - mail0
+                t["ip"] += ip1 - ip0
+                if mail1:
+                    ent["mail_voted"] = blk(mail1)
+                if ip1:
+                    ent["early_voted"] = blk(ip1)
+                tot += mail1 + ip1 - mail0 - ip0
+            ent["cast"] = C.party_block(p["rep"], p["dem"], 0, p["none"], unk=tot - p["voters"])
             ent["turnout_pct"] = round(100.0 * tot / ent["registered"], 2) if ent.get("registered") else None
             ent["party_history"] = {"voters": p["voters"], "as_of": p["as_of"]}
             party_used.append(name)
             ph_known += p["voters"]
+    cast = t["ip"] + t["mail"] + t.get("eday", 0)
     if party_used:
         try:
             write_party_share(cfg, ph)
         except Exception as e:  # noqa: BLE001 - the chart file must never sink the turnout update
             print("tx: party_share.json not written (%s)" % str(e)[:120], file=sys.stderr)
-        print("tx: party by primary history (theoelections) for %d counties, %d voters; roster counts ahead of the SoS in %d: %s"
+        print("tx: party by primary history (theoelections) for %d counties, %d voters; rosters ahead (mail or in person) in %d: %s"
               % (len(party_used), ph_known, len(roster_ahead),
                  ", ".join("%s %d>%d" % r for r in sorted(roster_ahead, key=lambda r: -r[1])[:6])))
         for c in counties.values():
@@ -599,8 +617,9 @@ def main():
                      "the counties' early-voting rosters to primary voting history (%d counties, %s voters as of %s); "
                      "ballots not on those rosters yet, such as today's in-person votes, count as party not reported."
                      % (len(party_used), format(ph_known, ","), ph.get("as_of") or "?")
-                     + (" Where the rosters count more voters than the state's report, the extra voters are added: %s."
-                        % ", ".join("%s %s (state %s)" % (n, format(v, ","), format(s_, ","))
+                     + (" Where the rosters count more mail or in-person voters than the state's report or a county's live "
+                        "page, the roster count is used for that method: %s."
+                        % ", ".join("%s %s (was %s)" % (n, format(v, ","), format(s_, ","))
                                     for n, v, s_ in sorted(roster_ahead, key=lambda r: -r[1])[:8])
                         if roster_ahead else ""))
     if notes:
