@@ -56,7 +56,10 @@ EARLY_VOTING_PAGE = "https://scvotes.gov/voters/early-voting/"
 # never mistake one of these for the still-to-come general's report.
 DONE_ELECTIONS = re.compile(r"primary|runoff|special|senate", re.I)
 CSV_LINK = re.compile(
-    r'href="(https://scvotes\.gov/wp-content/uploads/2026/(?:0[9]|1[0-2])/[^"]*?\.csv)"', re.I)
+    r'<a[^>]+href="(https://scvotes\.gov/wp-content/uploads/2026/(?:0[9]|1[0-2])/[^"]*?\.csv)"[^>]*>(.*?)</a>', re.I | re.S)
+# the general's report is linked as "Early Voting Turnout Report" -> EV-Totals-10-19-26.csv (2026-10-20):
+# the file name alone doesn't say "early voting", so the link text counts too
+EV_WORDS = re.compile(r"early[\s_-]*voting|\bEV[\s_-]+(?:totals|turnout|report|stat)", re.I)
 
 
 def load(p, d=None):
@@ -78,21 +81,69 @@ def _block(total):
             "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
 
 
-def discover_csv_url():
+def discover_csv_url(html=None):
     """-> (csv_url, status) picking the newest-posted "Early Voting Report" CSV
     on the stats page that isn't one of this year's already-finished elections."""
-    try:
-        html = C.http_get(STATS_PAGE, no_cache=True, timeout=60)
-    except Exception as e:  # noqa: BLE001
-        return None, "stats page unreachable: %s" % str(e)[:140]
-    candidates = [m.group(1) for m in CSV_LINK.finditer(html)
-                  if "early" in m.group(1).lower() and "voting" in m.group(1).lower()]
-    good = [c for c in candidates if not DONE_ELECTIONS.search(c)]
+    if html is None:
+        try:
+            html = C.http_get(STATS_PAGE, no_cache=True, timeout=60)
+        except Exception as e:  # noqa: BLE001
+            return None, "stats page unreachable: %s" % str(e)[:140]
+    links = [(m.group(1), re.sub(r"<[^>]+>", " ", m.group(2))) for m in CSV_LINK.finditer(html)]
+    candidates = [u for u, txt in links if EV_WORDS.search(u.rsplit("/", 1)[-1]) or EV_WORDS.search(txt)]
+    good = [u for u, txt in links if u in candidates and not DONE_ELECTIONS.search(u + " " + txt)]
     if good:
-        return good[-1], "ok"
+        # newest by the date in the file name (EV-Totals-10-19-26.csv), else the first listed
+        def stamp(u):
+            m = re.search(r"(\d{1,2})-(\d{1,2})-(\d{2,4})(?=\D*\.csv$)", u)
+            return (int(m.group(3)) % 100, int(m.group(1)), int(m.group(2))) if m else (0, 0, 0)
+        return max(good, key=lambda u: (stamp(u), -good.index(u))), "ok"
     if candidates:
         return None, "only finished-election reports linked so far (%s)" % candidates[-1].rsplit("/", 1)[-1]
     return None, "no Early Voting Report CSV linked yet (general EV runs Oct 19-31; posted once voting opens)"
+
+
+REG_CACHE = os.path.join(DATA_DIR, "_registration.json")
+VR_LINK = re.compile(r'href="(https://scvotes\.gov/wp-content/uploads/\d{4}/\d{2}/'
+                     r'VR-Totals-Race-County-Gender-Age-(\d{4})-(\d{1,2})-(\d{1,2})\.(?:xlsx|csv))"', re.I)
+
+
+def registration(gidx, stats_html):
+    """Registered voters by county from the newest "VR Totals by County / Race / Gender / Age" report linked on
+    the stats page (monthly; its "Race: All" sheet, county name then all-voters total) -> (counties, as_of, url).
+    Kept in data/sc/_registration.json and re-read only when a newer report is linked."""
+    cache = load(REG_CACHE, {}) or {}
+    links = sorted({(int(y), int(m), int(d), u) for u, y, m, d in VR_LINK.findall(stats_html or "")})
+    if not links:
+        return cache.get("counties") or {}, cache.get("as_of", ""), cache.get("url", "")
+    y, m, d, url = links[-1]
+    if cache.get("url") == url and cache.get("counties"):
+        return cache["counties"], cache["as_of"], url
+    try:
+        raw = C.http_get(url, binary=True, timeout=90)
+        if url.lower().endswith(".csv"):
+            sheets = {"csv": list(csv.reader(io.StringIO(raw.decode("utf-8-sig", "replace"))))}
+        else:
+            sheets = C.read_xlsx(raw)
+        rows = next((r for r in sheets.values() if any(c and str(c).strip().lower() == "race: all" for row in r[:12] for c in row)),
+                    next(iter(sheets.values())))
+        out = {}
+        for row in rows:
+            cells = [str(c).strip() for c in row]
+            if len(cells) > 3 and re.fullmatch(r"\d{2}", cells[1] or "") and cells[2]:
+                g = gidx.get(_norm(cells[2]))
+                n = C.parse_number(cells[3])
+                if g and n:
+                    out[g["name"]] = int(n)
+        if len(out) != len(gidx):
+            raise ValueError("%d of %d counties" % (len(out), len(gidx)))
+    except Exception as e:  # noqa: BLE001
+        print("sc: registration report %s not used (%s)" % (url.rsplit("/", 1)[-1], str(e)[:100]), file=sys.stderr)
+        return cache.get("counties") or {}, cache.get("as_of", ""), cache.get("url", "")
+    cache = {"url": url, "as_of": "%04d-%02d-%02d" % (y, m, d), "counties": out}
+    with open(REG_CACHE, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(cache, f, separators=(",", ":"))
+    return out, cache["as_of"], url
 
 
 def parse_csv(text, gidx):
@@ -117,8 +168,14 @@ def parse_csv(text, gidx):
         g = gidx.get(key)
         if g and g["name"] not in counties:
             counties[g["name"]] = {"fips": g["fips"], "total": total}
-    m = re.search(r"\d{1,2}/\d{1,2}/\d{4}", text[:400])
-    as_of = m.group(0).strip() if m else ""
+    # "Election Date,Report Date" then " 11/03/2026, 10/20/2026 07:51:24": the report date, not the election's
+    as_of = ""
+    if len(rows) > 1 and any("report date" in (c or "").lower() for c in rows[0]):
+        i = next(i for i, c in enumerate(rows[0]) if "report date" in (c or "").lower())
+        as_of = (rows[1][i] if i < len(rows[1]) else "").strip()
+    if not as_of:
+        m = re.search(r"\d{1,2}/\d{1,2}/\d{4}", text[:400])
+        as_of = m.group(0).strip() if m else ""
     return counties, state_total, as_of
 
 
@@ -133,7 +190,14 @@ def main():
         print("sc: checked under an hour ago.")
         return 0
 
-    csv_url, status = discover_csv_url()
+    try:
+        stats_html = C.http_get(STATS_PAGE, no_cache=True, timeout=60)
+    except Exception as e:  # noqa: BLE001
+        stats_html = None
+        csv_url, status = None, "stats page unreachable: %s" % str(e)[:140]
+    if stats_html is not None:
+        csv_url, status = discover_csv_url(stats_html)
+    reg, reg_as_of, reg_url = registration(gidx, stats_html)
     counties, state_check, as_of = {}, None, ""
     if csv_url:
         try:
@@ -151,17 +215,22 @@ def main():
     # row sharing a county's name (see parse_csv), aren't tied to one county.
     gap = None if state_check is None else state_check - cast_total
     reconciled = gap is None or (0 <= gap <= max(50, (state_check or 0) // 200))
+    # the general's first report (10/20) has a statewide row 161 BELOW its counties, each of which matches
+    # its own early-voting centers exactly: within 0.5%, the county figures are used and the row's figure noted
+    over = gap is not None and gap < 0 and -gap <= max(50, (state_check or 0) // 200)
 
     counties_out = {}
     for name, c in counties.items():
         blk = _block(c["total"])
+        r = reg.get(name, 0)
         counties_out[name] = {"fips": c["fips"], "cast": blk, "early_voted": dict(blk),
-                              "registered": 0, "turnout_pct": None}
+                              "registered": r, "turnout_pct": round(100.0 * c["total"] / r, 2) if r else None}
 
-    use_counties = reconciled and bool(counties_out)
+    use_counties = (reconciled or over) and bool(counties_out)
     statewide_total = state_check if (state_check is not None and reconciled) else cast_total
+    reg_total = sum(reg.values()) if len(reg) == len(gidx) else 0
     statewide = {"cast": _block(statewide_total), "early_voted": _block(statewide_total),
-                 "registered": 0, "turnout_pct": None}
+                 "registered": reg_total, "turnout_pct": round(100.0 * statewide_total / reg_total, 2) if reg_total else None}
     snap = {
         "state": STATE, "state_name": cfg.get("state_name", "South Carolina"),
         "election": cfg.get("election", {}), "partisan": False,
@@ -169,7 +238,8 @@ def main():
                               "in-person early voting, turnout-only",
                    "stats_page": STATS_PAGE, "early_voting_page": EARLY_VOTING_PAGE,
                    "csv_url": csv_url, "status": status,
-                   "reconciled_with_statewide_row": reconciled, "fetched_at": C.utc_now_iso()},
+                   "reconciled_with_statewide_row": reconciled, "fetched_at": C.utc_now_iso(),
+                   **({"registration": {"url": reg_url, "as_of": reg_as_of}} if reg_total else {})},
         "source_compiled": as_of, "source_compiled_iso": (C.utc_now_iso() if cast_total else ""),
         "methods_present": (["early_voted"] if statewide_total else []),
         "method_labels": cfg.get("method_labels", {}),
@@ -178,6 +248,11 @@ def main():
     if not use_counties and counties_out:
         snap["source"]["status"] = ("county rows (%s) don't sum to the statewide row (%s) -- "
                                     "statewide total only" % (cast_total, state_check))
+    elif over:
+        snap["map_note"] = ("The SC Election Commission's report gives a statewide total of %s, %s fewer than its %d counties "
+                            "add up to (each county matches its own early-voting centers), so the statewide figure here is "
+                            "the counties' sum, %s." % (format(state_check, ","), format(-gap, ","), len(counties_out),
+                                                       format(cast_total, ",")))
     elif gap:
         snap["map_note"] = ("%s of the %s early votes in the SC Election Commission's report aren't tied to a "
                             "single county (military/overseas ballots or a concurrent down-ballot election) and "

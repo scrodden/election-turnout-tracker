@@ -538,7 +538,7 @@
       "data": "data/sc/latest.json",
       "geojson": "assets/sc-counties.geojson",
       "history": "data/sc/history.jsonl",
-      "source_note": "Source: <a href='https://scvotes.gov/' target='_blank' rel='noopener'>South Carolina Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://scvotes.gov/elections-statistics/voter-participation/' target='_blank' rel='noopener'>South Carolina Election Commission</a> Early Voting Turnout Report: in-person early votes by county, posted each morning for the day before (early voting runs October 19 &ndash; 31, closed Sunday the 25th). Registered voters by county from the Commission's monthly voter registration report. South Carolina has no party registration, so this is turnout only; the Commission's absentee report counts ballots issued, not returned, so mail ballots aren't in these totals yet. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "tn",

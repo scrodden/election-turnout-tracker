@@ -9,12 +9,12 @@
   },
   "general_start": "2026-10-19",
   "source": {
-    "_comment": "WIRED (scripts/sc_update.py), Oct 2026. SC's 2026 general early voting runs Mon Oct 19 - Sat Oct 31 (closed Sun Oct 25), confirmed on https://scvotes.gov/voters/early-voting/ . The SC Election Commission posts a per-county 'Early Voting Report' CSV to scvotes.gov/wp-content/uploads/ during each statewide election's EV period (confirmed from the 2026 June primary and August special-primary reports), but the filename/folder isn't stable across elections, so the connector re-discovers the current CSV link from the Voter Registration and Participation Statistics page (https://scvotes.gov/elections-statistics/voter-participation/) each run. As of 2026-10-14 (before EV opens) no general-election report is linked yet, so this reads 0 -- expect it to start reporting once EV opens on Oct 19.",
+    "_comment": "WIRED (scripts/sc_update.py), Oct 2026. SC's 2026 general early voting runs Mon Oct 19 - Sat Oct 31 (closed Sun Oct 25), confirmed on https://scvotes.gov/voters/early-voting/ . The SC Election Commission posts a per-county 'Early Voting Report' CSV to scvotes.gov/wp-content/uploads/ during each statewide election's EV period (confirmed from the 2026 June primary and August special-primary reports), but the filename/folder isn't stable across elections, so the connector re-discovers the current CSV link from the Voter Registration and Participation Statistics page (https://scvotes.gov/elections-statistics/voter-participation/) each run. As of 2026-10-14 (before EV opens) no general-election report is linked yet, so this reads 0 -- expect it to start reporting once EV opens on Oct 19. LIVE 2026-10-20: the general's report is linked as 'Early Voting Turnout Report' -> wp-content/uploads/2026/10/EV-Totals-10-19-26.csv (in-person early votes by county and EV center, one column per day; 'Report Date' on line 2). The same section links an 'Absentee Statistics by Race' CSV (applications requested and ballots issued by county/precinct -- no returned ballots, no voter race), not used.",
     "portal": "https://scvotes.gov/",
     "stats_page": "https://scvotes.gov/elections-statistics/voter-participation/"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
+    "cast": "Ballots cast (early in person)",
+    "early_voted": "Voted early in person"
   }
 }
