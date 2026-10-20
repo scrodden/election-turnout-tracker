@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-"""Fetch Washington ballots-returned turnout by county (turnout-only; WA has no
-party registration).
+"""Arkansas early-voting turnout by county (turnout-only; Arkansas has no party
+registration).
 
-Source: WA Secretary of State "Ballot Return Statistics" (ballots returned & %
-by county). WA is all-mail. No persistent machine-readable county feed was found
-off-season -- the live numbers are published on a seasonal dashboard/report.
+No public state feed during early voting: county boards report early/absentee
+counts to the Secretary of State officially only after the polls close
+(Ark. Code 7-5-416, 7-5-701), and sos.arkansas.gov posts no early-vote page or
+file (its elections, news and research pages were checked 2026-10-14 and
+2026-10-20). The SoS does share daily county counts with the UF Election Lab,
+whose 2026 files cite "Arkansas Secretary of State" as the source (first posted
+2026-10-20: 56,950 in-person early votes on day 1, Oct 19, matching the SoS's
+announced figure, plus 3,380 mail ballots accepted, in 73 of 75 counties).
+So this writes the Election Lab stand-in (scripts/lab_standin.py: US.csv +
+AR_county.csv, used unaltered with attribution, county rows only if they all
+match the map and add up to the statewide row). An official feed, if one is
+wired in fetch_counties(), replaces it automatically.
 
-STATUS: staged skeleton. This writes an empty (0) turnout-only snapshot until a
-verified live 2026 feed is wired; the Friday rollout routine finalizes the
-parser against the live report when WA's general ballots start returning
-(~mid-Oct 2026). Kept in the same schema as Virginia's turnout-only connector so
-the front end treats it identically (green turnout-intensity map, no party UI).
+The Lab's party columns (most voters "none": Arkansas records only which
+party's primary ballot a voter took) aren't used.
 
-Run:  python scripts/wa_update.py [--force]
+Run:  python scripts/ar_update.py [--force]
 """
 import os
+import re
 import sys
 import json
 
@@ -36,11 +43,86 @@ def load(p):
         return json.load(f)
 
 
-def fetch_counties(cfg):
-    """Return {county_name: {fips, cast_total, registered}} from the live WA feed.
+RESEARCH_PAGE = "https://www.sos.arkansas.gov/elections/research"
+REG_CACHE = os.path.join(DATA_DIR, "_registration.json")
 
-    PENDING: no verified machine-readable 2026 feed off-season. Returns {} for
-    now (empty snapshot). The rollout routine wires the live parser in Oct.
+
+def _key(name):
+    return re.sub(r"[^a-z]", "", str(name).lower().replace("county", ""))
+
+
+def registration(names):
+    """Registered voters by county from the SoS's "Registered Voters [As of m/d/yyyy]" PDF (ES&S VR Statistics
+    Count Report: a county per line, its Grand Total last; a "Grand Total" line at the end) linked on the
+    research page -> ({county: n}, as_of, url). Cached in data/ar/_registration.json; re-read when the link changes."""
+    try:
+        with open(REG_CACHE, encoding="utf-8") as f:
+            cache = json.load(f)
+    except (OSError, ValueError):
+        cache = {}
+    try:
+        page = C.http_get(RESEARCH_PAGE, no_cache=True, retries=1, timeout=60)
+        m = re.search(r'href="([^"]+?\.pdf)"[^>]*>\s*Registered Voters\s*\[As of ([\d/]+)\]', page, re.I)
+    except Exception as e:  # noqa: BLE001
+        print("ar: research page unavailable (%s)" % str(e)[:100], file=sys.stderr)
+        m = None
+    if not m:
+        return cache.get("counties") or {}, cache.get("as_of", ""), cache.get("url", "")
+    url = m.group(1) if m.group(1).startswith("http") else "https://www.sos.arkansas.gov" + m.group(1)
+    if cache.get("url") == url and cache.get("counties"):
+        return cache["counties"], cache["as_of"], url
+    try:
+        import io
+        from pypdf import PdfReader
+        text = "\n".join(pg.extract_text() or "" for pg in PdfReader(io.BytesIO(C.http_get(url, binary=True, timeout=90))).pages)
+        rows = re.findall(r"(?m)^([A-Z][A-Za-z.' ]*?[a-z.])\s+((?:\d+ )*\d+)\s*$", text)
+        idx = {_key(n): n for n in names}
+        out, grand = {}, None
+        for name, nums in rows:
+            total = int(nums.split()[-1])
+            if name.strip().lower() == "grand total":
+                grand = total
+            elif _key(name) in idx:
+                out[idx[_key(name)]] = total
+        if len(out) != len(names) or grand != sum(out.values()):
+            raise ValueError("%d of %d counties, sum %d vs grand total %s" % (len(out), len(names), sum(out.values()), grand))
+    except Exception as e:  # noqa: BLE001
+        print("ar: registration report not used (%s)" % str(e)[:120], file=sys.stderr)
+        return cache.get("counties") or {}, cache.get("as_of", ""), cache.get("url", "")
+    mm, dd, yy = m.group(2).split("/")
+    cache = {"url": url, "as_of": "%04d-%02d-%02d" % (int(yy) + (2000 if len(yy) == 2 else 0), int(mm), int(dd)), "counties": out}
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(REG_CACHE, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(cache, f, separators=(",", ":"))
+    return out, cache["as_of"], url
+
+
+def add_registration():
+    """Registered voters and turnout % on the written snapshot (the Lab's Arkansas rows carry none)."""
+    d = load(LATEST_PATH)
+    geo = load(GEO_PATH)
+    reg, as_of, url = registration([f["properties"]["name"] for f in geo["features"]])
+    if not reg:
+        return
+    before = json.dumps(d, sort_keys=True)
+    for name, c in (d.get("counties") or {}).items():
+        r = reg.get(name, 0)
+        c["registered"] = r
+        c["turnout_pct"] = round(100.0 * (c.get("cast") or {}).get("total", 0) / r, 2) if r else None
+    sw = d.get("statewide") or {}
+    sw["registered"] = sum(reg.values())
+    sw["turnout_pct"] = round(100.0 * (sw.get("cast") or {}).get("total", 0) / sw["registered"], 2)
+    d.setdefault("source", {})["registration"] = {"url": url, "as_of": as_of,
+                                                  "label": "Arkansas Secretary of State, registered voters by county"}
+    if json.dumps(d, sort_keys=True) != before:
+        with open(LATEST_PATH, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(d, f, separators=(",", ":"))
+
+
+def fetch_counties(cfg):
+    """Return {county_name: {fips, cast_total, registered}} from an official Arkansas feed.
+
+    None exists during early voting (see the module docstring), so {} -> the Election Lab stand-in.
     """
     return {}
 
@@ -55,6 +137,14 @@ def main():
     cfg = load(CONFIG_PATH)
 
     rows = fetch_counties(cfg)
+    if not rows:   # no official feed -> UF Election Lab stand-in (the SoS's own daily county counts)
+        import lab_standin as LAB
+        if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=False, force=force):
+            try:
+                add_registration()
+            except Exception as e:  # noqa: BLE001 - turnout % is extra; never sink the update
+                print("ar: registration not added (%s)" % str(e)[:120], file=sys.stderr)
+            return 0
     counties_out = {}
     reg_total = cast_total = 0
     for name, r in rows.items():

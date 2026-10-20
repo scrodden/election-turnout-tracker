@@ -458,7 +458,7 @@
       "data": "data/ar/latest.json",
       "geojson": "assets/ar-counties.geojson",
       "history": "data/ar/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.arkansas.gov/elections' target='_blank' rel='noopener'>Arkansas Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> early-vote data (M. McDonald, CC BY-NC-ND 4.0), whose Arkansas figures come from the <a href='https://www.sos.arkansas.gov/elections' target='_blank' rel='noopener'>Arkansas Secretary of State</a>: in-person early votes and mail ballots accepted, by county, updated daily. The Secretary of State doesn't post these counts itself during early voting. Registered voters by county from the Secretary of State's registration report (as of July 17, 2026). Arkansas has no party registration, so this is turnout only. Early voting runs October 19 &ndash; November 2 (not Sundays). Boundaries: U.S. Census Bureau."
     },
     {
       "code": "hi",

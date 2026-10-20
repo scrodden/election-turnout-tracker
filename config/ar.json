@@ -9,11 +9,14 @@
   },
   "general_start": "2026-10-19",
   "source": {
-    "_comment": "STAGED SKELETON, re-checked 2026-10-14 (Oct rollout routine) -- still no feed. Confirmed general-election early voting begins 2026-10-19 (sos.arkansas.gov/uploads/elections/2026_Election_Calendar_Rev._6-2025_.pdf, Ark. Code 7-5-418(a)(1)(A)). Checked sos.arkansas.gov/elections and its voter-information/absentee-voting/research/election-results subpages: no early-voting-in-progress county dashboard or CSV/XLSX exists -- the 'research/election-results' files are post-election certified results (XLS), not live early-vote counts. By statute (Ark. Code 7-5-416(a)(7)(B), 7-5-701) county boards report early/absentee counts to the SOS only AFTER polls close on election day, not during the EV period, so there is no state-level daily feed to parse even once voting starts -- only individual county clerks post their own early-vote PDFs ad hoc (e.g. Pulaski, Crawford counties), with no common format or index to aggregate centrally. UF Election Lab's AR row (election.lab.ufl.edu/data-downloads/earlyvote/2026/US.csv) is also still all-zero/stale (last_update 8/12/2026) as of this check. Re-check after Nov 3 for a possible post-election county certified-results file, or re-check sos.arkansas.gov/elections and the Lab CSV once EV opens (2026-10-19) in case a dashboard appears. Reads 0 until then.",
-    "portal": "https://www.sos.arkansas.gov/elections"
+    "_comment": "LIVE via the UF Election Lab stand-in, 2026-10-20 (Sam: 'arkansas is now reporting data'). Re-checked sos.arkansas.gov/elections, /elections/voter-information, /news (press releases): still no early-vote page, dashboard or file (the SoS's day-1 figure, 56,950 in-person voters in all but four counties, was announced to the press). By statute county boards report early/absentee counts officially only after the polls close (Ark. Code 7-5-416(a)(7)(B), 7-5-701). The SoS shares daily county counts with the Election Lab: election.lab.ufl.edu/data-downloads/earlyvote/2026/US.csv row AR (data_source 'Arkansas Secretary of State', last_update 10/20/2026) and AR_county.csv (73 counties, summing exactly to the statewide row). Early voting Oct 19 - Nov 2 (not Sundays). If the SoS starts posting its own file, wire it in ar_update.fetch_counties() and it replaces the stand-in.",
+    "portal": "https://www.sos.arkansas.gov/elections",
+    "_standin": "scripts/lab_standin.py (US.csv + AR_county.csv), unaltered, attributed, CC BY-NC-ND 4.0; turnout-only (the Lab's AR party columns are mostly 'none': Arkansas records only which party's primary ballot a voter took)."
   },
   "method_labels": {
     "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
-  }
+    "mail_voted": "Mail ballots accepted",
+    "early_voted": "Early in person"
+  },
+  "mail_base_label": "Ballots requested"
 }
