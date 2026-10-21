@@ -11,3 +11,4 @@
 {"generated_at":"2026-10-19T14:19:42Z","compiled":"2026 General","data_hash":"c51877b72cc3117f061ecb8b1455c4b65006c468e73755d722bb4682e0415936","cast":61026,"margin":-24.86}
 {"generated_at":"2026-10-20T15:04:26Z","compiled":"2026 General","data_hash":"fd3182a024cabff30290ba349e102bfe860688a2ef184590409614447fe27c5d","cast":93184,"margin":-24.16}
 {"generated_at":"2026-10-20T15:13:31Z","statewide":{"cast":[27387,49898,0,15884,93169]}}
+{"generated_at":"2026-10-21T14:12:48Z","statewide":{"cast":[37760,65553,0,21131,124444],"mail_voted":[8558,16301,0,3709,28568],"mail_provided":[51402,58049,0,22216,131667],"early_voted":[29202,49252,0,17422,95876]}}
