@@ -1,7 +1,7 @@
 {
  "_comment": "2026 statewide ballot measures on the November 3 ballot, from Ballotpedia's '2026 ballot measures' list (each with its Ballotpedia page). Vote results (yes/no, reporting %, Pass/Fail) are filled by results_update.py from official state feeds near the election. Built by scripts/build_ballot_2026.py; types: LRCA = legislatively referred constitutional amendment, LRSS = legislatively referred state statute, CICA / CISS = citizen-initiated amendment / statute, VR = veto referendum, ABR = advisory question, CCR = commission-referred, BI = bond issue.",
  "source": "https://ballotpedia.org/2026_ballot_measures",
- "built_at": "2026-10-19T22:40:22Z",
+ "built_at": "2026-10-21T13:00:02Z",
  "measures": [
   {
    "id": "meas-AL-1",
@@ -285,7 +285,7 @@
    "title": "Proposition 40",
    "name": "California Proposition 40, One-Time Wealth Tax for State-Funded Healthcare, Education, and Food Assistance Programs Initiative",
    "type": "CICA/SS",
-   "subject": "Income taxes; Public health insurance",
+   "subject": "Public health insurance; Income taxes",
    "description": "Levy a one-time 5% tax on the accumulated wealth of taxpayers and trusts with covered assets valued over $1 billion to fund state health care programs, food assistance programs, and public education",
    "url": "https://ballotpedia.org/California_Proposition_40,_One-Time_Wealth_Tax_for_State-Funded_Healthcare,_Education,_and_Food_Assistance_Programs_Initiative_(2026)"
   },
@@ -318,7 +318,7 @@
    "title": "Proposition 43",
    "name": "California Proposition 43, Two-Thirds Vote Requirement for Local Special Tax Initiatives and Property Tax Initiative Prohibition Amendment",
    "type": "LRCA",
-   "subject": "Ballot measure supermajority requirements; Local government finance and taxes",
+   "subject": "Local government finance and taxes; Ballot measure supermajority requirements",
    "description": "Require two-thirds vote by electorate to enact, extend, or increase local special tax initiatives and prohibit local governments and ballot initiatives from enacting ad valorem property taxes except those authorized elsewhere in the state constitution",
    "url": "https://ballotpedia.org/California_Proposition_43,_Two-Thirds_Vote_Requirement_for_Local_Special_Tax_Initiatives_and_Property_Tax_Initiative_Prohibition_Amendment_(2026)"
   },
@@ -329,7 +329,7 @@
    "title": "Proposition 44",
    "name": "California Proposition 44, Spending Requirements for Federally Qualified Health Centers Initiative",
    "type": "CISS",
-   "subject": "Healthcare governance; Business regulations",
+   "subject": "Business regulations; Healthcare governance",
    "description": "Prohibit healthcare clinics, specifically federally-qualified health centers and related organizations, from spending less than 90% of their annual revenue on mission-related purposes",
    "url": "https://ballotpedia.org/California_Proposition_44,_Spending_Requirements_for_Federally_Qualified_Health_Centers_Initiative_(2026)"
   },
@@ -340,7 +340,7 @@
    "title": "Proposition 45",
    "name": "California Proposition 45, Changes to Environmental Review Process for Certain Projects Initiative",
    "type": "CISS",
-   "subject": "Administrative powers and rulemaking; Land use and development policy",
+   "subject": "Land use and development policy; Administrative powers and rulemaking",
    "description": "Establish timelines for local and state agencies to review plans and solicit public comment for essential projects, such as housing, improvements to water supply, transportation, energy, and facilities for health and public safety",
    "url": "https://ballotpedia.org/California_Proposition_45,_Changes_to_Environmental_Review_Process_for_Certain_Projects_Initiative_(2026)"
   },
@@ -593,7 +593,7 @@
    "title": "Question 2",
    "name": "Hawaii Question 2, Authorize Resilient Infrastructure for Shelter and Equity (RISE) Bonds Amendment",
    "type": "LRCA",
-   "subject": "Local government finance and taxes; Bond issues; Public economic investment policy; Housing development funding; Bond issue requirements",
+   "subject": "Housing development funding; Bond issue requirements; Local government finance and taxes; Public economic investment policy; Bond issues",
    "description": "Authorize the state legislature to empower the counties and municipalities of the state to issue housing infrastructure growth bonds for specified public works, public improvements, and community development",
    "url": "https://ballotpedia.org/Hawaii_Question_2,_Authorize_Resilient_Infrastructure_for_Shelter_and_Equity_(RISE)_Bonds_Amendment_(2026)"
   },
@@ -648,7 +648,7 @@
    "title": "Public Question 1",
    "name": "Indiana Public Question 1, Bailable Offenses and Substantial Risk Standard Amendment",
    "type": "LRCA",
-   "subject": "Bail policy; Criminal trials",
+   "subject": "Criminal trials; Bail policy",
    "description": "Provide for the denial of bail when the accused is found to pose a substantial risk to another person",
    "url": "https://ballotpedia.org/Indiana_Public_Question_1,_Bailable_Offenses_and_Substantial_Risk_Standard_Amendment_(2026)"
   },
@@ -813,7 +813,7 @@
    "title": "Question 1",
    "name": "Maryland Question 1, State Employee Collective Bargaining and Budget Amendment",
    "type": "LRCA",
-   "subject": "Collective bargaining; Public works labor and contracting; Labor disputes and strikes",
+   "subject": "Public works labor and contracting; Labor disputes and strikes; Collective bargaining",
    "description": "Require the budget submitted by the governor to provide for expenditures for wages, hours, benefits, and other terms and conditions of employment provided by a memorandum of understanding that covers state employees and provides for statutory changes to collective bargaining for state employees, including requiring the selection of a neutral arbitrator and establishing a process of arbitration",
    "url": "https://ballotpedia.org/Maryland_Question_1,_State_Employee_Collective_Bargaining_and_Budget_Amendment_(2026)"
   },
@@ -901,7 +901,7 @@
    "title": "Question 6",
    "name": "Massachusetts Question 6, Establish the Nature for All Fund Initiative",
    "type": "IndISS",
-   "subject": "Restricted-use funds; Parks, land, and natural area conservation; Revenue allocation",
+   "subject": "Parks, land, and natural area conservation; Revenue allocation; Restricted-use funds",
    "description": "Create a fund for state money, titled the Nature for All Fund, that would be used to further efforts of nature conservation",
    "url": "https://ballotpedia.org/Massachusetts_Question_6,_Establish_the_Nature_for_All_Fund_Initiative_(2026)"
   },
@@ -923,7 +923,7 @@
    "title": "Question 8",
    "name": "Massachusetts Question 8, Eliminate Recreational Marijuana Sales and Allow Limited Possession Initiative",
    "type": "IndISS",
-   "subject": "Drug crime policy; Marijuana laws",
+   "subject": "Marijuana laws; Drug crime policy",
    "description": "Repeal laws that permit the sale of recreational marijuana and the personal cultivation of cannabis in homes",
    "url": "https://ballotpedia.org/Massachusetts_Question_8,_Eliminate_Recreational_Marijuana_Sales_and_Allow_Limited_Possession_Initiative_(2026)"
   },
@@ -1297,7 +1297,7 @@
    "title": "State Question 847",
    "name": "Oklahoma State Question 847, Reduce Annual Increases in Property Values for Tax Calculations Amendment",
    "type": "LRCA",
-   "subject": "Property tax exemptions; Homestead tax exemptions; Property taxes",
+   "subject": "Homestead tax exemptions; Property taxes; Property tax exemptions",
    "description": "Reduce the annual growth limit of the calculated fair cash value of property",
    "url": "https://ballotpedia.org/Oklahoma_State_Question_847,_Reduce_Annual_Increases_in_Property_Values_for_Tax_Calculations_Amendment_(2026)"
   },
@@ -1308,7 +1308,7 @@
    "title": "Question 1",
    "name": "Rhode Island Question 1, Higher Education Facilities Bond Measure",
    "type": "BI",
-   "subject": "Bond issues; Higher education funding",
+   "subject": "Higher education funding; Bond issues",
    "description": "Issue $275 million in bonds to fund the construction and improvement of higher education facilities",
    "url": "https://ballotpedia.org/Rhode_Island_Question_1,_Higher_Education_Facilities_Bond_Measure_(2026)"
   },
@@ -1583,7 +1583,7 @@
    "title": "Question 3",
    "name": "Wisconsin Question 3, Prohibit Government Discrimination or Preferential Treatment Amendment",
    "type": "LRCA",
-   "subject": "Constitutional rights; Affirmative action",
+   "subject": "Affirmative action; Constitutional rights",
    "description": "Prohibit the government from discriminating or granting preferential treatment based on race, sex, color, ethnicity, or national origin",
    "url": "https://ballotpedia.org/Wisconsin_Question_3,_Prohibit_Government_Discrimination_or_Preferential_Treatment_Amendment_(2026)"
   },
