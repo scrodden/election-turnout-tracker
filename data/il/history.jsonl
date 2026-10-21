@@ -46,3 +46,4 @@
 {"generated_at":"2026-10-20T05:11:00Z","statewide":{"cast":[0,0,0,0,420957]}}
 {"generated_at":"2026-10-20T05:20:19Z","cast":420957,"data_hash":"f116ab6adc3fef5a8c2f1de948d943d628c355e21d2d35cd6139dd47c10bea5b"}
 {"generated_at":"2026-10-20T15:23:22Z","cast":521301,"data_hash":"cfe4ee337d167d28492217b327e717c87f847748e8adf1e16ac4b91250e9ba7d"}
+{"generated_at":"2026-10-21T18:33:15Z","cast":601151,"data_hash":"d8dc8940d8b2e1ecb0c6298d69281a4c5a8f50ddee9715937e4becc06a00c8cf","statewide":{"mail_voted":[0,0,0,0,369861],"early_voted":[0,0,0,0,231290],"mail_provided":[0,0,0,0,755668],"cast":[0,0,0,0,601151]}}
