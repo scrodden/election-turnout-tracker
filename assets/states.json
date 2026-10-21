@@ -193,7 +193,7 @@
       "data": "data/ak/latest.json",
       "geojson": "assets/ak-boroughs.geojson",
       "history": "data/ak/history.jsonl",
-      "source_note": "Source: <a href='https://www.elections.alaska.gov/' target='_blank' rel='noopener'>Alaska Division of Elections</a> early/absentee voting by registered party, shown by borough/census area. Early voting begins in late October, so figures read zero until then."
+      "source_note": "Source: <a href='https://www.elections.alaska.gov/statistics/' target='_blank' rel='noopener'>Alaska Division of Elections</a> Absentee, Early, and Questioned Ballot Statistics: ballots issued and received statewide by type (mail, fax and online delivery; early and in-person absentee; questioned), as of the table's own update time. Registered voters from the Division's monthly voters-by-party report. The Division's report by house district and party isn't readable by our updater yet, so Alaska shows statewide totals without a party split."
     },
     {
       "code": "ks",

@@ -22,6 +22,24 @@ USER_AGENT = (
 _SSL_CTX = ssl.create_default_context()
 
 
+def _load_extra_cas():
+    """Intermediate CA certificates that some state sites leave out of their TLS handshake (browsers fetch
+    them from the certificate's AIA link; Python doesn't), kept in assets/certs/*.pem. Each is the CA's own
+    published certificate, checked against its root before it was added (see the file's header); hostname
+    and chain verification still apply. E.g. elections.alaska.gov since its 2026-10-07 certificate."""
+    import glob
+    import os
+    for p in sorted(glob.glob(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets", "certs", "*.pem"))):
+        try:
+            with open(p, encoding="ascii") as f:
+                _SSL_CTX.load_verify_locations(cadata=f.read())
+        except (OSError, ValueError, ssl.SSLError):
+            pass
+
+
+_load_extra_cas()
+
+
 def http_get(url, retries=3, timeout=45, binary=False, no_cache=False, referer=None, accept="*/*"):
     """GET a URL with a browser User-Agent, small retry/backoff. Returns text
     (utf-8, replacement on bad bytes) or bytes when binary=True.

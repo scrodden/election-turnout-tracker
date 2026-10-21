@@ -9,12 +9,14 @@
   },
   "general_start": "2026-10-19",
   "source": {
-    "_comment": "Alaska registers voters by party (R/D/undeclared/nonpartisan) -> partisan. AK Division of Elections publishes early/absentee voting counts; geography is boroughs/census areas (not counties). No confirmed persistent flat file off-season -> STAGED SKELETON; the routine wires the live feed in Oct (AK early voting ~Oct 19).",
-    "portal": "https://www.elections.alaska.gov/"
+    "_comment": "LIVE 2026-10-21 (Sam: 'uf has some data for alaska'; the Lab's AK row cites the Division of Elections). Wired to the Division's own statistics page (elections.alaska.gov/statistics/, 'Absentee, Early, and Questioned Ballot Statistics'): the 2026 General block lists ballots issued/received by type with a 'Table last updated' stamp (10/20 2:16 pm: 11,876 received of 50,290 issued), fresher than the Lab (11,827). Statewide only, no party: the per-house-district/party 'Combined Report (htm)' (wp-content/uploads/2026/10/ComboReportRAll.html-new.html, and the 2024 one) returns a CloudFront 'Human Verification' page, HTTP 405, to scripts (measured 2026-10-21; the statistics page, the Division's PDFs and registration pages return 200) -- not bypassed. The site's certificate since 2026-10-07 omits its intermediate (GlobalSign GCC R46 OV TLS CA 2025); common.py loads it from assets/certs. Alaska registers voters by party, so if the district report becomes readable it can give the partisan split.",
+    "portal": "https://www.elections.alaska.gov/",
+    "stats_election": "2026 General Election"
   },
   "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
+    "cast": "Ballots received",
+    "mail_voted": "Mail / online ballots received",
+    "early_voted": "Early & in-person absentee",
+    "provisional": "Questioned"
   }
 }
