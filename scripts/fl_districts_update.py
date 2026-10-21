@@ -53,22 +53,42 @@ def close_of_day(mdy):
     cumulative through the close of that day), so the page's 'Data updated'
     shows the data's own cut-off rather than when we fetched it."""
     from datetime import datetime, timedelta
-    try:
-        d = datetime.strptime(mdy, "%m/%d/%Y")
-    except (TypeError, ValueError):
+    d = None
+    for fmt in ("%m/%d/%Y", "%B %d, %Y"):   # "09/30/2026" or, since October, "October 20, 2026"
+        try:
+            d = datetime.strptime(mdy, fmt)
+            break
+        except (TypeError, ValueError):
+            pass
+    if d is None:
         return ""
     offset = 5 if (d.month, d.day) >= (11, 1) or d.month in (12, 1, 2) else 4   # EST from Nov 1, 2026
     return (d + timedelta(hours=23 + offset, minutes=59)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def unit(rec):
-    ret = {"rep": int(rec.get("repReturned") or 0), "dem": int(rec.get("demReturned") or 0),
-           "npa": int(rec.get("npaReturned") or 0), "oth": int(rec.get("otherReturned") or 0)}
-    blk = C.party_block(ret["rep"], ret["dem"], ret["oth"], ret["npa"])
-    sent, returned = int(rec.get("sent") or 0), int(rec.get("returned") or blk["total"])
-    return {"mail_voted": blk, "cast": dict(blk), "registered": 0, "turnout_pct": None,
-            "mail": {"requested": sent, "returned": returned, "outstanding": max(0, sent - returned),
-                     "return_rate": C.pct(returned, sent), "parties": {}}}
+    """One district (or the statewide row): vote-by-mail returned and, since early voting opened, early
+    in-person votes, each by party ('<party>Returned' / '<party>Early'); cast = the two together, which is
+    their '<party>Cast' (checked)."""
+    def parts(suffix):
+        return {p: int(rec.get(k + suffix) or 0) for p, k in (("rep", "rep"), ("dem", "dem"), ("npa", "npa"), ("oth", "other"))}
+    ret, ev = parts("Returned"), parts("Early")
+    mail = C.party_block(ret["rep"], ret["dem"], ret["oth"], ret["npa"])
+    early = C.party_block(ev["rep"], ev["dem"], ev["oth"], ev["npa"])
+    cast = C.add_blocks(mail, early)
+    for b in (mail, early, cast):
+        b.pop("compiled", None)
+        b.pop("compiled_iso", None)
+    theirs = parts("Cast")
+    if any(theirs.values()) and any(theirs[p] != ret[p] + ev[p] for p in theirs):
+        raise ValueError("district %s: returned + early != cast" % rec.get("district"))
+    sent, returned = int(rec.get("sent") or 0), int(rec.get("returned") or mail["total"])
+    u = {"mail_voted": mail, "cast": cast, "registered": 0, "turnout_pct": None,
+         "mail": {"requested": sent, "returned": returned, "outstanding": max(0, sent - returned),
+                  "return_rate": C.pct(returned, sent), "parties": {}}}
+    if early["total"]:
+        u["early_voted"] = early
+    return u
 
 
 def main():
@@ -99,11 +119,8 @@ def main():
         print("fl districts: NOCHANGE (their tables generated %s, through %s)" % (idx["generatedAt"], through))
         return 0
     cov = idx.get("coverage") or {}
-    sw = idx.get("statewide") or {}
-    sw_ret = {"rep": sw.get("repReturned", 0), "dem": sw.get("demReturned", 0),
-              "npa": sw.get("npaReturned", 0), "oth": sw.get("otherReturned", 0)}
-    statewide = unit(dict(sent=sw.get("sent"), returned=sw.get("returned"), repReturned=sw_ret["rep"],
-                          demReturned=sw_ret["dem"], npaReturned=sw_ret["npa"], otherReturned=sw_ret["oth"]))
+    statewide = unit(idx.get("statewide") or {})
+    has_early = bool(statewide.get("early_voted"))
     loaded, expected = cov.get("countiesLoaded"), cov.get("countiesExpected")
     short = ("; %s of %s counties loaded (%s)" % (loaded, expected, cov.get("note", "").split(".")[1].strip()
                                                   if cov.get("note", "").count(".") > 1 else cov.get("note", ""))
@@ -131,18 +148,20 @@ def main():
                   % (key, unknown[:5], len(units), len(gidx)), file=sys.stderr)
             continue
         in_districts = sum(u["cast"]["total"] for u in units.values())
-        note = ("Vote-by-mail ballots returned through the close of %s (prior day) — not live like the county view. "
+        note = ("%s through the close of %s (prior day) — not live like the county view. "
                 "District totals from 305 Data Girl's Florida tracker, built from the state's county voter-level "
-                "vote-by-mail files%s." % (through, short))
+                "vote-by-mail and early-voting files%s." % ("Vote-by-mail ballots returned and early in-person votes" if has_early
+                                                          else "Vote-by-mail ballots returned", through, short))
         if in_districts < statewide["cast"]["total"]:
-            note += (" %s returned ballots have no district assignment and appear only in the statewide total."
+            note += (" %s ballots have no district assignment and appear only in the statewide total."
                      % format(statewide["cast"]["total"] - in_districts, ","))
         body = {"state": "fl", "election": cfg.get("election", {}), "unit_label": label, "unit_label_plural": plural,
                 "partisan": True,
                 "source": "305 Data Girl, Florida 2026 General district tables (%s/general/districts), from the "
-                          "state's county voter-level vote-by-mail files; data through %s" % (base, through),
-                "methods_present": ["mail_voted"], "method_labels": {"cast": "Vote-by-mail returned",
-                                                                     "mail_voted": "Vote-by-mail returned"},
+                          "state's county voter-level vote-by-mail and early-voting files; data through %s" % (base, through),
+                "methods_present": ["mail_voted"] + (["early_voted"] if has_early else []),
+                "method_labels": {"cast": "Ballots cast (mail + early in person)" if has_early else "Vote-by-mail returned",
+                                  "mail_voted": "Vote-by-mail returned", "early_voted": "Voted early in person"},
                 "coverage": {"ok": len(units), "total": len(gidx), "unmatched": []},
                 "as_of": through, "statewide": statewide, "counties": units, "map_note": note}
         out = os.path.join(DATA_DIR, "districts_%s.json" % suffix)
