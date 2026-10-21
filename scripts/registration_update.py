@@ -921,6 +921,52 @@ def parse_ny():
     return {"rep": rep, "dem": dem, "npa": blank, "oth": con + wor + other, "as_of": as_of, "source": url}
 
 
+def _selected_option(html, select_id):
+    m = re.search(r'id="%s"[^>]*>(.*?)</select>' % re.escape(select_id), html, re.S)
+    if not m:
+        return None
+    m2 = re.search(r'value="([^"]+)"\s+selected="selected"', m.group(1))
+    return m2.group(1) if m2 else None
+
+
+def parse_id():
+    """ID SoS VoteIdaho 'Voter Registration Totals' page -- a year/month/group
+    switcher whose default selection (newest posted month) builds a CSV URL at
+    archive.voteidaho.gov: <year><month>_<group>Totals.csv (e.g. 202610 for Oct
+    2026, County group). Columns: County,CON,DEM,LIB,REP,UNA,Total, with a
+    'Total' row to check against. UNA (unaffiliated) -> npa; CON+LIB -> oth.
+    Was flagged Cloudflare/JS (manual snapshot only); the page itself loads
+    fine and the CSV it points to is a plain unauthenticated file."""
+    import csv
+    import io
+    page = C.http_get(
+        "https://voteidaho.gov/data-and-dashboards/voter-registration-totals/", no_cache=True)
+    year = _selected_option(page, "switcherY")
+    month = _selected_option(page, "switcherM")
+    group = _selected_option(page, "switcherG") or "County"
+    if not year or not month:
+        raise RuntimeError("ID: couldn't find default year/month selection")
+    url = "https://archive.voteidaho.gov/data/voter-registrations/%s%s_%sTotals.csv" % (year, month, group)
+    rows = list(csv.reader(io.StringIO(C.http_get(url, no_cache=True))))
+    if not rows or [c.strip() for c in rows[0][:7]] != ["County", "CON", "DEM", "LIB", "REP", "UNA", "Total"]:
+        raise RuntimeError("ID: unexpected CSV header")
+    con = dem = lib = rep = una = 0
+    total_row = None
+    for row in rows[1:]:
+        if not row or not row[0].strip():
+            continue
+        vals = [_num(x) for x in row[1:7]]
+        if row[0].strip().lower() == "total":
+            total_row = vals
+            continue
+        c, d, l, r, u, _t = vals
+        con += c; dem += d; lib += l; rep += r; una += u
+    if total_row is None or con + dem + lib + rep + una != total_row[5]:
+        raise RuntimeError("ID: county rows don't sum to the statewide Total row")
+    return {"rep": rep, "dem": dem, "npa": una, "oth": con + lib,
+            "as_of": "%s-%s-01" % (year, month), "source": url}
+
+
 # SOURCES[code] -> function() -> {"rep","dem","npa","oth","as_of"[,"source"]} (wired per state)
 SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co,
            "md": parse_md, "ky": parse_ky, "ne": parse_ne, "ak": parse_ak,
@@ -928,7 +974,7 @@ SOURCES = {"fl": parse_fl, "pa": parse_pa, "nc": parse_nc, "co": parse_co,
            "ut": parse_ut, "sd": parse_sd, "ca": parse_ca, "wv": parse_wv,
            "ok": parse_ok, "ks": parse_ks, "dc": parse_dc, "ct": parse_ct,
            "nm": parse_nm, "me": parse_me, "la": parse_la, "de": parse_de,
-           "ri": parse_ri, "ny": parse_ny}
+           "ri": parse_ri, "ny": parse_ny, "id": parse_id}
 # not in assets/states.json (the 50 turnout states) but has party registration
 EXTRA_CODES = ["dc"]
 
