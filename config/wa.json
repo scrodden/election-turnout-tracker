@@ -3,11 +3,26 @@
   "state_name": "Washington",
   "state_fips": "53",
   "partisan": false,
-  "election": { "date": "2026-11-03", "name": "2026 General" },
+  "election": {
+    "date": "2026-11-03",
+    "name": "2026 General"
+  },
   "general_start": "2026-10-16",
   "source": {
-    "_comment": "Washington is all-mail with NO party registration -> turnout-only. The SoS 'Ballot Return Statistics' report gives ballots returned & % by county during the election, but only via a seasonal dashboard/report; no persistent machine-readable county API was found off-season. STAGED SKELETON: writes 0 until a verified live 2026 feed is wired. The Friday rollout routine finalizes the parser against the live report in Oct. Turnout-only: 'cast' = ballots returned; the map shades by turnout %.",
-    "page": "https://www.sos.wa.gov/elections/data-research/election-data-and-maps/ballot-return-statistics"
+    "_comment": "LIVE 2026-10-21 (Sam: 'Washington state has started reporting data'). The SoS Ballot Return Statistics page embeds a Power BI publish-to-web report (US Gov cloud; resource key from the embed's r= parameter; the Iowa gov cluster answers, the Virginia one returns 401). wa_update queries its public API (oh_update.PowerBI): Ballot Status Files (one row per returned ballot: County, Ballot Status Accepted/Received/Rejected, Received Date Only), Voters (VotersInElection by county = ballots mailed), AgeRange (returned ballots by age, by county), Former Election Data (the 2022 general, ballotstatus202211.csv, by received date) and Date Refresh (last refresh, Pacific). Returned = all statuses = the dashboard's '# TotalReturned' (10/20 5:25 PM: 337,155 = 312,519 accepted + 22,678 received + 1,958 challenged, of 5,154,545 voters). The UF Lab's WA row (statewide only) uses accepted (312,519).",
+    "page": "https://www.sos.wa.gov/elections/data-research/election-data-and-maps/ballot-return-statistics",
+    "pbi_api": "https://wabi-us-gov-iowa-api.analysis.usgovcloudapi.net/public/reports/",
+    "pbi_resource_key": "80c74e63-3df5-4bde-908d-2d17e037d224",
+    "election_match": "2026 November General",
+    "former_election": {
+      "year": "2022",
+      "election_day": "2022-11-08",
+      "source_name": "ballotstatus202211.csv"
+    }
   },
-  "method_labels": { "cast": "Ballots returned", "early_voted": "Ballots returned" }
+  "method_labels": {
+    "cast": "Ballots returned",
+    "mail_voted": "Ballots returned",
+    "mail_provided": "Ballots outstanding"
+  }
 }

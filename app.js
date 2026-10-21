@@ -120,10 +120,12 @@
     var v = (data.same_point.years[spYear].counties || {})[name];
     return v == null ? null : v;
   }
+  // the voting method a same-point comparison covers (e.g. SC's past reports are in-person early votes only)
+  function spMethod() { return (data && data.same_point && data.same_point.method) || "cast"; }
   function spChange(name) {   // % change in ballots cast vs the same point in spYear
     var o = spOf(name), c = data.counties[name];
     if (!o || !c) return null;
-    return Math.round(1000 * ((block(c, "cast").total || 0) - o) / o) / 10;
+    return Math.round(1000 * ((block(c, spMethod()).total || 0) - o) / o) / 10;
   }
   function spChangeText(p) { return p == null ? "—" : (p > 0 ? "+" : "") + p.toFixed(1) + "%"; }
   var SP_DOWN = [166, 97, 26], SP_UP = [1, 133, 113], SP_MID = [236, 236, 236];   // #a6611a / #018571 (palette-validated), gray midpoint
@@ -487,7 +489,7 @@
     if (spCountyOn()) {
       var sp = data.same_point, ul = unitLabel.toLowerCase();
       $("#map-title").textContent = "Ballots so far vs the same point in " + spYear + ", by " + ul;
-      $("#map-note").textContent = "Shaded by each " + ul + "'s ballots " + sp.label + " compared with the same day in " + spYear +
+      $("#map-note").textContent = "Shaded by each " + ul + "'s " + (sp.what || "ballots") + " " + sp.label + " compared with the same day in " + spYear +
         ": teal = more than then, brown = fewer; darkest = double or half (or beyond). Source: " + sp.source + ".";
       return;
     }
@@ -883,8 +885,8 @@
         pctText(pastPct(name)) + " reached so far</p>";
     if (data.same_point && data.same_point.years) Object.keys(data.same_point.years).sort().reverse().forEach(function (y) {
       var o = (data.same_point.years[y].counties || {})[name];
-      if (o) extra += "<p class='dim'>" + y + " " + data.same_point.label + ": " + fmt(o) + " · now " +
-        spChangeText(Math.round(1000 * ((block(cty, "cast").total || 0) - o) / o) / 10) + "</p>";
+      if (o) extra += "<p class='dim'>" + y + " " + (data.same_point.what ? data.same_point.what + " " : "") + data.same_point.label + ": " + fmt(o) + " · now " +
+        spChangeText(Math.round(1000 * ((block(cty, spMethod()).total || 0) - o) / o) / 10) + "</p>";
     });
     if (cty.mail && cty.mail.return_rate != null) extra += "<p class='dim'>Mail returned: " + pctText(cty.mail.return_rate) + "</p>";
     var b0 = block(cty, method);
@@ -2020,11 +2022,14 @@
   }
   function renderSpCard() {
     if (!spActive()) return;
-    var y = data.same_point.years[spYear], cast = (data.statewide.cast || {}).total || 0;
+    var y = data.same_point.years[spYear], cast = (data.statewide[spMethod()] || {}).total || 0;
     if (!y.statewide) return;
     var ch = Math.round(1000 * (cast - y.statewide) / y.statewide) / 10;
-    var card = statCard("", "vs " + spYear + " at the same point", spChangeText(ch), fmt(cast) + " vs " + fmt(y.statewide) + " " + data.same_point.label);
-    card.title = "Ballots cast so far vs " + data.same_point.label + " in the " + spYear + " general. Source: " + data.same_point.source + ".";
+    var what = data.same_point.what || "";
+    var card = statCard("", "vs " + spYear + " at the same point" + (what ? " (" + what + ")" : ""), spChangeText(ch),
+      fmt(cast) + " vs " + fmt(y.statewide) + " " + data.same_point.label);
+    card.title = (what ? what.charAt(0).toUpperCase() + what.slice(1) : "Ballots cast") + " so far vs " + data.same_point.label +
+      " in the " + spYear + " general. Source: " + data.same_point.source + ".";
     $("#summary").appendChild(card);
   }
   function renderPastCard() {

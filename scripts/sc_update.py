@@ -146,6 +146,55 @@ def registration(gidx, stats_html):
     return out, cache["as_of"], url
 
 
+ABS_LINK = re.compile(r'href="(https://scvotes\.gov/wp-content/uploads/2026/(?:09|1[0-2])/([^"]*?Absentee-Statistics[^"]*?)\.(xlsx|csv))"', re.I)
+RACE_LABEL = {"Black/AA": "Black", "Native American": "Native American", "Multiple": "Multiracial"}
+
+
+def read_absentee(gidx, stats_html):
+    """The Commission's "Absentee Statistics for Election By Race" workbook (RP0007; linked as "Absentee
+    Statistics by Race for General Election Report", newest dated file): a sheet per race (ALL, Black/AA,
+    White, Asian, Hispanic, Native American, Multiple, Other, Unknown), each county's applications and
+    ballots issued / returned. -> {"url", "as_of", "counties": {name: {"issued", "returned", "race": {..}}}} or None.
+    Checked: every county on every sheet, and the race sheets adding up to ALL county by county."""
+    links = [(u, n) for u, n, ext in ABS_LINK.findall(stats_html or "") if ext.lower() == "xlsx" and not DONE_ELECTIONS.search(n)]
+    if not links:
+        return None
+    url, name = max(links, key=lambda x: x[1])   # names start with the report date (2026-10-21-...)
+    sheets = C.read_xlsx(C.http_get(url, binary=True, timeout=120), positional=True)
+    by_race = {}
+    for rows in sheets.values():
+        race = next((str(c)[5:].strip() for r in rows[:12] for c in r if str(c).startswith("Race ")), "")
+        head = next((r for r in rows[:14] if "County" in [str(c).strip() for c in r]), None)
+        sub = next((r for r in rows[:14] if "Ballots" in [str(c).strip() for c in r]), None)
+        if not race or not head or not sub:
+            raise ValueError("sheet without a race / header")
+        b0 = [str(c).strip() for c in sub].index("Ballots")
+        names = [re.sub(r"\s+", " ", str(c)).strip().lower() for c in head]
+        issued_i = b0 if names[b0] == "issued" else None
+        ret_i = next((j for j in range(b0, len(names)) if names[j] == "total returned"), None)
+        if issued_i is None or ret_i is None:
+            raise ValueError("no Ballots Issued / Total Returned columns on the %s sheet" % race)
+        out = {}
+        for r in rows:
+            m = re.match(r"^\d{2}-(.+)$", str(r[1]).strip()) if len(r) > ret_i else None
+            g = gidx.get(_norm(m.group(1))) if m else None
+            if g:
+                out[g["name"]] = (int(C.parse_number(r[issued_i]) or 0), int(C.parse_number(r[ret_i]) or 0))
+        if len(out) != len(gidx):
+            raise ValueError("%s sheet: %d of %d counties" % (race, len(out), len(gidx)))
+        by_race[race] = out
+    allr = by_race.pop("ALL", None)
+    if not allr or not by_race:
+        raise ValueError("no ALL sheet or race sheets")
+    bad = [c for c in allr if sum(v[c][1] for v in by_race.values()) != allr[c][1]]
+    if bad:
+        raise ValueError("race sheets don't add up to ALL for %s" % bad[:4])
+    m = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", name)
+    return {"url": url, "as_of": "%s-%02d-%02d" % (m.group(1), int(m.group(2)), int(m.group(3))) if m else "",
+            "counties": {c: {"issued": allr[c][0], "returned": allr[c][1],
+                             "race": {RACE_LABEL.get(rc, rc): v[c][1] for rc, v in by_race.items()}} for c in allr}}
+
+
 def parse_csv(text, gidx):
     """-> ({county_name: total}, state_check_total, as_of, ev_days). A county's FIRST
     matching row is its main-contest total; a county can repeat later in the
@@ -277,6 +326,11 @@ def main():
     if stats_html is not None:
         csv_url, status = discover_csv_url(stats_html)
     reg, reg_as_of, reg_url = registration(gidx, stats_html)
+    try:   # mail (absentee) ballots by county and race, from the Commission's absentee statistics workbook
+        absentee = read_absentee(gidx, stats_html)
+    except Exception as e:  # noqa: BLE001 - in-person figures still go out
+        print("sc: absentee statistics not used (%s)" % str(e)[:140], file=sys.stderr)
+        absentee = None
     counties, state_check, as_of, ev_days = {}, None, "", 0
     if csv_url:
         try:
@@ -298,18 +352,36 @@ def main():
     # its own early-voting centers exactly: within 0.5%, the county figures are used and the row's figure noted
     over = gap is not None and gap < 0 and -gap <= max(50, (state_check or 0) // 200)
 
+    ab = (absentee or {}).get("counties") or {}
     counties_out = {}
     for name, c in counties.items():
-        blk = _block(c["total"])
+        a = ab.get(name) or {}
+        mail, out = a.get("returned", 0), max(0, a.get("issued", 0) - a.get("returned", 0))
+        tot = c["total"] + mail
         r = reg.get(name, 0)
-        counties_out[name] = {"fips": c["fips"], "cast": blk, "early_voted": dict(blk),
-                              "registered": r, "turnout_pct": round(100.0 * c["total"] / r, 2) if r else None}
+        counties_out[name] = {"fips": c["fips"], "cast": _block(tot), "early_voted": _block(c["total"]),
+                              "registered": r, "turnout_pct": round(100.0 * tot / r, 2) if r else None}
+        if a:
+            counties_out[name]["mail_voted"] = _block(mail)
+            counties_out[name]["mail_provided"] = _block(out)
+            counties_out[name]["demographics"] = {"race": [{"label": k, "count": v} for k, v in a["race"].items()]}
 
     use_counties = (reconciled or over) and bool(counties_out)
-    statewide_total = state_check if (state_check is not None and reconciled) else cast_total
+    ev_total = state_check if (state_check is not None and reconciled) else cast_total
+    mail_total = sum(a["returned"] for a in ab.values())
+    out_total = sum(max(0, a["issued"] - a["returned"]) for a in ab.values())
+    statewide_total = ev_total + mail_total
     reg_total = sum(reg.values()) if len(reg) == len(gidx) else 0
-    statewide = {"cast": _block(statewide_total), "early_voted": _block(statewide_total),
+    statewide = {"cast": _block(statewide_total), "early_voted": _block(ev_total),
                  "registered": reg_total, "turnout_pct": round(100.0 * statewide_total / reg_total, 2) if reg_total else None}
+    if ab:
+        statewide["mail_voted"] = _block(mail_total)
+        statewide["mail_provided"] = _block(out_total)
+        statewide["mail"] = C.compute_mail(statewide)
+        race_tot = {}
+        for a in ab.values():
+            for k, v in a["race"].items():
+                race_tot[k] = race_tot.get(k, 0) + v
     snap = {
         "state": STATE, "state_name": cfg.get("state_name", "South Carolina"),
         "election": cfg.get("election", {}), "partisan": False,
@@ -320,10 +392,18 @@ def main():
                    "reconciled_with_statewide_row": reconciled, "fetched_at": C.utc_now_iso(),
                    **({"registration": {"url": reg_url, "as_of": reg_as_of}} if reg_total else {})},
         "source_compiled": as_of, "source_compiled_iso": (C.utc_now_iso() if cast_total else ""),
-        "methods_present": (["early_voted"] if statewide_total else []),
+        "methods_present": [m for m in ("early_voted", "mail_voted", "mail_provided") if (statewide.get(m) or {}).get("total")],
         "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": (counties_out if use_counties else {}),
     }
+    if ab:
+        snap["source"]["absentee"] = {"url": absentee["url"], "as_of": absentee["as_of"],
+                                      "label": "SC Election Commission, Absentee Statistics for Election By Race"}
+        snap["demographics"] = {"race": [{"label": k, "count": v} for k, v in race_tot.items()],
+                                "note": ("Race of mail (absentee) ballots returned, from the Election Commission's absentee "
+                                         "statistics (%s). The early-voting report has no race, so in-person votes "
+                                         "(%s of the %s ballots) aren't in this breakdown."
+                                         % (absentee["as_of"], format(ev_total, ","), format(statewide_total, ",")))}
     if use_counties and ev_days:
         # the same day of early voting in past generals (each opened on the Monday 15 days out, closed the
         # middle Sunday, 12 days), from the Commission's archived final reports
@@ -335,6 +415,7 @@ def main():
             years[yr] = {"statewide": sum(cty.values()), "counties": cty}
         if years:
             snap["same_point"] = {"label": "through Day %d of early voting" % ev_days, "day": ev_days,
+                                  "method": "early_voted", "what": "in-person early votes",
                                   "source": "SC Election Commission early-voting statistics (%s general elections)"
                                             % " and ".join(sorted(years)),
                                   "url": STATS_PAGE, "years": years}
@@ -361,12 +442,12 @@ def main():
         snap["generated_at"] = prev.get("generated_at", snap["generated_at"])
     with open(LATEST_PATH, "w", encoding="utf-8", newline="\n") as f:
         json.dump(snap, f, separators=(",", ":"))
-    if changed and cast_total:
+    if changed and statewide_total:
         with open(HISTORY_PATH, "a", encoding="utf-8", newline="\n") as f:
             f.write(json.dumps({"generated_at": snap["generated_at"], "compiled": as_of,
-                                "cast": cast_total}, separators=(",", ":")) + "\n")
-    print("%s  %s | counties=%d  cast=%d  (%s)"
-          % ("CHANGED" if changed else "NOCHANGE", status, len(counties_out), cast_total,
+                                "cast": statewide_total}, separators=(",", ":")) + "\n")
+    print("%s  %s | counties=%d  cast=%d (in person %d, mail %d)  (%s)"
+          % ("CHANGED" if changed else "NOCHANGE", status, len(counties_out), statewide_total, ev_total, mail_total,
              csv_url or "no CSV yet"))
     return 0
 

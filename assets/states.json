@@ -100,7 +100,7 @@
       "data": "data/wa/latest.json",
       "geojson": "assets/wa-counties.geojson",
       "history": "data/wa/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.wa.gov/elections/data-research/election-data-and-maps/ballot-return-statistics' target='_blank' rel='noopener'>Washington Secretary of State</a> ballot-return statistics. Washington has no party registration, so this is turnout-only — ballots returned &amp; turnout% by county. Washington is all-mail; ballots return through late October, so figures read zero until then."
+      "source_note": "Source: <a href='https://www.sos.wa.gov/elections/data-research/election-data-and-maps/ballot-return-statistics' target='_blank' rel='noopener'>Washington Secretary of State</a> Ballot Return Statistics: ballots returned by county (accepted, received and challenged, as the state counts them) and voters in the election, refreshed daily; age of returned ballots; and the 2022 general's ballots by received date for the same-point comparison. Washington votes entirely by mail and has no party registration, so this is turnout only. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "ga",
@@ -538,7 +538,7 @@
       "data": "data/sc/latest.json",
       "geojson": "assets/sc-counties.geojson",
       "history": "data/sc/history.jsonl",
-      "source_note": "Source: <a href='https://scvotes.gov/elections-statistics/voter-participation/' target='_blank' rel='noopener'>South Carolina Election Commission</a> Early Voting Turnout Report: in-person early votes by county, posted each morning for the day before (early voting runs October 19 &ndash; 31, closed Sunday the 25th). Registered voters by county from the Commission's monthly voter registration report. South Carolina has no party registration, so this is turnout only; the Commission's absentee report counts ballots issued, not returned, so mail ballots aren't in these totals yet. Boundaries: U.S. Census Bureau."
+      "source_note": "Source: <a href='https://scvotes.gov/elections-statistics/voter-participation/' target='_blank' rel='noopener'>South Carolina Election Commission</a>: the Early Voting Turnout Report (in-person early votes by county, posted each morning for the day before; early voting runs October 19 &ndash; 31, closed Sunday the 25th) and the Absentee Statistics by Race report (mail ballots issued and returned by county and race). Race is shown for returned mail ballots only; the early-voting report has no race. Registered voters by county from the Commission's monthly voter registration report. South Carolina has no party registration, so there's no partisan breakdown. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "tn",
