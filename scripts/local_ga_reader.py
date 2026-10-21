@@ -19,6 +19,7 @@ Run by hand:  python scripts/local_ga_reader.py [--clone <dir>]
 Log:          <clone>/../ga-reader.log (last ~500 lines)
 """
 import datetime as dt
+import json
 import os
 import subprocess
 import sys
@@ -51,7 +52,43 @@ def git(*args, check=True):
     return r
 
 
+GH_REPO = "scrodden/election-turnout-tracker"
+CHAIN_STALE_MIN = 45
+ACTIVE = ("in_progress", "queued", "waiting", "pending", "requested")
+
+
+def chain_watchdog():
+    """Restart the workflow's 10-minute chain if it has stalled. A GitHub incident (10/21 16:11 UTC, and
+    earlier) can drop the timer's next dispatch, and the backup cron didn't fire for hours either; this
+    runs from Sam's PC, outside GitHub's scheduler. If neither the update nor the timer workflow has a run
+    in progress and the newest update run started over CHAIN_STALE_MIN minutes ago, dispatch update.yml."""
+    import shutil
+    gh = shutil.which("gh") or r"C:\Program Files\GitHub CLI\gh.exe"
+    if not os.path.exists(gh) and not shutil.which("gh"):
+        return
+
+    def newest(workflow):
+        r = subprocess.run([gh, "run", "list", "--repo", GH_REPO, "--workflow", workflow, "--limit", "1",
+                            "--json", "createdAt,status"], capture_output=True, text=True, timeout=60)
+        runs = json.loads(r.stdout or "[]") if not r.returncode else None
+        return runs[0] if runs else None
+    upd, tick = newest("update.yml"), newest("tick.yml")
+    if not upd or any(r and r.get("status") in ACTIVE for r in (upd, tick)):
+        return
+    age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.strptime(upd["createdAt"], "%Y-%m-%dT%H:%M:%SZ")
+           .replace(tzinfo=dt.timezone.utc)).total_seconds() / 60
+    if age < CHAIN_STALE_MIN:
+        return
+    r = subprocess.run([gh, "workflow", "run", "update.yml", "--repo", GH_REPO], capture_output=True, text=True, timeout=60)
+    log("chain watchdog: last update run %d min ago, none running -> %s" %
+        (age, "restarted update.yml" if not r.returncode else "dispatch failed: " + (r.stderr or r.stdout).strip()[:160]))
+
+
 def main():
+    try:
+        chain_watchdog()
+    except Exception as e:  # noqa: BLE001 - the watchdog never stops the Georgia read
+        log("chain watchdog error: %s" % str(e)[:200])
     if dt.date.today() > STOP_AFTER:
         log("past %s -- nothing to do" % STOP_AFTER)
         return 0
