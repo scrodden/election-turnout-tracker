@@ -264,3 +264,11 @@ tbody tr.sel { background: rgba(52,80,107,.12); }
 .rem-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
 .rem-compare { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 6px 2px 0; font-size: 12.5px; color: var(--muted); }
 .rem-compare b { margin-left: 4px; }
+
+/* trends: day-by-day table under the charts */
+.trend-day-head { margin: 14px 2px 4px; }
+.trend-table-wrap { max-height: 360px; overflow: auto; }
+.trend-table-wrap .rt-table td.r { color: var(--rep); }
+.trend-table-wrap .rt-table td.d { color: var(--dem); }
+.trend-table-wrap .rt-table td .sub { display: block; font-size: 11px; color: var(--muted); }
+.trend-table-wrap .rt-table th small { display: block; font-weight: 400; color: var(--muted); }

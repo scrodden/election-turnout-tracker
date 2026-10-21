@@ -152,6 +152,51 @@ def pct(n, d):
     return round(100.0 * n / d, 2) if d else None
 
 
+TREND_METHODS = ("cast", "mail_voted", "early_voted", "election_day", "provisional", "mail_provided", "mail_requested")
+
+
+def history_size(data_dir):
+    import os
+    p = os.path.join(data_dir, "history.jsonl")
+    return os.path.getsize(p) if os.path.exists(p) else 0
+
+
+def enrich_history(data_dir, since):
+    """Give the history lines a connector appended after byte `since` each voting method's statewide
+    [rep, dem, oth, npa, total] from the latest.json written in the same run, under "statewide", so the page's
+    trend charts can follow the selected method (connectors' own lines often keep only the total). Fields a
+    line already has are kept; its "cast" array is added only when it matches the line's own total."""
+    import os
+    path, lp = os.path.join(data_dir, "history.jsonl"), os.path.join(data_dir, "latest.json")
+    if not os.path.exists(path) or os.path.getsize(path) <= since or not os.path.exists(lp):
+        return 0
+    with open(lp, encoding="utf-8") as f:
+        sw = json.load(f).get("statewide") or {}
+    arrs = {m: [int(b.get(k) or 0) for k in ("rep", "dem", "oth", "npa", "total")]
+            for m, b in sw.items() if m in TREND_METHODS and isinstance(b, dict) and "total" in b}
+    with open(path, "rb") as f:
+        head, tail = f.read(since), f.read()
+    out, n = [], 0
+    for line in tail.decode("utf-8").splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            out.append(line)
+            continue
+        s = r.get("statewide") if isinstance(r.get("statewide"), dict) else {}
+        for m, a in arrs.items():
+            if m in s or (m == "cast" and isinstance(r.get("cast"), (int, float)) and r["cast"] != a[4]):
+                continue
+            s[m] = a
+            n += 1
+        if s:
+            r["statewide"] = s
+        out.append(json.dumps(r, separators=(",", ":")))
+    with open(path, "wb") as f:
+        f.write(head + ("\n".join(out) + "\n").encode("utf-8"))
+    return n
+
+
 def party_block(rep, dem, oth, npa, compiled="", compiled_iso="", unk=0):
     """Build one party-breakdown block with shares and partisan margin.
     margin > 0 means a Republican lean; margin < 0 means Democratic.

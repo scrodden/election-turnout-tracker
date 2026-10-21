@@ -1041,28 +1041,84 @@
         renderProjection();
       }).catch(function () {});
   }
-  function seriesFrom(getY) {
-    return (trendData || []).map(function (r) {
-      return { t: new Date(r.generated_at), y: getY(r.statewide || {}) };
-    }).filter(function (p) { return !isNaN(p.t.getTime()); });
+  // A history record's statewide [rep, dem, oth, npa, total] for one voting method. Lines carry
+  // statewide.<method> arrays (run_all_states adds every method's from 2026-10-21; FL/NC/NV/PA had them
+  // earlier); older lines elsewhere keep only numbers: "cast", VA/WI/ND "mail" and "in_person", ND "sent".
+  function trendArr(r, m) {
+    var s = r.statewide || {}, n = null;
+    if (Array.isArray(s[m]) && (s[m][4] || m !== "cast" || typeof r.cast !== "number")) return s[m];
+    if (m === "cast") n = typeof r.cast === "number" ? r.cast : null;
+    else if (m === "mail_voted") n = typeof r.mail === "number" ? r.mail : null;
+    else if (m === "early_voted") n = typeof r.in_person === "number" ? r.in_person : null;
+    else if (m === "mail_provided" && typeof r.sent === "number" && typeof r.mail === "number") n = r.sent - r.mail;
+    return n == null ? null : [0, 0, 0, 0, n];
   }
+  function trendLabel(m) { return (data && data.method_labels && data.method_labels[m]) || methodLabel(m); }
   function renderTrends() {
     var sec = $("#trends");
     if (!trendData || trendData.length < 2) { sec.hidden = true; return; }
     sec.hidden = false;
-    var cast = (trendData || []).map(function (r) {
-      var sc = (r.statewide || {}).cast;
-      return { t: new Date(r.generated_at), y: (sc && sc[4]) || (typeof r.cast === "number" ? r.cast : 0) };
-    }).filter(function (p) { return !isNaN(p.t.getTime()); });
-    var lean = seriesFrom(function (s) {   // over party-known ballots (records may carry unattributed ones)
-      var c = s.cast, known = c ? c[0] + c[1] + c[2] + c[3] : 0;
-      return known ? Math.round((c[0] - c[1]) / known * 1000) / 10 : null;
+    var m = method, label = m === "cast" ? "Ballots cast" : trendLabel(m);
+    var recs = trendData.map(function (r) { return { t: new Date(r.generated_at), a: trendArr(r, m) }; })
+      .filter(function (p) { return !isNaN(p.t.getTime()) && p.a; });
+    var cast = recs.map(function (p) { return { t: p.t, y: p.a[4] }; });
+    var lean = recs.map(function (p) {   // over party-known ballots (records may carry unattributed ones)
+      var a = p.a, known = a[0] + a[1] + a[2] + a[3];
+      return { t: p.t, n: a[4], y: known ? Math.round((a[0] - a[1]) / known * 1000) / 10 : null };
     });
-    lean.forEach(function (p, i) { p.n = cast[i] ? cast[i].y : null; });   // same records, same order
-    drawLineChart($("#chart-cast"), cast, { ymin: 0, fmt: fmt, color: "#31a354",
-      tip: function (p) { return fmt(p.y) + " ballots"; } });
-    drawLineChart($("#chart-lean"), lean, { symmetric: true, zero: true, fmt: marginText, color: "var(--accent)",
+    var hasLean = partisan && lean.some(function (p) { return p.y != null; });
+    $("#trend-title-cast").textContent = label;
+    $("#trend-title-lean").textContent = "Partisan lean" + (m === "cast" ? " of ballots cast" : " · " + label);
+    $("#trend-lean-cell").hidden = !hasLean;
+    var first = recs.length ? recs[0].t : null, all0 = new Date(trendData[0].generated_at);
+    var since = first && first - all0 > 36e5 * 24 ? first.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+    var empty = recs.length ? "Not enough updates yet" : "Not recorded separately yet; fills in from now on";
+    drawLineChart($("#chart-cast"), cast, { ymin: 0, fmt: fmt, color: "#31a354", empty: empty,
+      tip: function (p) { return fmt(p.y) + " " + (m === "cast" ? "ballots" : label.toLowerCase()); } });
+    if (hasLean) drawLineChart($("#chart-lean"), lean, { symmetric: true, zero: true, fmt: marginText, color: "var(--accent)",
       tip: function (p) { return marginText(p.y) + (p.n ? " of " + fmt(p.n) + " ballots" : ""); } });
+    var note = $("#trend-note");
+    note.hidden = !(m !== "cast" && since);
+    note.textContent = note.hidden ? "" : "This state's updates recorded " + label.toLowerCase() + " separately from " + since +
+      " on; earlier updates kept only the total.";
+    renderTrendTable(recs, label, hasLean);
+  }
+  // one row per day (the day's last update): the total so far, what that day added and, where party is
+  // reported, the composition so far and of that day's added ballots
+  function renderTrendTable(recs, label, hasLean) {
+    var host = $("#trend-table"), title = $("#trend-day-title");
+    var days = [], byKey = {};
+    recs.forEach(function (p) {
+      var k = p.t.getFullYear() + "-" + (p.t.getMonth() + 1) + "-" + p.t.getDate();
+      if (!(k in byKey)) { byKey[k] = days.length; days.push(p); } else days[byKey[k]] = p;
+    });
+    title.hidden = host.hidden = !days.length;
+    if (!days.length) { host.innerHTML = ""; return; }
+    title.textContent = "By day · " + label.toLowerCase();
+    function pc(n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; }
+    var partial = hasLean && days.some(function (p) { var a = p.a; return a[0] + a[1] + a[2] + a[3] && a[0] + a[1] + a[2] + a[3] < a[4]; });
+    var head = "<tr><th>Date</th><th>So far</th><th>Added that day</th>" + (hasLean ?
+      "<th>Rep</th><th>Dem</th><th>No party / other</th><th>Lean so far" + (partial ? "<small>of ballots with a known party</small>" : "") +
+      "</th><th>That day&rsquo;s ballots<small>R · D · other, lean</small></th>" : "") + "</tr>";
+    var rows = days.map(function (p, i) {
+      var a = p.a, prev = i ? days[i - 1].a : null, add = prev ? a[4] - prev[4] : null;
+      var cells = "<td>" + p.t.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + "</td><td>" + fmt(a[4]) + "</td><td>" +
+        (add == null ? "—" : (add < 0 ? "−" : "") + fmt(Math.abs(add))) + "</td>";
+      if (hasLean) {
+        var k = a[0] + a[1] + a[2] + a[3];
+        cells += "<td class='r'>" + pc(a[0], k) + "<span class='sub'>" + fmt(a[0]) + "</span></td>" +
+          "<td class='d'>" + pc(a[1], k) + "<span class='sub'>" + fmt(a[1]) + "</span></td>" +
+          "<td>" + pc(a[2] + a[3], k) + "<span class='sub'>" + fmt(a[2] + a[3]) + "</span></td>" +
+          "<td><b>" + (k ? marginText(Math.round((a[0] - a[1]) / k * 1000) / 10) : "—") + "</b></td>";
+        var dr = prev ? a[0] - prev[0] : null, dd = prev ? a[1] - prev[1] : null, dn = prev ? a[2] + a[3] - prev[2] - prev[3] : null;
+        var dk = prev ? dr + dd + dn : 0;
+        cells += "<td>" + (prev && dk > 0 && dr >= 0 && dd >= 0 && dn >= 0 && prev[0] + prev[1] + prev[2] + prev[3] ?
+          pc(dr, dk) + " · " + pc(dd, dk) + " · " + pc(dn, dk) + "<span class='sub'>" + marginText(Math.round((dr - dd) / dk * 1000) / 10) +
+          " of " + fmt(dk) + "</span>" : "—") + "</td>";
+      }
+      return "<tr>" + cells + "</tr>";
+    }).reverse().join("");
+    host.innerHTML = "<table class='rt-table'><thead>" + head + "</thead><tbody>" + rows + "</tbody></table>";
   }
   function drawLineChart(svg, series, opts) {
     opts = opts || {};
@@ -1077,7 +1133,7 @@
       svg.appendChild(e); return e;
     }
     var pts = series.filter(function (p) { return p.y != null; });
-    if (pts.length < 2) { add("text", { x: ml, y: H / 2, class: "lbl" }, "Not enough data yet"); return; }
+    if (pts.length < 2) { add("text", { x: ml, y: H / 2, class: "lbl" }, opts.empty || "Not enough data yet"); return; }
     var xs = pts.map(function (p) { return p.t.getTime(); });
     var ys = pts.map(function (p) { return p.y; });
     var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
@@ -2079,7 +2135,7 @@
     host.hidden = false;
   }
 
-  function renderAll() { applyMethodParty(); renderStatewideOnly(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderRemaining(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
+  function renderAll() { applyMethodParty(); renderStatewideOnly(); if (trendData) renderTrends(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderRemaining(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {

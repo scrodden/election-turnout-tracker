@@ -129,6 +129,7 @@ def main():
         rec = {"checked_at": C.utc_now_iso()}
         before = latest_hash(code)
         saved = read_files(code)
+        hist0 = C.history_size(os.path.join(ROOT, "data", code))
         try:
             mod = importlib.import_module("%s_update" % code)
             buf = io.StringIO()
@@ -156,6 +157,11 @@ def main():
                     ok -= 1; errors += 1
                 rec.update(status="error", error="held: " + held, last_error_at=rec["checked_at"])
                 print("!! %s %s" % (code, held), file=sys.stderr)
+            else:   # each method's totals on the new history line(s), for the page's trend charts
+                try:
+                    C.enrich_history(os.path.join(ROOT, "data", code), hist0)
+                except Exception as e:  # noqa: BLE001 - never sink the state run over the trend lines
+                    print("!! %s history not enriched: %s" % (code, str(e)[:120]), file=sys.stderr)
             rec["changed"] = (before != after)
             if rec["changed"]:
                 changed += 1

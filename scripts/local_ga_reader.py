@@ -67,6 +67,8 @@ def main():
         # --force: read on every run (the task's 20-minute timer would otherwise land just inside
         # ga_update's 20-minute throttle and skip every other run); each read refreshes
         # source.fetched_at, which keeps the workflow from switching to the Lab fallback
+        hist = os.path.join(CLONE, "data", "ga", "history.jsonl")
+        hist0 = os.path.getsize(hist) if os.path.exists(hist) else 0
         run = subprocess.run([sys.executable, os.path.join(CLONE, "scripts", "ga_update.py"), "--force"], cwd=CLONE,
                              capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
         out = (run.stdout + run.stderr).strip().splitlines()
@@ -76,6 +78,12 @@ def main():
         if run.returncode or not str(src.get("primary", "")).startswith("GA SoS"):
             log("hub read failed (rc %s): %s" % (run.returncode, " | ".join(out[-3:])[:400]))
             return 1
+        try:   # each method's totals on the new history line, as run_all_states does for the workflow
+            sys.path.insert(0, os.path.join(CLONE, "scripts"))
+            import common
+            common.enrich_history(os.path.join(CLONE, "data", "ga"), hist0)
+        except Exception as e:  # noqa: BLE001
+            log("history not enriched: %s" % str(e)[:200])
         git("add", "--", *[f for f in GA_FILES if os.path.exists(os.path.join(CLONE, f))])
         if not git("diff", "--cached", "--quiet", check=False).returncode:
             log("no change: %s" % summary[:200])

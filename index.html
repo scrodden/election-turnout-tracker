@@ -6,7 +6,7 @@
 <title>Turnout Tracker &mdash; 2026</title>
 <meta name="description" content="Live partisan composition of election turnout by county and voting method, from official state election data. Florida, North Carolina, and more." />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
-<link rel="stylesheet" href="style.css?v=2026101902" />
+<link rel="stylesheet" href="style.css?v=2026102101" />
 </head>
 <body>
 <header class="site-head">
@@ -142,14 +142,17 @@
     </div>
     <div class="trend-grid">
       <div class="trend-cell">
-        <h3 class="trend-title">Ballots cast</h3>
+        <h3 class="trend-title" id="trend-title-cast">Ballots cast</h3>
         <svg id="chart-cast" class="chart" role="img" aria-label="Ballots cast over time"></svg>
       </div>
-      <div class="trend-cell">
-        <h3 class="trend-title">Partisan lean of ballots cast</h3>
+      <div class="trend-cell" id="trend-lean-cell">
+        <h3 class="trend-title" id="trend-title-lean">Partisan lean of ballots cast</h3>
         <svg id="chart-lean" class="chart" role="img" aria-label="Partisan lean over time"></svg>
       </div>
     </div>
+    <p id="trend-note" class="fineprint" hidden></p>
+    <h3 class="trend-title trend-day-head" id="trend-day-title">By day</h3>
+    <div id="trend-table" class="rt-table-wrap trend-table-wrap"></div>
   </section>
 
   <section id="demographics" class="card" hidden aria-label="Demographics of ballots cast">
@@ -185,6 +188,6 @@
   </footer>
 </main>
 
-<script src="app.js?v=2026101905"></script>
+<script src="app.js?v=2026102101"></script>
 </body>
 </html>
