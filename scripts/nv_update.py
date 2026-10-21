@@ -26,6 +26,7 @@ Run:  python scripts/nv_update.py [--force] [--all]
 import os
 import sys
 import json
+from datetime import datetime, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -145,11 +146,30 @@ def main():
     except Exception as e:  # noqa: BLE001
         print("WARN mail feed: %s" % str(e)[:60], file=sys.stderr)
 
+    stamps_path = os.path.join(DATA_DIR, "_checked.json")
+    try:
+        stamps = load(stamps_path)
+    except (OSError, ValueError):
+        stamps = {}
     if not agg and not ignore_gate:
-        # the SoS feeds don't carry the general yet: UF Election Lab stand-in
+        # both feeds failed or are empty. Through a short outage keep the last official figures: on 10/21 at 02:03
+        # UTC one empty run switched to the Lab (other party categories, a lower total) for a single update.
+        # The Lab stand-in is for before the feeds carry the general, or a long outage.
+        ok = stamps.get("official_ok", "")
+        try:
+            prev0 = load(LATEST_PATH)
+        except (OSError, ValueError):
+            prev0 = {}
+        if ok and not prev0.get("lab_standin") and (prev0.get("statewide") or {}).get("cast", {}).get("total") and \
+                (datetime.now(timezone.utc) - datetime.strptime(ok, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)).total_seconds() < 12 * 3600:
+            print("nv: SoS feeds unavailable this run -- keeping the last official figures (read %s)" % ok)
+            return 0
         LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force,
                 role="stand-in until the SoS VIVID general-election feeds are live")
         return 0
+    stamps["official_ok"] = C.utc_now_iso()
+    with open(stamps_path, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(stamps, f)
 
     # build snapshot
     counties_out = {}
