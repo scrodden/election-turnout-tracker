@@ -308,12 +308,14 @@ def main():
     force = "--force" in sys.argv
     out = (json.load(open(OUT_PATH, encoding="utf-8")) if os.path.exists(OUT_PATH) else {}) or {}
     counties = out.get("counties", {})
+    changed = force or not out
     for county, spec in COUNTIES.items():
         lookup = build_primary_lookup(county, spec, force="--rebuild" in sys.argv)
         voters, stamps = general_voters(county, spec)
         if not force and counties.get(county, {}).get("stamps") == stamps:
             print("tx rosters: %s unchanged (%s)" % (county, stamps))
             continue
+        changed = True
         tot, by_m, by_cd, unmapped, through = tally(voters, lookup)
         counties[county] = dict(tot, mail=by_m["mail"], inp=by_m["inp"], cd=by_cd, cd_unmapped=unmapped,
                                 through=through, stamps=stamps, page=spec["page"],
@@ -321,6 +323,8 @@ def main():
         print("tx rosters: %s %d voters through %s: D %d R %d none %d (mail %d, in person %d); %d districts, %d unmapped"
               % (county, tot["voters"], through, tot["dem"], tot["rep"], tot["none"], by_m["mail"]["voters"],
                  by_m["inp"]["voters"], len(by_cd), unmapped))
+    if not changed:   # nothing new: leave both files (and their timestamps) alone, so no commit
+        return 0
     write_districts(counties)
     body = {"generated_at": C.utc_now_iso(), "method": "last party primary (official county rosters, 2022-2026 primaries "
                                                        "and runoffs) matched to the 2026 general's early-voting and mail rosters",
