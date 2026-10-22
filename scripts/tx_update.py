@@ -259,6 +259,10 @@ def party_history(cfg, elec_id, force=False):
         return None
     url = ph["url"].format(id=elec_id)
     cache = load(PARTY_CACHE, {}) or {}
+    if ph.get("enabled") is False:
+        # not fetched any more (the site's robots.txt disallows /data/ from 2026-10-22); the last copy, if kept, is
+        # shown frozen and labelled as such (config party_history.keep_frozen)
+        return dict(cache, frozen=True) if ph.get("keep_frozen") and cache.get("counties") else None
     if cache.get("url") != url:
         cache = {}
     now = datetime.now(timezone.utc)
@@ -613,7 +617,10 @@ def main():
             "party_labels": {"rep": "Republican primary voters", "dem": "Democratic primary voters",
                              "npa": "No primary since 2020"},
         })
-        notes.append("Party is the last party primary each voter voted in (2020-2026), from theoelections.com's match of "
+        notes.append(("Party (frozen as of %s): theoelections.com stopped allowing automated downloads of its data on "
+                      "Oct 22, so this is the last copy taken before then and isn't updated; ballots cast since count as "
+                      "party not reported. " % (ph.get("as_of") or "?") if ph.get("frozen") else "") +
+                     "Party is the last party primary each voter voted in (2020-2026), from theoelections.com's match of "
                      "the counties' early-voting rosters to primary voting history (%d counties, %s voters as of %s); "
                      "ballots not on those rosters yet, such as today's in-person votes, count as party not reported."
                      % (len(party_used), format(ph_known, ","), ph.get("as_of") or "?")

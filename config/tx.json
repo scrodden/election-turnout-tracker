@@ -67,6 +67,9 @@
         "election_day": "2020-11-03"
       }
     },
-    "compare_default": "2024"
+    "compare_default": "2024",
+    "enabled": false,
+    "keep_frozen": true,
+    "_disabled": "2026-10-22: theoelections.com moved behind Cloudflare; its robots.txt now has 'Disallow: /data/' for all agents and scripted requests to /data/* get Cloudflare's 403 'Sorry, you have been blocked' (pages still load). Measured from Sam's PC; our last good fetch was 18:46 UTC. Fetching stopped to respect that; the last copy (data/tx/_party_history.json, as of 2026-10-22) is shown frozen and labelled (keep_frozen) pending Sam's decision. Re-enable only with the owner's permission (@theoelections on X)."
   }
 }
