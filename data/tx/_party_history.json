@@ -2,7 +2,7 @@
 "v":3,
 "url":"https://theoelections.com/data/early/past/53815.json.gz",
 "page":"https://theoelections.com/early-vote",
-"etag":"\"6ad9a853-1f75cc\"",
+"etag":"\"6ad9a852-1f75cc\"",
 "as_of":"2026-10-22",
 "counties":{
 "101":{
@@ -2698,5 +2698,5 @@
 500704
 ]
 },
-"checked":"2026-10-22T09:19:04+00:00"
+"checked":"2026-10-22T09:56:19+00:00"
 }
