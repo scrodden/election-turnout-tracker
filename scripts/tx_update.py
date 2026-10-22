@@ -25,7 +25,7 @@ Two more layers sit on top of the SoS figures:
   * party by primary history: data/tx/roster_party.json from scripts/tx_rosters.py
     (run on Sam's PC): official rosters -- the SoS's daily voter files for every
     county, Harris County's own -- matched voter by voter to the 2026 primary and
-    runoff rosters (Harris: 2024-2026), by county and voting method. Ballots the
+    runoff rosters (Harris, Dallas, Tarrant: 2024-2026), by county and voting method. Ballots the
     rosters don't include yet are counted as party not reported; where the rosters
     count more mail or in-person voters than the state's report (or a county's live
     in-person page), that figure is used for the method, so no voter is counted
@@ -526,7 +526,7 @@ def main():
     ph = party_history(cfg, elec.get("id") or (prev.get("source") or {}).get("election_id") or cfg["source"].get("election_id"),
                        force=force)
     # our own roster match (scripts/tx_rosters.py, run on Sam's PC: official rosters -- the state's for every county,
-    # Harris's own -- matched voter by voter to the 2026 (Harris: 2024-2026) primary rosters) replaces theoelections'
+    # Harris's own -- matched voter by voter to the 2026 (Harris, Dallas, Tarrant: 2024-2026) primary rosters) replaces theoelections'
     # frozen figures for every county it covers, and is kept current, by voting method too
     rp = load(os.path.join(DATA_DIR, "roster_party.json"), {}) or {}
     own = rp.get("counties") or {}
@@ -640,7 +640,7 @@ def main():
         notes.append("Every other county's come from the Secretary of State's daily report, which adds each day's "
                      "in-person votes the next morning, so during the day those counties lag behind.")
     if party_used and by_method:
-        span = "the 2026 primaries and May runoffs; Harris County 2024-2026"
+        span = "the 2026 primaries and May runoffs; Harris, Dallas and Tarrant counties 2024-2026"
         thr = (rp.get("sos") or {}).get("through") or ""
         thr = datetime.strptime(thr, "%m/%d/%Y").strftime("%b %d").replace(" 0", " ") if thr else "?"
         body.update({
@@ -654,11 +654,12 @@ def main():
             "party_labels": {"rep": "Republican primary voters", "dem": "Democratic primary voters",
                              "npa": "No recent primary"},
         })
-        notes.append("Party is the last party primary each voter voted in -- the 2026 primaries and May runoffs (Harris "
-                     "County: 2024 and 2026) -- matched voter by voter from official rosters: every county's early-voting "
-                     "and mail voters from the Secretary of State's daily roster files (through %s), and Harris County's "
-                     "from its own rosters, which run ahead; the 2026 primary and runoff voters from the state's rosters "
-                     "(2024's aren't available statewide; Harris publishes its own). Ballots not on the rosters yet, such "
+        notes.append("Party is the last party primary each voter voted in -- the 2026 primaries and May runoffs (Harris, "
+                     "Dallas and Tarrant counties: 2024 and 2026) -- matched voter by voter from official rosters: every "
+                     "county's early-voting and mail voters from the Secretary of State's daily roster files (through %s), "
+                     "and Harris County's from its own rosters, which run ahead; the 2026 primary and runoff voters from "
+                     "the state's rosters, and 2024's from Harris, Dallas and Tarrant counties' own (2024's aren't "
+                     "available statewide, and no other county keeps them). Ballots not on the rosters yet, such "
                      "as today's in-person votes, count as party not reported. %s voters matched.%s"
                      % (thr, format(ph_known, ","),
                         (" Where a county's own early-voting and mail lists run ahead of the state's files, they are read "
@@ -687,7 +688,7 @@ def main():
         })
         if own_used:
             notes.append("%s: party from official rosters (this election's early-voting and mail rosters matched to the "
-                         "2026 primary rosters; Harris County 2024-2026), updated daily -- a shorter primary span than the "
+                         "2026 primary rosters; Harris, Dallas, Tarrant 2024-2026), updated daily -- a shorter primary span than the "
                          "2020-2026 used for other counties." % ", ".join(own_used))
         notes.append(("Party (frozen as of %s) for the other counties: theoelections.com stopped allowing automated downloads of its data on "
                       "Oct 22, so this is the last copy taken before then and isn't updated; ballots cast since count as "
@@ -711,7 +712,7 @@ def main():
                               "url": PAGE, "election": elec.get("election_name"), "as_of": as_of,
                               "election_id": elec.get("id"), "live_counties": live_used, "live_as_of": live_latest,
                               **({"party_history": ({"label": "official rosters (Texas SoS daily voter files, Harris County "
-                                                              "rosters) matched to the 2026 primary rosters",
+                                                              "rosters) matched to the 2026 (and in three counties 2024) primary rosters",
                                                      "url": PAGE, "as_of": (rp.get("sos") or {}).get("through"),
                                                      "counties": len(party_used), "voters": ph_known} if by_method else
                                                     {"label": "theoelections.com (early voters by last party primary)",

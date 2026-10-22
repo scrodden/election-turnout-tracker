@@ -11,6 +11,8 @@ automated access on 2026-10-22). Every county, two ways:
     files, fetched as each day's report appears. 2024's primary rosters are not
     available statewide: the SoS's older site (earlyvoting.texas-election.com)
     still lists those elections but no longer offers their voter files.
+  * 2024: Dallas's and Tarrant's archived 2024 primary rosters (PRIMARY_2024) for
+    their voters; no other county keeps them.
   * a county's own rosters (COUNTIES -- Harris): its official 2024 and 2026
     primary and runoff rosters (county voter IDs, so they can't be joined to the
     state's VUIDs) and its cumulative early-voting and mail rosters, which also
@@ -65,7 +67,7 @@ COUNTIES = {
         "general": {"inp": "Cumulative_EV_ToPost_1126.zip", "mail": "Cumulative_BBM_ToPost_1126.zip"},
     },
 }
-SPAN = {"state": "2026", "Harris": "2024-2026"}   # primaries (with their runoffs) behind each route's party
+SPAN = {"state": "2026", "Harris": "2024-2026", "2024": "2024-2026"}   # primaries (with runoffs) behind each county's party
 
 
 def _col(ref):
@@ -360,6 +362,7 @@ def sos_db():
     db.execute("PRAGMA synchronous=OFF")
     db.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
     db.execute("CREATE TABLE IF NOT EXISTS prim (vuid INTEGER PRIMARY KEY, party TEXT)")
+    db.execute("CREATE TABLE IF NOT EXISTS prim24 (vuid INTEGER PRIMARY KEY, party TEXT)")
     db.execute("CREATE TABLE IF NOT EXISTS gen (vuid INTEGER, county TEXT, inp INTEGER, precinct TEXT, day TEXT, "
                "src TEXT DEFAULT 'state')")
     cols = [r[1] for r in db.execute("PRAGMA table_info(gen)")]
@@ -715,6 +718,67 @@ def county_lists(db, force=False):
     return changed
 
 
+# ---- 2024 primaries: counties' own archived rosters ----
+# The state no longer offers 2024's primary voter files (its older site took the downloads off "on special request from
+# state"), but Harris, Dallas and Tarrant keep their 2024 primary and runoff rosters -- early voting, mail and election
+# day, each with the voter's VUID and the party of the ballot (Harris's are read by its own route above). For voters in
+# Dallas and Tarrant the span is 2024-2026 (a voter found in the other county's 2024 rosters -- moved since -- counts
+# too); elsewhere it is 2026 only. Checked Oct 22: Bexar, Travis, Collin, Denton, Fort Bend, El Paso, Montgomery and
+# Webb archive only results for 2024. Dallas's March mail list is as of Mar 1 (ballots that came in after aren't on it).
+_DAL24 = "https://www.dallascountyvotes.org/wp-content/uploads/"
+_TAR24 = "https://www.tarrantcountytx.gov/content/dam/main/elections/2024/"
+PRIMARY_2024 = {   # oldest first: the May runoff overrides March
+    "DALLAS": [("2024-03", _DAL24 + "In-Person-Early-Voting-Report_03.01.24.xlsx", "xlsx", "SOS VOTERID", "PARTY"),
+               ("2024-03", _DAL24 + "Mail-Ballot-Returns-Report_03.01.24.xlsx", "xlsx", "State Voter ID", "Ballot Party"),
+               ("2024-03", _DAL24 + "Election-Day-Website-Roster.xlsx", "xlsx", "State Voter ID", "PARTY"),
+               ("2024-05", _DAL24 + "2024/06/Early-Voting-Details-Report_05.28.24.xlsx", "xlsx", "SOS VOTERID", "PARTY"),
+               ("2024-05", _DAL24 + "2024/05/Mail-Ballot-Returns-Report_05.29.24.xlsx", "xlsx", "State Voter ID", "Ballot Party"),
+               ("2024-05", _DAL24 + "2024/06/Election-Day-Website-Roster_05.28.24-2.xlsx", "xlsx", "State Voter ID", "PARTY")],
+    "TARRANT": [(code, _TAR24 + "%s/%s" % (d, f), "tsv", "SOS Voter ID", "Party of Ballot Issued")
+                for code, d in (("2024-03", "pm24"), ("2024-05", "pr24"))
+                for f in ("ev_reports/a_reqexp_tc.zip", "ev_reports/ev_vtrex_tc.zip", "reports/ed_vtrex_tc.zip")],
+}
+P24_DIR = os.path.join(LOCAL_DIR, "p2024")
+
+
+def primaries_2024(db, rebuild=False):
+    """Fill `prim24` (VUID -> party of the last 2024 primary or runoff voted in) from PRIMARY_2024, once (the files
+    are final) -> {"counties": [...], "counts": {...}}; rebuilt when the list of files changes."""
+    spec = json.dumps(PRIMARY_2024, sort_keys=True)
+    built = json.loads(_meta(db, "prim24_built") or "{}")
+    if built.get("spec") == spec and not rebuild:
+        return built
+    os.makedirs(P24_DIR, exist_ok=True)
+    db.execute("DELETE FROM prim24")
+    counts = {}
+    for county, files in PRIMARY_2024.items():
+        for code, url, fmt, vcol, pcol in files:
+            data = fetch(url, os.path.join(P24_DIR, re.sub(r"[^\w.-]+", "_", url.split("//", 1)[1])[-120:]))[0]
+            idx, rows = None, []
+            for row in _table(data, fmt):
+                cells = [str(c).strip() for c in row]
+                if idx is None:
+                    low = [c.lower() for c in cells]
+                    if vcol.lower() in low and pcol.lower() in low:
+                        idx = (low.index(vcol.lower()), low.index(pcol.lower()))
+                    continue
+                v = re.sub(r"\.0$", "", cells[idx[0]]) if idx[0] < len(cells) else ""
+                pt = cells[idx[1]][:1].upper() if idx[1] < len(cells) else ""
+                if v.isdigit() and pt in ("D", "R"):
+                    rows.append((int(v), pt))
+            if idx is None or not rows:
+                raise ValueError("%s 2024 roster %s: no %s / %s rows" % (county.title(), url.rsplit("/", 1)[-1], vcol, pcol))
+            db.executemany("INSERT OR REPLACE INTO prim24 VALUES (?, ?)", rows)
+            counts["%s %s %s" % (county.title(), code, url.rsplit("/", 1)[-1])] = len(rows)
+            print("tx rosters: %s %s primary roster %s: %d voters" % (county.title(), code, url.rsplit("/", 1)[-1], len(rows)))
+    built = {"spec": spec, "counties": sorted(PRIMARY_2024), "counts": counts, "built": C.utc_now_iso()}
+    _meta(db, "prim24_built", json.dumps(built))
+    db.commit()
+    for f in os.listdir(P24_DIR):   # voter-level, and the lookup is all that's needed
+        os.remove(os.path.join(P24_DIR, f))
+    return built
+
+
 def _ckey(name):
     return re.sub(r"[^A-Z0-9]", "", str(name).upper())
 
@@ -745,19 +809,20 @@ def precinct_cds():
     return out
 
 
-def sos_tally(db, skip):
-    """Every county's Tally from the state's files and the counties' own lists (counties in `skip` left out)
-    -> {county key: Tally}."""
+def sos_tally(db, skip, with2024=()):
+    """Every county's Tally from the state's files and the counties' own lists (counties in `skip` left out; for those
+    in `with2024`, a voter with no 2026 primary takes their 2024 one) -> {county key: Tally}."""
     pcd = precinct_cds()
     one = {c: next(iter(set(m.values()))) for c, m in pcd.items() if len(set(m.values())) == 1}
-    q = ("SELECT county, inp, precinct, day, cd, COALESCE(p.party, 'N'), COUNT(*) FROM "
+    q = ("SELECT county, inp, precinct, day, cd, p.party, o.party, COUNT(*) FROM "
          "(SELECT vuid, county, inp, precinct, day, cd, ROW_NUMBER() OVER (PARTITION BY vuid ORDER BY inp DESC, day) AS rn "
-         "FROM gen) g LEFT JOIN prim p USING (vuid) WHERE rn = 1 GROUP BY 1, 2, 3, 4, 5, 6")
+         "FROM gen) g LEFT JOIN prim p USING (vuid) LEFT JOIN prim24 o USING (vuid) WHERE rn = 1 GROUP BY 1, 2, 3, 4, 5, 6, 7")
     out = {}
-    for county, inp, prec, day, cd, party, n in db.execute(q):
+    for county, inp, prec, day, cd, party, p24, n in db.execute(q):
         k = _ckey(county)
         if k in skip:
             continue
+        party = party or (p24 if k in with2024 else None)
         cd = cd or one.get(k) or (pcd.get(k) or {}).get(_pkey(prec))
         out.setdefault(k, Tally()).add({"D": "dem", "R": "rep"}.get(party, "none"), "inp" if inp else "mail", cd, day, n)
     return out
@@ -766,7 +831,8 @@ def sos_tally(db, skip):
 DIST_PATH = os.path.join(ROOT, "data", "tx", "districts.json")
 SHARE_PATH = os.path.join(ROOT, "data", "tx", "party_share.json")
 CD_GEO = os.path.join(ROOT, "assets", "tx-cd.geojson")
-SPAN_TEXT = "the 2026 primaries and May runoffs (Harris County: 2024 and 2026, from its own rosters)"
+SPAN_TEXT = ("the 2026 primaries and May runoffs (in Harris, Dallas and Tarrant counties, 2024's too, from the counties' "
+             "own rosters)")
 
 
 def _blk(t):
@@ -928,6 +994,12 @@ def main():
         try:
             els = {e["id"]: e for e in (sos_json(type="EVR_ELECTION") or {}).get("elections", [])}
             prim_counts = sos_primaries(db, els, rebuild=rebuild)
+            try:
+                p24 = primaries_2024(db, rebuild=rebuild)
+            except Exception as e:  # noqa: BLE001 - 2024 is extra: without it those counties stay 2026-only
+                print("tx rosters: 2024 primary rosters unavailable (%s)" % str(e)[:150], file=sys.stderr)
+                p24 = json.loads(_meta(db, "prim24_built") or "{}")
+            with2024 = {_ckey(c) for c in p24.get("counties") or []}
             elec = els.get((T.find_election(T.load(T.CONFIG_PATH, {})) or {}).get("id"))
             if not elec:
                 raise ValueError("the general isn't in the SoS app")
@@ -935,16 +1007,18 @@ def main():
             new = county_lists(db, force=force) or new
             skip = {_ckey(c) for c in own}
             # the join reruns only when the files (or which counties use their own rosters) changed
-            if new or force or fresh or not sos.get("through") or set(sos.get("skip") or []) != skip:
+            if (new or force or fresh or not sos.get("through") or set(sos.get("skip") or []) != skip
+                    or sos.get("with2024") != sorted(with2024)):
                 names, days, unknown = county_names(), {}, []
                 for c in [n for n, r in counties.items() if r.get("route") != "county" or n not in own]:
                     del counties[c]
-                for sc, t in sos_tally(db, skip).items():
+                for sc, t in sos_tally(db, skip, with2024).items():
                     name = names.get(sc)
                     if not name:
                         unknown.append(sc)
                         continue
-                    rec = t.record(route="state", span=SPAN["state"], page=SOS_PAGE, primaries=["2026-03", "2026-05"])
+                    rec = t.record(route="state", span=SPAN["2024" if sc in with2024 else "state"], page=SOS_PAGE,
+                                   primaries=(["2024-03", "2024-05"] if sc in with2024 else []) + ["2026-03", "2026-05"])
                     lists = next((v for k_, v in COUNTY_LISTS.items() if _ckey(k_) == sc), None)
                     if lists:
                         rec.update(supplement=lists["label"], supplement_page=lists["page"])
@@ -965,6 +1039,7 @@ def main():
                 if unknown:
                     print("tx rosters: state county names not on the map: %s" % unknown[:8], file=sys.stderr)
                 sos = {"through": full, "latest_file": latest, "date_updated": upd, "primaries": prim_counts, "skip": sorted(skip),
+                       "with2024": sorted(with2024), "primaries_2024": p24.get("counts", {}),
                        "days": dict(sorted(days.items())), "state_days": sorted(sday)}
                 changed = True
                 st = sum(r["voters"] for r in counties.values() if r.get("route") == "state")
