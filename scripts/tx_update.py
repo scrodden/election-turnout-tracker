@@ -22,14 +22,15 @@ Two more layers sit on top of the SoS figures:
   * counties' own live pages (in-person early votes through the day): ElectionLink
     widgets (found by probing every county) and Dallas County's vote-center map
     (an ArcGIS layer with each site's votes; config live_arcgis).
-  * party by primary history (config party_history): theoelections.com publishes,
-    per county, the early voters on the counties' rosters split by the last party
-    primary each voted in (2020-2026). Used unaltered, with attribution, for the
-    all-ballots figures only (it isn't split by voting method). Ballots the rosters
-    don't include yet are counted as party not reported. The rosters also split
-    each county's voters into mail and in person: where either is higher than the
-    state's report (or a county's live in-person page), that figure is used for
-    the method (e.g. Bexar's mail ballots), so no voter is counted twice.
+  * party by primary history: data/tx/roster_party.json from scripts/tx_rosters.py
+    (run on Sam's PC): official rosters -- the SoS's daily voter files for every
+    county, Harris County's own -- matched voter by voter to the 2026 primary and
+    runoff rosters (Harris: 2024-2026), by county and voting method. Ballots the
+    rosters don't include yet are counted as party not reported; where the rosters
+    count more mail or in-person voters than the state's report (or a county's live
+    in-person page), that figure is used for the method, so no voter is counted
+    twice. Fallback for counties it lacks: theoelections.com's per-county split
+    (config party_history; frozen since 2026-10-22, all ballots only).
 
 Run:  python scripts/tx_update.py [--force]
 """
@@ -524,9 +525,11 @@ def main():
     # party by primary history (theoelections), on the all-ballots figures
     ph = party_history(cfg, elec.get("id") or (prev.get("source") or {}).get("election_id") or cfg["source"].get("election_id"),
                        force=force)
-    # our own roster match (scripts/tx_rosters.py, run on Sam's PC: the county's 2026 rosters vs its official
-    # 2022-2026 primary rosters) replaces theoelections' figures for the counties it covers, and is kept current
-    own = (load(os.path.join(DATA_DIR, "roster_party.json"), {}) or {}).get("counties") or {}
+    # our own roster match (scripts/tx_rosters.py, run on Sam's PC: official rosters -- the state's for every county,
+    # Harris's own -- matched voter by voter to the 2026 (Harris: 2024-2026) primary rosters) replaces theoelections'
+    # frozen figures for every county it covers, and is kept current, by voting method too
+    rp = load(os.path.join(DATA_DIR, "roster_party.json"), {}) or {}
+    own = rp.get("counties") or {}
     own_used = []
     if own:
         ph = dict(ph or {}, counties=dict((ph or {}).get("counties") or {}))
@@ -537,8 +540,11 @@ def main():
                 md = (r.get("through") or "").split("/")
                 ph["counties"][f3] = {"voters": r["voters"], "dem": r["dem"], "rep": r["rep"], "both": 0, "none": r["none"],
                                       "mail": (r.get("mail") or {}).get("voters"), "inp": (r.get("inp") or {}).get("voters"),
-                                      "as_of": "%s-%s-%s" % (md[2], md[0], md[1]) if len(md) == 3 else "", "own": True}
+                                      "mail_p": r.get("mail"), "inp_p": r.get("inp"),
+                                      "as_of": "%s-%s-%s" % (md[2], md[0], md[1]) if len(md) == 3 else "", "own": True,
+                                      "route": r.get("route", "")}
                 own_used.append(name)
+    by_method = bool(own_used) and len(own_used) == len(counties)   # party by voting method needs every county's split
     party_used, roster_ahead, ph_known = [], [], 0
     if ph and ph.get("counties"):
         for name, ent in counties.items():
@@ -567,12 +573,18 @@ def main():
                     ent["early_voted"] = blk(ip1)
                 tot += mail1 + ip1 - mail0 - ip0
             ent["cast"] = C.party_block(p["rep"], p["dem"], 0, p["none"], unk=tot - p["voters"])
+            if by_method:
+                for key, pm, n in (("mail_voted", p["mail_p"], mail1), ("early_voted", p["inp_p"], ip1)):
+                    if n:
+                        ent[key] = C.party_block(pm["rep"], pm["dem"], 0, pm["none"], unk=n - pm["voters"])
             ent["turnout_pct"] = round(100.0 * tot / ent["registered"], 2) if ent.get("registered") else None
-            ent["party_history"] = {"voters": p["voters"], "as_of": p["as_of"], **({"source": "county rosters"} if p.get("own") else {})}
+            ent["party_history"] = {"voters": p["voters"], "as_of": p["as_of"],
+                                    **({"source": "county rosters" if p.get("route") == "county" else "state rosters"}
+                                       if p.get("own") else {})}
             party_used.append(name)
             ph_known += p["voters"]
     cast = t["ip"] + t["mail"] + t.get("eday", 0)
-    if party_used:
+    if party_used and not (rp.get("state_series") or {}).get("dates"):   # else tx_rosters writes it
         try:
             write_party_share(cfg, ph)
         except Exception as e:  # noqa: BLE001 - the chart file must never sink the turnout update
@@ -591,10 +603,18 @@ def main():
         if statewide["cast"]["total"] != cast:
             print("tx: county party blocks sum to %d, not %d -- not used" % (statewide["cast"]["total"], cast), file=sys.stderr)
             return 1
-    if t["ip"]:
-        statewide["early_voted"] = blk(t["ip"])
-    if t["mail"]:
-        statewide["mail_voted"] = blk(t["mail"])
+    for key, n in (("early_voted", t["ip"]), ("mail_voted", t["mail"])):
+        if not n:
+            continue
+        statewide[key] = blk(n)
+        if by_method and party_used:
+            b = C.add_blocks(*[c.get(key) for c in counties.values()])
+            b.pop("compiled", None)
+            b.pop("compiled_iso", None)
+            if b["total"] == n:
+                statewide[key] = b
+            else:
+                print("tx: county %s party blocks sum to %d, not %d -- turnout only" % (key, b["total"], n), file=sys.stderr)
     if t.get("eday"):
         statewide["election_day"] = blk(t["eday"])
     import lab_standin as LAB
@@ -619,7 +639,34 @@ def main():
     if live_used:
         notes.append("Every other county's come from the Secretary of State's daily report, which adds each day's "
                      "in-person votes the next morning, so during the day those counties lag behind.")
-    if party_used:
+    if party_used and by_method:
+        span = "the 2026 primaries and May runoffs; Harris County 2024-2026"
+        thr = (rp.get("sos") or {}).get("through") or ""
+        thr = datetime.strptime(thr, "%m/%d/%Y").strftime("%b %d").replace(" 0", " ") if thr else "?"
+        body.update({
+            "party_methods": ["cast", "mail_voted", "early_voted"],
+            "party_basis": "the last party primary each voter voted in (%s)" % span,
+            "party_hints": {k: "%s by the last party primary they voted in (%s), from the official rosters. No recent "
+                               "primary = none in that span, including new voters." % (w, span)
+                            for k, w in (("cast", "Everyone who has voted so far"), ("mail_voted", "Mail ballots received"),
+                                         ("early_voted", "In-person early voters"))},
+            "unk_label": "counted, but not yet on the rosters",
+            "party_labels": {"rep": "Republican primary voters", "dem": "Democratic primary voters",
+                             "npa": "No recent primary"},
+        })
+        notes.append("Party is the last party primary each voter voted in -- the 2026 primaries and May runoffs (Harris "
+                     "County: 2024 and 2026) -- matched voter by voter from official rosters: every county's early-voting "
+                     "and mail voters from the Secretary of State's daily roster files (through %s), and Harris County's "
+                     "from its own rosters, which run ahead; the 2026 primary and runoff voters from the state's rosters "
+                     "(2024's aren't available statewide; Harris publishes its own). Ballots not on the rosters yet, such "
+                     "as today's in-person votes, count as party not reported. %s voters matched."
+                     % (thr, format(ph_known, ","))
+                     + (" Where the rosters count more mail or in-person voters than the state's report or a county's live "
+                        "page, the roster count is used for that method: %s."
+                        % ", ".join("%s %s (was %s)" % (n, format(v, ","), format(s_, ","))
+                                    for n, v, s_ in sorted(roster_ahead, key=lambda r: -r[1])[:8])
+                        if roster_ahead else ""))
+    elif party_used:
         body.update({
             "party_methods": ["cast"],
             "party_basis": "the last party primary each voter voted in (2020-2026)",
@@ -633,9 +680,9 @@ def main():
                              "npa": "No primary since 2020"},
         })
         if own_used:
-            notes.append("%s: party from the county's own official rosters (its 2026 early-voting and mail rosters matched to "
-                         "its 2022-2026 primary rosters), updated daily -- a shorter primary span than the 2020-2026 used "
-                         "for other counties." % ", ".join(own_used))
+            notes.append("%s: party from official rosters (this election's early-voting and mail rosters matched to the "
+                         "2026 primary rosters; Harris County 2024-2026), updated daily -- a shorter primary span than the "
+                         "2020-2026 used for other counties." % ", ".join(own_used))
         notes.append(("Party (frozen as of %s) for the other counties: theoelections.com stopped allowing automated downloads of its data on "
                       "Oct 22, so this is the last copy taken before then and isn't updated; ballots cast since count as "
                       "party not reported. " % (ph.get("as_of") or "?") if ph.get("frozen") else "") +
@@ -657,9 +704,13 @@ def main():
                                          "turnout by county, as submitted by county election officials)",
                               "url": PAGE, "election": elec.get("election_name"), "as_of": as_of,
                               "election_id": elec.get("id"), "live_counties": live_used, "live_as_of": live_latest,
-                              **({"party_history": {"label": "theoelections.com (early voters by last party primary)",
-                                                    "url": ph.get("page") or ph.get("url"), "as_of": ph.get("as_of"),
-                                                    "counties": len(party_used), "voters": ph_known}} if party_used else {}),
+                              **({"party_history": ({"label": "official rosters (Texas SoS daily voter files, Harris County "
+                                                              "rosters) matched to the 2026 primary rosters",
+                                                     "url": PAGE, "as_of": (rp.get("sos") or {}).get("through"),
+                                                     "counties": len(party_used), "voters": ph_known} if by_method else
+                                                    {"label": "theoelections.com (early voters by last party primary)",
+                                                     "url": ph.get("page") or ph.get("url"), "as_of": ph.get("as_of"),
+                                                     "counties": len(party_used), "voters": ph_known})} if party_used else {}),
                               **({"sos_unavailable": sos_down} if sos_down else {})},
                 source_compiled=as_of, source_compiled_iso=live_latest or ((as_of + "T00:00:00") if as_of else now),
                 data_hash=h, generated_at=now if changed else prev.get("generated_at", now))

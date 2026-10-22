@@ -1774,6 +1774,7 @@
     return out;
   }
   function primariesText(ser, yr) {
+    if (ser && ser.span) return ser.span;
     var n = ser && ser.primaries;
     return n ? (n === 1 ? "the 2020 primary" : "primaries 2020–" + yr) : "primaries since 2020";
   }
@@ -1823,7 +1824,8 @@
     }).join("");
     $("#party-trend-table").innerHTML = "<table class='rt-table'><thead><tr><th>Date</th><th>Days out</th><th>Voters so far</th><th>Dem primary</th>" +
       "<th>Rep primary</th><th>No primary</th><th>Lean</th>" + (B.length ? "<th>" + cmpYr + " same point</th>" : "") + "</tr></thead><tbody>" + rows + "</tbody></table>";
-    $("#party-trend-note").textContent = "Share of early voters through each day by the last party primary each voted in (" + cy + ": " +
+    $("#party-trend-note").textContent = d.note ? d.note + " Days before " + fmt(PARTY_MIN) + " voters aren't drawn." :
+      "Share of early voters through each day by the last party primary each voted in (" + cy + ": " +
       primariesText(cur, cy) + "; none = no primary in that span, including new voters), from " + (d.source || "").split(":")[0] +
       "'s match of the counties' early-voting rosters to primary voting history: " + fmt(d.counties) + " counties have roster data so far, " +
       "so the " + cy + " line also moves as counties join." + (cmp ? " " + cmpYr + " is the same " + fmt(cmp.counties || d.counties) +

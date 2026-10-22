@@ -84,7 +84,7 @@ def chain_watchdog():
         (age, "restarted update.yml" if not r.returncode else "dispatch failed: " + (r.stderr or r.stdout).strip()[:160]))
 
 
-TX_FILES = ["data/tx/roster_party.json", "data/tx/districts.json"]
+TX_FILES = ["data/tx/roster_party.json", "data/tx/districts.json", "data/tx/party_share.json"]
 
 
 def commit_push(files, message, summary):
