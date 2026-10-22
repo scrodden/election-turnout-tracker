@@ -359,7 +359,10 @@ def sos_db():
     db.execute("PRAGMA synchronous=OFF")
     db.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT)")
     db.execute("CREATE TABLE IF NOT EXISTS prim (vuid INTEGER PRIMARY KEY, party TEXT)")
-    db.execute("CREATE TABLE IF NOT EXISTS gen (vuid INTEGER, county TEXT, inp INTEGER, precinct TEXT, day TEXT)")
+    db.execute("CREATE TABLE IF NOT EXISTS gen (vuid INTEGER, county TEXT, inp INTEGER, precinct TEXT, day TEXT, "
+               "src TEXT DEFAULT 'state')")
+    if "src" not in [r[1] for r in db.execute("PRAGMA table_info(gen)")]:   # made before the counties' own lists joined
+        db.execute("ALTER TABLE gen ADD COLUMN src TEXT DEFAULT 'state'")
     db.execute("CREATE INDEX IF NOT EXISTS gen_day ON gen (day)")
     return db
 
@@ -429,14 +432,93 @@ def sos_general(db, elec, force=False):
         p = os.path.join(SOS_DIR, "general_%s.csv" % d.replace("/", ""))
         sos_download(p, type="EVR_STATEWIDE", electionId=elec["id"], electionDate=d)
         day = "%s-%s-%s" % (d[6:], d[:2], d[3:5])
-        db.execute("DELETE FROM gen WHERE day = ?", (day,))
-        db.executemany("INSERT INTO gen VALUES (?, ?, ?, ?, ?)", ((v, c, int(ip), pr, day) for c, v, ip, pr in sos_rows(p)))
+        db.execute("DELETE FROM gen WHERE day = ? AND src = 'state'", (day,))
+        db.executemany("INSERT INTO gen (vuid, county, inp, precinct, day) VALUES (?, ?, ?, ?, ?)",
+                       ((v, c, int(ip), pr, day) for c, v, ip, pr in sos_rows(p)))
         _meta(db, "gen:" + d, upd)
         db.commit()
         os.remove(p)
         changed = True
         print("tx rosters: state general %s loaded" % d)
     return changed, latest, upd
+
+
+# ---- counties' own lists that carry the VUID: joined with the state's (a voter on both counts once) ----
+# Bexar sends the state almost none of its mail ballots (8 in the Oct 22 report), so its own daily lists fill them in:
+# elections.bexar.gov's Document Center folder "11-03 General Election" (245), listed by the folder page's own JSON
+# query. PDFs: "Received Mail Ballots - YYYY-MM-DD" (VUID, name, received date, precinct) and "Early Vote Ballots
+# -YYYY-MM-DD" (name, VUID, site, precinct); a precinct reads "P 3007", or "S 4007.01" for part of a split precinct
+# (split by other districts, not congressional ones -- the state's files and the TLC's use the base number).
+VUID_COUNTIES = {
+    "BEXAR": {"label": "Bexar County Elections' daily mail and early-vote lists",
+              "page": "https://elections.bexar.gov/DocumentCenter/Index/245", "base": "https://elections.bexar.gov",
+              "list": "https://elections.bexar.gov/Admin/DocumentCenter/Home/Document_AjaxBinding?renderMode=0&loadSource=7",
+              "folder": 245},
+}
+ROW_RE = re.compile(r"(?<!\d)(\d{6,10})(?!\d).*\s[PS]\s+(\d+)(?:\.\d+)?\s*$")   # a few VUIDs print without leading zeros
+
+
+def county_docs(spec):
+    """-> [(kind 'mail' / 'ev', ISO day, url, stamp)] for the county folder's list PDFs."""
+    body = json.dumps({"folderId": spec["folder"], "getDocuments": 1, "imageRepo": False, "renderMode": 0, "loadSource": 7,
+                       "searchString": "", "pageNumber": 1, "rowsPerPage": 500, "sortColumn": "Name", "sortOrder": 0})
+    req = urllib.request.Request(spec["list"], data=body.encode(), headers={"User-Agent": C.USER_AGENT,
+                                                                          "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60, context=C._SSL_CTX) as r:
+        docs = json.loads(r.read()).get("Documents") or []
+    out = []
+    for d in docs:
+        m = re.search(r"(Received Mail|Early Vote) Ballots\s*-\s*(\d{4}-\d{2}-\d{2})", d.get("DisplayName") or "")
+        if m and d.get("URL"):
+            out.append(("mail" if m.group(1).startswith("Received") else "ev", m.group(2), spec["base"] + d["URL"],
+                        "%s %s %s" % (d.get("ID"), d.get("LastModifiedDateString"), d.get("FileSize"))))
+    return out
+
+
+def pdf_voters(data):
+    """-> [(VUID, base precinct)] from a county list PDF (pypdf, installed on Sam's PC)."""
+    from pypdf import PdfReader
+    out = []
+    for page in PdfReader(io.BytesIO(data)).pages:
+        for ln in (page.extract_text() or "").splitlines():
+            m = ROW_RE.search(ln.strip())
+            if m:
+                out.append((int(m.group(1)), m.group(2)))
+    return out
+
+
+def county_lists(db, force=False):
+    """Load the VUID_COUNTIES' new or changed list PDFs into `gen` (src '<COUNTY>:<kind>') -> changed?"""
+    changed = False
+    for county, spec in VUID_COUNTIES.items():
+        try:
+            docs = county_docs(spec)
+        except Exception as e:  # noqa: BLE001
+            print("tx rosters: %s's list folder unavailable (%s)" % (county.title(), str(e)[:100]), file=sys.stderr)
+            continue
+        for kind, day, url, stamp in docs:
+            key = "%s:%s:%s" % (county, kind, day)
+            if not force and _meta(db, key) == stamp:
+                continue
+            try:
+                data = fetch(url)[0]
+                rows = pdf_voters(data)
+            except Exception as e:  # noqa: BLE001
+                print("tx rosters: %s %s %s unreadable (%s)" % (county.title(), kind, day, str(e)[:100]), file=sys.stderr)
+                continue
+            if not rows and len(data) > 100000:
+                print("tx rosters: %s %s %s: no voter rows read from %d bytes -- skipped"
+                      % (county.title(), kind, day, len(data)), file=sys.stderr)
+                continue
+            src = "%s:%s" % (county, kind)
+            db.execute("DELETE FROM gen WHERE src = ? AND day = ?", (src, day))
+            db.executemany("INSERT INTO gen (vuid, county, inp, precinct, day, src) VALUES (?, ?, ?, ?, ?, ?)",
+                           ((v, county, int(kind == "ev"), pr, day, src) for v, pr in rows))
+            _meta(db, key, stamp)
+            db.commit()
+            changed = True
+            print("tx rosters: %s's own %s list %s: %d voters" % (county.title(), kind, day, len(rows)))
+    return changed
 
 
 def _ckey(name):
@@ -563,7 +645,7 @@ def write_districts(counties, through):
 def state_series(counties, sos):
     """Statewide early voters by party, cumulative through each of the state's roster days (Harris's own rosters
     folded in by their dates; their days after the state's latest wait for the state to catch up)."""
-    dates = sorted((sos.get("days") or {}))
+    dates = sos.get("state_days") or sorted(sos.get("days") or {})   # county lists' earlier days fold into the first
     if not dates:
         return {}
     days = {}
@@ -655,8 +737,9 @@ def main():
             if not elec:
                 raise ValueError("the general isn't in the SoS app")
             new, latest, upd = sos_general(db, elec, force=force)
+            new = county_lists(db, force=force) or new
             skip = {_ckey(c) for c in own}
-            # the join reruns only when the state's files (or which counties use their own rosters) changed
+            # the join reruns only when the files (or which counties use their own rosters) changed
             if new or force or fresh or not sos.get("through") or set(sos.get("skip") or []) != skip:
                 names, days, unknown = county_names(), {}, []
                 for c in [n for n, r in counties.items() if r.get("route") != "county" or n not in own]:
@@ -667,6 +750,8 @@ def main():
                         unknown.append(sc)
                         continue
                     rec = t.record(route="state", span=SPAN["state"], page=SOS_PAGE, primaries=["2026-03", "2026-05"])
+                    if sc in VUID_COUNTIES:
+                        rec.update(supplement=VUID_COUNTIES[sc]["label"], supplement_page=VUID_COUNTIES[sc]["page"])
                     for d, a in rec.pop("days").items():
                         b = days.setdefault(d, [0, 0, 0, 0])
                         for i in range(4):
@@ -674,8 +759,9 @@ def main():
                     counties[name] = rec
                 # "through" = the last full day: the report for a voting day can come with a sliver of the next
                 # day's file (mail logged early that morning), which isn't that day's voting yet
-                big = max(a[0] for a in days.values()) if days else 0
-                full = max((d for d, a in days.items() if a[0] >= 0.1 * big), default="")
+                sday = dict(db.execute("SELECT day, COUNT(*) FROM gen WHERE src = 'state' GROUP BY day"))
+                big = max(sday.values()) if sday else 0
+                full = max((d for d, n in sday.items() if n >= 0.1 * big), default="")
                 full = "%s/%s/%s" % (full[5:7], full[8:10], full[:4]) if full else latest
                 for rec in counties.values():
                     if rec.get("route") == "state":
@@ -683,7 +769,7 @@ def main():
                 if unknown:
                     print("tx rosters: state county names not on the map: %s" % unknown[:8], file=sys.stderr)
                 sos = {"through": full, "latest_file": latest, "date_updated": upd, "primaries": prim_counts, "skip": sorted(skip),
-                       "days": dict(sorted(days.items()))}
+                       "days": dict(sorted(days.items())), "state_days": sorted(sday)}
                 changed = True
                 st = sum(r["voters"] for r in counties.values() if r.get("route") == "state")
                 print("tx rosters: state rosters through %s (report %s): %d counties, %d voters"

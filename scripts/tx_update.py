@@ -659,8 +659,11 @@ def main():
                      "and mail voters from the Secretary of State's daily roster files (through %s), and Harris County's "
                      "from its own rosters, which run ahead; the 2026 primary and runoff voters from the state's rosters "
                      "(2024's aren't available statewide; Harris publishes its own). Ballots not on the rosters yet, such "
-                     "as today's in-person votes, count as party not reported. %s voters matched."
-                     % (thr, format(ph_known, ","))
+                     "as today's in-person votes, count as party not reported. %s voters matched.%s"
+                     % (thr, format(ph_known, ","),
+                        "".join(" %s's mail ballots, which it doesn't send to the state, and its early voters also come "
+                                "from the county's own daily lists (%s)." % (n, r["supplement"].split("'")[0].strip())
+                                for n, r in sorted(own.items()) if r.get("supplement")))
                      + (" Where the rosters count more mail or in-person voters than the state's report or a county's live "
                         "page, the roster count is used for that method: %s."
                         % ", ".join("%s %s (was %s)" % (n, format(v, ","), format(s_, ","))
