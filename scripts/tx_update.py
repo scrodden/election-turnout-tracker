@@ -524,6 +524,21 @@ def main():
     # party by primary history (theoelections), on the all-ballots figures
     ph = party_history(cfg, elec.get("id") or (prev.get("source") or {}).get("election_id") or cfg["source"].get("election_id"),
                        force=force)
+    # our own roster match (scripts/tx_rosters.py, run on Sam's PC: the county's 2026 rosters vs its official
+    # 2022-2026 primary rosters) replaces theoelections' figures for the counties it covers, and is kept current
+    own = (load(os.path.join(DATA_DIR, "roster_party.json"), {}) or {}).get("counties") or {}
+    own_used = []
+    if own:
+        ph = dict(ph or {}, counties=dict((ph or {}).get("counties") or {}))
+        byname = {n: e["fips"][2:] for n, e in counties.items()}
+        for name, r in own.items():
+            f3 = byname.get(name)
+            if f3 and r.get("voters"):
+                md = (r.get("through") or "").split("/")
+                ph["counties"][f3] = {"voters": r["voters"], "dem": r["dem"], "rep": r["rep"], "both": 0, "none": r["none"],
+                                      "mail": (r.get("mail") or {}).get("voters"), "inp": (r.get("inp") or {}).get("voters"),
+                                      "as_of": "%s-%s-%s" % (md[2], md[0], md[1]) if len(md) == 3 else "", "own": True}
+                own_used.append(name)
     party_used, roster_ahead, ph_known = [], [], 0
     if ph and ph.get("counties"):
         for name, ent in counties.items():
@@ -553,7 +568,7 @@ def main():
                 tot += mail1 + ip1 - mail0 - ip0
             ent["cast"] = C.party_block(p["rep"], p["dem"], 0, p["none"], unk=tot - p["voters"])
             ent["turnout_pct"] = round(100.0 * tot / ent["registered"], 2) if ent.get("registered") else None
-            ent["party_history"] = {"voters": p["voters"], "as_of": p["as_of"]}
+            ent["party_history"] = {"voters": p["voters"], "as_of": p["as_of"], **({"source": "county rosters"} if p.get("own") else {})}
             party_used.append(name)
             ph_known += p["voters"]
     cast = t["ip"] + t["mail"] + t.get("eday", 0)
@@ -617,7 +632,11 @@ def main():
             "party_labels": {"rep": "Republican primary voters", "dem": "Democratic primary voters",
                              "npa": "No primary since 2020"},
         })
-        notes.append(("Party (frozen as of %s): theoelections.com stopped allowing automated downloads of its data on "
+        if own_used:
+            notes.append("%s: party from the county's own official rosters (its 2026 early-voting and mail rosters matched to "
+                         "its 2022-2026 primary rosters), updated daily -- a shorter primary span than the 2020-2026 used "
+                         "for other counties." % ", ".join(own_used))
+        notes.append(("Party (frozen as of %s) for the other counties: theoelections.com stopped allowing automated downloads of its data on "
                       "Oct 22, so this is the last copy taken before then and isn't updated; ballots cast since count as "
                       "party not reported. " % (ph.get("as_of") or "?") if ph.get("frozen") else "") +
                      "Party is the last party primary each voter voted in (2020-2026), from theoelections.com's match of "

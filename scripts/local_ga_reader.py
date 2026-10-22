@@ -84,6 +84,68 @@ def chain_watchdog():
         (age, "restarted update.yml" if not r.returncode else "dispatch failed: " + (r.stderr or r.stdout).strip()[:160]))
 
 
+TX_FILES = ["data/tx/roster_party.json", "data/tx/districts.json"]
+
+
+def commit_push(files, message, summary):
+    """Commit `files` (if changed) and push, replaying on top when the workflow pushed in between."""
+    git("add", "--", *[f for f in files if os.path.exists(os.path.join(CLONE, f))])
+    if not git("diff", "--cached", "--quiet", check=False).returncode:
+        log("no change: %s" % summary[:200])
+        return 0
+    git("-c", "user.name=ga-local-reader", "-c", "user.email=actions@users.noreply.github.com",
+        "commit", "--quiet", "-m", "%s %s UTC" % (message, dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M")))
+    for attempt in range(4):
+        if not git("push", "--quiet", "origin", "HEAD:main", check=False).returncode:
+            log("pushed: %s" % summary[:200])
+            return 0
+        # the workflow pushed in between: replay this commit on top (our files win)
+        git("fetch", "--quiet", "origin", "main")
+        r = git("rebase", "-X", "theirs", "origin/main", check=False)
+        if r.returncode:
+            git("rebase", "--abort", check=False)
+            log("rebase failed: %s" % (r.stderr or r.stdout).strip()[:200])
+            return 1
+    log("push failed after retries")
+    return 1
+
+
+def ga_read():
+    # --force: read on every run (the task's 20-minute timer would otherwise land just inside
+    # ga_update's 20-minute throttle and skip every other run); each read refreshes
+    # source.fetched_at, which keeps the workflow from switching to the Lab fallback
+    hist = os.path.join(CLONE, "data", "ga", "history.jsonl")
+    hist0 = os.path.getsize(hist) if os.path.exists(hist) else 0
+    run = subprocess.run([sys.executable, os.path.join(CLONE, "scripts", "ga_update.py"), "--force"], cwd=CLONE,
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
+    out = (run.stdout + run.stderr).strip().splitlines()
+    summary = next((l for l in reversed(out) if l.startswith(("CHANGED", "NOCHANGE", "ga:"))), out[-1] if out else "")
+    src = (json.load(open(os.path.join(CLONE, "data", "ga", "latest.json"), encoding="utf-8")).get("source") or {})
+    if run.returncode or not str(src.get("primary", "")).startswith("GA SoS"):
+        log("hub read failed (rc %s): %s" % (run.returncode, " | ".join(out[-3:])[:400]))
+        return 1
+    try:   # each method's totals on the new history line, as run_all_states does for the workflow
+        sys.path.insert(0, os.path.join(CLONE, "scripts"))
+        import common
+        common.enrich_history(os.path.join(CLONE, "data", "ga"), hist0)
+    except Exception as e:  # noqa: BLE001
+        log("history not enriched: %s" % str(e)[:200])
+    return commit_push(GA_FILES, "Georgia hub (local reader)", summary)
+
+
+def tx_rosters():
+    """Texas early voters by last party primary from county rosters (scripts/tx_rosters.py): the voter-level
+    files and lookup stay on this PC (outside the repo); only the totals are pushed."""
+    run = subprocess.run([sys.executable, os.path.join(CLONE, "scripts", "tx_rosters.py")], cwd=CLONE,
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600)
+    out = (run.stdout + run.stderr).strip().splitlines()
+    summary = " | ".join(l for l in out if l.startswith("tx rosters:"))[-300:] or (out[-1] if out else "")
+    if run.returncode:
+        log("tx rosters failed (rc %s): %s" % (run.returncode, " | ".join(out[-3:])[:400]))
+        return 1
+    return commit_push(TX_FILES, "Texas county rosters (local reader)", summary)
+
+
 def main():
     try:
         chain_watchdog()
@@ -98,51 +160,16 @@ def main():
         if r.returncode:
             log("clone failed: %s" % r.stderr.strip()[:300])
             return 1
-    try:
-        git("fetch", "--quiet", "origin", "main")
-        git("reset", "--quiet", "--hard", "origin/main")   # dedicated clone: always start from the published state
-        # --force: read on every run (the task's 20-minute timer would otherwise land just inside
-        # ga_update's 20-minute throttle and skip every other run); each read refreshes
-        # source.fetched_at, which keeps the workflow from switching to the Lab fallback
-        hist = os.path.join(CLONE, "data", "ga", "history.jsonl")
-        hist0 = os.path.getsize(hist) if os.path.exists(hist) else 0
-        run = subprocess.run([sys.executable, os.path.join(CLONE, "scripts", "ga_update.py"), "--force"], cwd=CLONE,
-                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600)
-        out = (run.stdout + run.stderr).strip().splitlines()
-        summary = next((l for l in reversed(out) if l.startswith(("CHANGED", "NOCHANGE", "ga:"))), out[-1] if out else "")
-        import json
-        src = (json.load(open(os.path.join(CLONE, "data", "ga", "latest.json"), encoding="utf-8")).get("source") or {})
-        if run.returncode or not str(src.get("primary", "")).startswith("GA SoS"):
-            log("hub read failed (rc %s): %s" % (run.returncode, " | ".join(out[-3:])[:400]))
-            return 1
-        try:   # each method's totals on the new history line, as run_all_states does for the workflow
-            sys.path.insert(0, os.path.join(CLONE, "scripts"))
-            import common
-            common.enrich_history(os.path.join(CLONE, "data", "ga"), hist0)
-        except Exception as e:  # noqa: BLE001
-            log("history not enriched: %s" % str(e)[:200])
-        git("add", "--", *[f for f in GA_FILES if os.path.exists(os.path.join(CLONE, f))])
-        if not git("diff", "--cached", "--quiet", check=False).returncode:
-            log("no change: %s" % summary[:200])
-            return 0
-        git("-c", "user.name=ga-local-reader", "-c", "user.email=actions@users.noreply.github.com",
-            "commit", "--quiet", "-m", "Georgia hub (local reader) %s UTC" % dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M"))
-        for attempt in range(4):
-            if not git("push", "--quiet", "origin", "HEAD:main", check=False).returncode:
-                log("pushed: %s" % summary[:200])
-                return 0
-            # the workflow pushed in between: replay this commit on top (our data/ga wins)
+    rc = 0
+    for job in (ga_read, tx_rosters):
+        try:
             git("fetch", "--quiet", "origin", "main")
-            r = git("rebase", "-X", "theirs", "origin/main", check=False)
-            if r.returncode:
-                git("rebase", "--abort", check=False)
-                log("rebase failed: %s" % (r.stderr or r.stdout).strip()[:200])
-                return 1
-        log("push failed after retries")
-        return 1
-    except Exception as e:  # noqa: BLE001
-        log("error: %s" % str(e)[:300])
-        return 1
+            git("reset", "--quiet", "--hard", "origin/main")   # dedicated clone: always start from the published state
+            rc = job() or rc
+        except Exception as e:  # noqa: BLE001 - one job's failure doesn't stop the other
+            log("%s error: %s" % (job.__name__, str(e)[:300]))
+            rc = 1
+    return rc
 
 
 if __name__ == "__main__":

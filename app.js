@@ -1432,7 +1432,8 @@
   }
   function viewReady(key) {
     var v = viewOf(key), d = altData[key], cov = d && d.coverage;
-    return !!(v && v.geojson && d && d.counties && cov && cov.total && cov.ok >= 0.9 * cov.total);
+    // a view built for only part of the map says so (d.partial, e.g. TX districts from the counties wired so far)
+    return !!(v && v.geojson && d && d.counties && cov && cov.total && (cov.ok >= 0.9 * cov.total || (d.partial && cov.ok > 0)));
   }
   function updateUnitToggle() {
     var box = $("#unit-mode"); if (!box) return;
@@ -1452,6 +1453,10 @@
       methods_present: ld.methods_present || [], method_labels: ld.method_labels || base.method_labels,
       unit_label: altLabel(key, false), unit_label_plural: altLabel(key, true),
       map_note: ld.map_note || null, statewide_only: false, county_stale: false
+    });
+    // a view's own party wording and per-method party coverage (e.g. TX districts: 2022-2026 primaries, all methods)
+    ["party_basis", "party_labels", "party_hints", "party_methods", "party_methods_note", "unk_label"].forEach(function (k) {
+      if (k in ld) data[k] = ld[k];
     });
     // each view file has its own source and as-of date
     if (ld.source) data.source = { primary: ld.source };
