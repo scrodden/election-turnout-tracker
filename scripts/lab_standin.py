@@ -240,7 +240,12 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         for k, v in r.items():
             if k not in ("cd", "sdl", "sdu", "county", "return_rate"):
                 acc[k] = acc.get(k, 0) + _n(r, k)
-    if not ok or unknown or not gidx:
+    # an older snapshot than the statewide row: every mail request is there but fewer ballots, behind by a similar
+    # share in every county (NV 10/22: 227,226 of 269,277). Used, with its own totals and a note, rather than kept
+    # frozen at an old file (NV's had stayed at 10/19 for three days).
+    req_ok = dcode in NO_REQUESTS or 0 <= gap <= max(50, _n(row, "request_all") // 100)
+    lag = not ok and req_ok and cast_gap > 0 and not unknown
+    if (not ok and not lag) or unknown or not gidx:
         print("%s: Lab district file doesn't reconcile (districts not on the map: %s) — keeping the previous one."
               % (st, unknown[:5]), file=sys.stderr)
         return
@@ -252,7 +257,14 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         if d:
             ent["demographics"] = d
         out_units[gidx[num]["name"]] = ent
-    statewide = _entity(row, partisan, dcode)
+    if lag:   # the district file's own totals, so the cards match the map
+        tot = {}
+        for a in sums.values():
+            for k, v in a.items():
+                tot[k] = tot.get(k, 0) + v
+        statewide = _entity(tot, partisan, dcode)
+    else:
+        statewide = _entity(row, partisan, dcode)
     body = {
         "state": code, "election": cfg.get("election", {}), "unit_label": label, "unit_label_plural": plural,
         "partisan": partisan,
@@ -264,7 +276,16 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         "as_of": row.get("last_update", ""), "statewide": statewide, "counties": out_units,
     }
     note = None if dcode in NO_REQUESTS else unassigned_note(gap, _n(row, "request_all"), "district")
-    if cast_gap:
+    if lag:
+        cast_all = _n(row, "accept_all") + _n(row, "inperson_all")
+        na_cast = sum(_n(r, "accept_all") + _n(r, "inperson_all") for r in parts if _dnum(r.get(kind)) is None)
+        note = ((note + " ") if note else "") + (
+            "The Election Lab's %s file has %s of the %s ballots in its statewide count (%s%%)%s. These figures "
+            "trail the statewide totals until the Lab updates the file."
+            % (desc, format(cast_all - cast_gap, ","), format(cast_all, ","), round(100.0 * (cast_all - cast_gap) / cast_all, 1),
+               "; %s have no district" % format(na_cast, ",") if na_cast else
+               "; every mail request is in it, so it's an older snapshot of the ballots"))
+    elif cast_gap:
         cast_all = _n(row, "accept_all") + _n(row, "inperson_all")
         note = ((note + " ") if note else "") + (
             "%s of the %s ballots cast in the Election Lab's data (%s%%) have no %s and appear only in the statewide "
