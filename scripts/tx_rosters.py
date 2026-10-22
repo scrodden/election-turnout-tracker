@@ -30,6 +30,7 @@ by hand:  python scripts/tx_rosters.py [--rebuild] [--force]
 """
 import binascii
 import csv
+import html
 import io
 import json
 import os
@@ -123,7 +124,7 @@ def _shared_strings(x, needed):
     with x.open("xl/sharedStrings.xml") as f:
         for _, el in ET.iterparse(f):
             if el.tag == NS + "si":
-                if i in needed:
+                if needed is None or i in needed:
                     out[i] = "".join(t.text or "" for t in el.iter(NS + "t"))
                 i += 1
                 el.clear()
@@ -361,8 +362,16 @@ def sos_db():
     db.execute("CREATE TABLE IF NOT EXISTS prim (vuid INTEGER PRIMARY KEY, party TEXT)")
     db.execute("CREATE TABLE IF NOT EXISTS gen (vuid INTEGER, county TEXT, inp INTEGER, precinct TEXT, day TEXT, "
                "src TEXT DEFAULT 'state')")
-    if "src" not in [r[1] for r in db.execute("PRAGMA table_info(gen)")]:   # made before the counties' own lists joined
+    cols = [r[1] for r in db.execute("PRAGMA table_info(gen)")]
+    if "src" not in cols:   # made before the counties' own lists joined
         db.execute("ALTER TABLE gen ADD COLUMN src TEXT DEFAULT 'state'")
+    if "doc" not in cols:   # Bexar-only rows from before the general list reader: read again by it
+        db.execute("ALTER TABLE gen ADD COLUMN cd INTEGER")
+        db.execute("ALTER TABLE gen ADD COLUMN doc TEXT")
+        db.execute("DELETE FROM gen WHERE src != 'state'")
+        db.execute("DELETE FROM meta WHERE k LIKE 'BEXAR:%'")
+    db.execute("DELETE FROM gen WHERE src != 'state' AND doc IS NULL")   # the Bexar-only reader's rows, if any came back
+    db.commit()
     db.execute("CREATE INDEX IF NOT EXISTS gen_day ON gen (day)")
     return db
 
@@ -443,66 +452,252 @@ def sos_general(db, elec, force=False):
     return changed, latest, upd
 
 
-# ---- counties' own lists that carry the VUID: joined with the state's (a voter on both counts once) ----
-# Bexar sends the state almost none of its mail ballots (8 in the Oct 22 report), so its own daily lists fill them in:
-# elections.bexar.gov's Document Center folder "11-03 General Election" (245), listed by the folder page's own JSON
-# query. PDFs: "Received Mail Ballots - YYYY-MM-DD" (VUID, name, received date, precinct) and "Early Vote Ballots
-# -YYYY-MM-DD" (name, VUID, site, precinct); a precinct reads "P 3007", or "S 4007.01" for part of a split precinct
-# (split by other districts, not congressional ones -- the state's files and the TLC's use the base number).
-VUID_COUNTIES = {
-    "BEXAR": {"label": "Bexar County Elections' daily mail and early-vote lists",
-              "page": "https://elections.bexar.gov/DocumentCenter/Index/245", "base": "https://elections.bexar.gov",
-              "list": "https://elections.bexar.gov/Admin/DocumentCenter/Home/Document_AjaxBinding?renderMode=0&loadSource=7",
-              "folder": 245},
+# ---- counties' own voter lists (they carry the statewide VUID): joined with the state's files, a voter on both
+# counting once. Read for the counties whose lists run well ahead of the state's (measured Oct 22, both through Oct 21):
+# Fort Bend's early-vote list had 85,037 voters to the state's 42,843 ballots; Webb hadn't reported to the state at
+# all (1 ballot); Bexar sends it almost none of its mail ballots (8); Dallas's and Tarrant's mail lists ran ~7k and
+# ~6k ahead; Travis, Montgomery, Denton, El Paso and Collin post theirs the evening before the state's. All are public
+# downloads on the counties' elections sites (Texas Election Code 87.121 rosters).
+#   find:  where the files are listed -- "page" (+ "re" over its HTML: named groups url, kind, m / d or mon / d, v),
+#          a CivicPlus Document Center folder ("civicplus" site + "folder"), or a "zip" of daily files ("re" over the
+#          member names). A day comes from the name; 2026 is assumed.
+#   kinds: per kind -- inp (1 in person, 0 mail), daily (one file per day; else cumulative: only the newest is read),
+#          fmt (pdf: one voter per text line, read by `line`; xlsx / csv / tsv: columns by header name, the header row
+#          being the one with the vuid column; a zip holding one file is opened first), vuid / prec / date / cd
+#          columns, prec_len (digits of the precinct number when a split code follows without a separator), keep
+#          (column, regex) to filter rows, method (column, {code: inp}) when one file holds both.
+_PDF_BEXAR = r"(?<!\d)(?P<vuid>\d{6,10})(?!\d).*\s[PS]\s+(?P<prec>\d+)(?:\.\d+)?\s*$"
+COUNTY_LISTS = {
+    "BEXAR": {"label": "Bexar County Elections' daily mail and early-vote lists (its mail ballots aren't in the state's files)",
+              "page": "https://elections.bexar.gov/DocumentCenter/Index/245",
+              "find": {"civicplus": "https://elections.bexar.gov", "folder": 245,
+                       "re": r"(?P<kind>Received Mail|Early Vote) Ballots\s*-\s*\d{4}-(?P<m>\d\d)-(?P<d>\d\d)"},
+              "kinds": {"Received Mail": {"inp": 0, "daily": True, "fmt": "pdf", "line": _PDF_BEXAR},
+                        "Early Vote": {"inp": 1, "daily": True, "fmt": "pdf", "line": _PDF_BEXAR}}},
+    "WEBB": {"label": "Webb County Elections' daily voted lists (the county hasn't reported to the state)",
+             "page": "https://www.webbcountytx.gov/420/Daily-Voted-List",
+             "find": {"re": r'href="(?P<url>[^"]+)"[^>]*>\s*(?P<m>\d\d)-(?P<d>\d\d)-2026 - (?P<kind>In Person Only|Mail Ballot Received)'},
+             "kinds": {"In Person Only": {"inp": 1, "daily": True, "fmt": "pdf", "line": r"^(?P<vuid>\d{6,10})\s+(?P<prec>\d+)\s"},
+                       "Mail Ballot Received": {"inp": 0, "daily": True, "fmt": "pdf",
+                                                "line": r"^(?P<vuid>\d{6,10})\s.*?(?P<date>\d{1,2}/\d{1,2}/\d{4})\s*$"}}},
+    "FORT BEND": {"label": "Fort Bend County Elections' early-vote and mail lists",
+                  "page": "https://www.fortbendcountytx.gov/government/departments/elections-voter-registration/early-voting-statistics",
+                  "find": {"re": r'href="(?P<url>[^"]*/(?P<kind>BBM|EV)_(?P<m>\d\d)(?P<d>\d\d)(?:_(?P<v>\d+))?\.xlsx)"'},
+                  "kinds": {"BBM": {"inp": 0, "fmt": "xlsx", "vuid": "VUID", "prec": "Precinct", "date": "Return Date",
+                                    "keep": ("Ballot Status", r"^(ACCEPTED|RECEIVED|PENDING CURE)$")},
+                            "EV": {"inp": 1, "fmt": "xlsx", "vuid": "VUID", "prec": "Precinct", "date": "Check-in Date"}}},
+    "DALLAS": {"label": "Dallas County Elections' in-person and mail lists",
+               "page": "https://www.dallascountyvotes.org/election-results/historical/november-3-2026-general-and-joint-election/",
+               "find": {"re": r'href="(?P<url>[^"]*/(?P<kind>In_Person-Early-Voting-Details-Report|Mail-Ballot-Returns-Report)'
+                              r'_(?P<m>\d\d)\.(?P<d>\d\d)\.26\.(?:csv|xlsx))"'},
+               "kinds": {"In_Person-Early-Voting-Details-Report": {"inp": 1, "fmt": "csv", "vuid": "SOS VOTERID",
+                                                                   "prec": "PRECINCT", "date": "DATE VOTED"},
+                         "Mail-Ballot-Returns-Report": {"inp": 0, "fmt": "xlsx", "vuid": "State Voter ID", "prec": "Precinct",
+                                                        "date": "Return Date"}}},
+    "TARRANT": {"label": "Tarrant County Elections' in-person and mail rosters",
+                "page": "https://www.tarrantcountytx.gov/en/elections/current-election-information.html",
+                "find": {"re": r'href="(?P<url>[^"]*/2026/1126/ev_reports/(?P<kind>absentee_returned_voter_report|'
+                               r'Early_voting_in_person_report)\.zip)"'},
+                "kinds": {"absentee_returned_voter_report": {"inp": 0, "fmt": "tsv", "vuid": "SOS Voter ID", "prec": "Precinct",
+                                                             "prec_len": 4, "date": "Return Date", "cd": "USREP"},
+                          "Early_voting_in_person_report": {"inp": 1, "fmt": "tsv", "vuid": "SOS Voter ID", "prec": "Precinct",
+                                                            "prec_len": 4, "cd": "US Rep"}}},
+    "TRAVIS": {"label": "Travis County Clerk's daily voter rosters",
+               "page": "https://votetravis.gov/current-election-information/current-election/",
+               "find": {"zip": "https://votetravis.gov/wp-content/uploads/G26-Voter-Rosters.zip",
+                        "re": r"^(?P<m>\d\d)\.(?P<d>\d\d)\.2026 (?P<kind>Ballot by Mail|Early Vote)\.xlsx$"},
+               "kinds": {"Ballot by Mail": {"inp": 0, "daily": True, "fmt": "xlsx", "vuid": "VUID", "prec": "PCT"},
+                         "Early Vote": {"inp": 1, "daily": True, "fmt": "xlsx", "vuid": "VUID", "prec": "PCT"}}},
+    "MONTGOMERY": {"label": "Montgomery County Elections' early-voting roster",
+                   "page": "https://elections.mctx.org/evRoster.asp?ELID=97&curLang=English",
+                   "find": {"re": r"myDays\.push\('(?P<url>GEN110326_(?P<m>\d\d)\.(?P<d>\d\d)\.2026\.zip)'\)",
+                            "base": "https://elections.mctx.org/EVHistoryFiles/"},
+                   "kinds": {"": {"fmt": "csv", "vuid": "VUID", "prec": "Voting_Precinct", "date": "DateVoted",
+                                  "method": ("VoteType", {"E": 1, "L": 1, "A": 0})}}},
+    "DENTON": {"label": "Denton County Elections' early-voting and returned-mail rosters",
+               "page": "https://www.votedenton.gov/early-voting-election-day-rosters/",
+               "find": {"re": r'href="(?P<url>[^"]*/1126_(?P<m>\d\d)-(?P<d>\d\d)_(?P<kind>Early-Voting-Roster|Returned_Mail_Roster)\.xlsx)"'},
+               "kinds": {"Early-Voting-Roster": {"inp": 1, "fmt": "xlsx", "vuid": "State ID", "prec": "Precinct", "prec_len": 4},
+                         "Returned_Mail_Roster": {"inp": 0, "fmt": "xlsx", "vuid": "SOS_Vuid", "prec": "Precinct", "prec_len": 4,
+                                                  "date": "Return Date"}}},
+    "EL PASO": {"label": "El Paso County Elections' early-voting and mail lists",
+                "page": "https://epcountyvotes.com/quick_links/current_election",
+                "find": {"re": r'href="(?P<url>[^"]+)"[^>]*>\s*(?P<kind>Early Voting|Ballot By Mail) (?P<m>\d\d)/(?P<d>\d\d)/2026\s*<'},
+                "kinds": {"Early Voting": {"inp": 1, "fmt": "xlsx", "vuid": "Voter id", "prec": "Prct"},
+                          "Ballot By Mail": {"inp": 0, "fmt": "csv", "vuid": "VUID", "prec": "Precinct", "date": "ReceivedDate"}}},
+    "COLLIN": {"label": "Collin County Elections' early-voter and absentee rosters",
+               "page": "https://www.collincountytx.gov/elections/rosters",
+               "find": {"re": r'href="(?P<url>[^"]*/(?P<kind>early-voters|absentee-returns)-through-(?P<mon>[a-z]+)-(?P<d>\d+)-2026\.xlsx[^"]*)"'},
+               "kinds": {"early-voters": {"inp": 1, "fmt": "xlsx", "vuid": "CertificateNumber", "prec": "Precinct", "date": "VoteDate"},
+                         "absentee-returns": {"inp": 0, "fmt": "xlsx", "vuid": "VUID", "prec": "Precinct", "date": "ReturnDate"}}},
 }
-ROW_RE = re.compile(r"(?<!\d)(\d{6,10})(?!\d).*\s[PS]\s+(\d+)(?:\.\d+)?\s*$")   # a few VUIDs print without leading zeros
+LIST_DIR = os.path.join(LOCAL_DIR, "counties")
 
 
-def county_docs(spec):
-    """-> [(kind 'mail' / 'ev', ISO day, url, stamp)] for the county folder's list PDFs."""
-    body = json.dumps({"folderId": spec["folder"], "getDocuments": 1, "imageRepo": False, "renderMode": 0, "loadSource": 7,
-                       "searchString": "", "pageNumber": 1, "rowsPerPage": 500, "sortColumn": "Name", "sortOrder": 0})
-    req = urllib.request.Request(spec["list"], data=body.encode(), headers={"User-Agent": C.USER_AGENT,
-                                                                          "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=60, context=C._SSL_CTX) as r:
-        docs = json.loads(r.read()).get("Documents") or []
+def _day(v):
+    """A list's date -> ISO ('' if unreadable): Excel serials, M/D/YYYY [time], MM.DD.YY, YYYY-MM-DD, 'Oct 21 2026'."""
+    s = str(v or "").strip()
+    if re.fullmatch(r"4\d{4}(\.\d+)?", s):
+        return (datetime(1899, 12, 30) + timedelta(days=int(float(s)))).strftime("%Y-%m-%d")
+    m = re.search(r"(\d{4})-(\d\d)-(\d\d)", s)
+    if m:
+        return m.group(0)
+    m = re.search(r"(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})", s)
+    if m:
+        y = int(m.group(3))
+        return "%04d-%02d-%02d" % (y + 2000 if y < 100 else y, int(m.group(1)), int(m.group(2)))
+    m = re.search(r"([A-Z][a-z]{2}) +(\d{1,2}) +(\d{4})", s)
+    if m:
+        try:
+            return datetime.strptime(" ".join(m.groups()), "%b %d %Y").strftime("%Y-%m-%d")
+        except ValueError:
+            pass
+    return ""
+
+
+def _prec(p, ks):
+    p = str(p or "").strip()
+    p = p[:ks["prec_len"]] if ks.get("prec_len") else re.split(r"[.\-\s]", p)[0]
+    return p
+
+
+def _table(data, fmt):
+    """Rows (lists of str) of a list file: xlsx (first sheet), csv, tsv, or pdf (each text line one cell)."""
+    if data[:2] == b"PK" and fmt != "xlsx":
+        z = zipfile.ZipFile(io.BytesIO(data))
+        data = z.read(next(n for n in z.namelist() if not n.endswith("/")))
+    if fmt == "pdf":
+        from pypdf import PdfReader   # installed on Sam's PC
+        for page in PdfReader(io.BytesIO(data)).pages:
+            for ln in (page.extract_text() or "").splitlines():
+                yield [ln.strip()]
+    elif fmt == "xlsx":
+        x = zipfile.ZipFile(io.BytesIO(data))
+        strings = _shared_strings(x, None)
+        for cells in _rows(x, sorted(n for n in x.namelist() if n.startswith("xl/worksheets/sheet"))[0]):
+            row = [""] * (max(cells) + 1 if cells else 0)
+            for j, v in cells.items():
+                row[j] = strings.get(v, "") if isinstance(v, int) else str(v)
+            yield row
+    else:
+        yield from csv.reader(io.StringIO(data.decode("utf-8-sig", "replace")), delimiter="\t" if fmt == "tsv" else ",")
+
+
+def list_voters(data, ks):
+    """-> [(VUID, precinct, ISO day or '', in person 0/1, district or None)] from one list file."""
     out = []
-    for d in docs:
-        m = re.search(r"(Received Mail|Early Vote) Ballots\s*-\s*(\d{4}-\d{2}-\d{2})", d.get("DisplayName") or "")
-        if m and d.get("URL"):
-            out.append(("mail" if m.group(1).startswith("Received") else "ev", m.group(2), spec["base"] + d["URL"],
-                        "%s %s %s" % (d.get("ID"), d.get("LastModifiedDateString"), d.get("FileSize"))))
+    if ks["fmt"] == "pdf":
+        rx = re.compile(ks["line"])
+        for (ln,) in _table(data, "pdf"):
+            m = rx.search(ln)
+            if m:
+                g = m.groupdict()
+                out.append((int(g["vuid"]), _prec(g.get("prec"), ks), _day(g.get("date")), ks["inp"], None))
+        return out
+    idx = None
+    for row in _table(data, ks["fmt"]):
+        cells = [str(c).strip() for c in row]
+        if idx is None:
+            low = [c.lower() for c in cells]
+            if ks["vuid"].lower() in low:
+                idx = {k: low.index(ks[k].lower()) for k in ("vuid", "prec", "date", "cd") if ks.get(k) and ks[k].lower() in low}
+                for k in ("keep", "method"):
+                    if ks.get(k):
+                        idx[k] = low.index(ks[k][0].lower())
+            continue
+
+        def get(k):
+            return cells[idx[k]] if k in idx and idx[k] < len(cells) else ""
+        v = re.sub(r"\.0$", "", get("vuid"))
+        if not v.isdigit() or (ks.get("keep") and not re.search(ks["keep"][1], get("keep"))):
+            continue
+        inp = ks["method"][1].get(get("method")) if ks.get("method") else ks["inp"]
+        if inp is None:
+            continue
+        cd = get("cd").lstrip("0")
+        out.append((int(v), _prec(get("prec"), ks), _day(get("date")), inp, int(cd) if cd.isdigit() else None))
+    if idx is None:
+        raise ValueError("no %r column" % ks["vuid"])
     return out
 
 
-def pdf_voters(data):
-    """-> [(VUID, base precinct)] from a county list PDF (pypdf, installed on Sam's PC)."""
-    from pypdf import PdfReader
-    out = []
-    for page in PdfReader(io.BytesIO(data)).pages:
-        for ln in (page.extract_text() or "").splitlines():
-            m = ROW_RE.search(ln.strip())
+def list_docs(county, spec):
+    """-> [(kind, ISO day, version, url or zip member, container data or None)] for a county's list files."""
+    f, items = spec["find"], []
+    if "civicplus" in f:   # the Document Center page lists a folder with its own JSON query
+        body = json.dumps({"folderId": f["folder"], "getDocuments": 1, "imageRepo": False, "renderMode": 0, "loadSource": 7,
+                           "searchString": "", "pageNumber": 1, "rowsPerPage": 500, "sortColumn": "Name", "sortOrder": 0})
+        req = urllib.request.Request(f["civicplus"] + "/Admin/DocumentCenter/Home/Document_AjaxBinding?renderMode=0&loadSource=7",
+                                     data=body.encode(), headers={"User-Agent": C.USER_AGENT, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60, context=C._SSL_CTX) as r:
+            for d in json.loads(r.read()).get("Documents") or []:
+                m = re.search(f["re"], d.get("DisplayName") or "")
+                if m and d.get("URL"):
+                    items.append((m, f["civicplus"] + d["URL"], None))
+    elif "zip" in f:
+        data, _, _ = fetch(f["zip"], os.path.join(LIST_DIR, "%s_rosters.zip" % _ckey(county)))
+        for n in zipfile.ZipFile(io.BytesIO(data)).namelist():
+            m = re.search(f["re"], n)
             if m:
-                out.append((int(m.group(1)), m.group(2)))
+                items.append((m, n, data))
+    else:
+        page = C.http_get(spec["page"], no_cache=True, retries=2, timeout=60)
+        for m in re.finditer(f["re"], page):
+            items.append((m, urllib.parse.urljoin(f.get("base") or spec["page"], html.unescape(m.group("url"))), None))
+    out = []
+    for m, where, data in items:
+        g = m.groupdict()
+        kind = next((k for k in spec["kinds"] if k.lower() == (g.get("kind") or "").lower()), None)
+        if kind is None:
+            continue
+        mo = g.get("m") or ("%02d" % datetime.strptime(g["mon"][:3], "%b").month if g.get("mon") else "")
+        day = "2026-%s-%02d" % (mo, int(g["d"])) if mo and g.get("d") else ""
+        out.append((kind, day, int(g.get("v") or 0), where, data))
     return out
 
 
 def county_lists(db, force=False):
-    """Load the VUID_COUNTIES' new or changed list PDFs into `gen` (src '<COUNTY>:<kind>') -> changed?"""
+    """Load the COUNTY_LISTS counties' new or changed list files into `gen` (src '<COUNTY>:<kind>', doc = the file):
+    every daily file, and the newest cumulative one of each kind (replacing the older one's rows) -> changed?"""
+    os.makedirs(LIST_DIR, exist_ok=True)
+    last = _meta(db, "lists_checked")
+    if not force and last and (datetime.now(timezone.utc) - datetime.fromisoformat(last)).total_seconds() < 3300:
+        return False   # the counties post once a day: their pages are checked at most hourly
+    _meta(db, "lists_checked", datetime.now(timezone.utc).isoformat(timespec="seconds"))
+    db.commit()
     changed = False
-    for county, spec in VUID_COUNTIES.items():
+    for county, spec in COUNTY_LISTS.items():
         try:
-            docs = county_docs(spec)
+            docs = list_docs(county, spec)
         except Exception as e:  # noqa: BLE001
-            print("tx rosters: %s's list folder unavailable (%s)" % (county.title(), str(e)[:100]), file=sys.stderr)
+            print("tx rosters: %s's list page unavailable (%s)" % (county.title(), str(e)[:100]), file=sys.stderr)
             continue
-        for kind, day, url, stamp in docs:
-            key = "%s:%s:%s" % (county, kind, day)
-            if not force and _meta(db, key) == stamp:
-                continue
+        newest = {}
+        for d in docs:
+            if not spec["kinds"][d[0]].get("daily") and d[1:3] >= newest.get(d[0], (None, "", -1))[1:3]:
+                newest[d[0]] = d
+        pick = [d for d in docs if spec["kinds"][d[0]].get("daily")] + list(newest.values())
+        if not pick:
+            print("tx rosters: %s: no list files found on its page" % county.title(), file=sys.stderr)
+        for kind, day, ver, where, container in pick:
+            ks, src = spec["kinds"][kind], "%s:%s" % (county, kind)
+            doc = "%s:%s" % (src, day if ks.get("daily") else "cum")
             try:
-                data = fetch(url)[0]
-                rows = pdf_voters(data)
+                if container is not None:   # a member of a zip of daily files
+                    zi = zipfile.ZipFile(io.BytesIO(container))
+                    stamp = "%s %s" % (where, zi.getinfo(where).CRC)
+                    if not force and _meta(db, "list:" + doc) == stamp:
+                        continue
+                    data = zi.read(where)
+                elif ks.get("daily") and not force and _meta(db, "list:" + doc) == where:
+                    continue   # a posted day's file keeps its address; a re-post gets a new one
+                else:
+                    local = os.path.join(LIST_DIR, re.sub(r"[^\w.-]+", "_", doc))
+                    data, lm, _ = fetch(where, local)
+                    stamp = where if ks.get("daily") else "%s %s" % (where, lm)
+                    if not force and _meta(db, "list:" + doc) == stamp:
+                        continue
+                rows = list_voters(data, ks)
             except Exception as e:  # noqa: BLE001
                 print("tx rosters: %s %s %s unreadable (%s)" % (county.title(), kind, day, str(e)[:100]), file=sys.stderr)
                 continue
@@ -510,14 +705,13 @@ def county_lists(db, force=False):
                 print("tx rosters: %s %s %s: no voter rows read from %d bytes -- skipped"
                       % (county.title(), kind, day, len(data)), file=sys.stderr)
                 continue
-            src = "%s:%s" % (county, kind)
-            db.execute("DELETE FROM gen WHERE src = ? AND day = ?", (src, day))
-            db.executemany("INSERT INTO gen (vuid, county, inp, precinct, day, src) VALUES (?, ?, ?, ?, ?, ?)",
-                           ((v, county, int(kind == "ev"), pr, day, src) for v, pr in rows))
-            _meta(db, key, stamp)
+            db.execute("DELETE FROM gen WHERE %s" % ("doc = ?" if ks.get("daily") else "src = ?"), (doc if ks.get("daily") else src,))
+            db.executemany("INSERT INTO gen (vuid, county, inp, precinct, day, src, cd, doc) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                           ((v, county, inp, pr, dy or day, src, cd, doc) for v, pr, dy, inp, cd in rows))
+            _meta(db, "list:" + doc, stamp)
             db.commit()
             changed = True
-            print("tx rosters: %s's own %s list %s: %d voters" % (county.title(), kind, day, len(rows)))
+            print("tx rosters: %s's own %s list %s: %d voters" % (county.title(), kind or "early-vote", day or "", len(rows)))
     return changed
 
 
@@ -552,19 +746,20 @@ def precinct_cds():
 
 
 def sos_tally(db, skip):
-    """Every county's Tally from the state's rosters (counties in `skip` left out) -> {COUNTY: Tally}."""
+    """Every county's Tally from the state's files and the counties' own lists (counties in `skip` left out)
+    -> {county key: Tally}."""
     pcd = precinct_cds()
     one = {c: next(iter(set(m.values()))) for c, m in pcd.items() if len(set(m.values())) == 1}
-    q = ("SELECT county, inp, precinct, day, COALESCE(p.party, 'N'), COUNT(*) FROM "
-         "(SELECT vuid, county, inp, precinct, day, ROW_NUMBER() OVER (PARTITION BY vuid ORDER BY inp DESC, day) AS rn "
-         "FROM gen) g LEFT JOIN prim p USING (vuid) WHERE rn = 1 GROUP BY 1, 2, 3, 4, 5")
+    q = ("SELECT county, inp, precinct, day, cd, COALESCE(p.party, 'N'), COUNT(*) FROM "
+         "(SELECT vuid, county, inp, precinct, day, cd, ROW_NUMBER() OVER (PARTITION BY vuid ORDER BY inp DESC, day) AS rn "
+         "FROM gen) g LEFT JOIN prim p USING (vuid) WHERE rn = 1 GROUP BY 1, 2, 3, 4, 5, 6")
     out = {}
-    for county, inp, prec, day, party, n in db.execute(q):
-        if county in skip:
-            continue
+    for county, inp, prec, day, cd, party, n in db.execute(q):
         k = _ckey(county)
-        cd = one.get(k) or (pcd.get(k) or {}).get(_pkey(prec))
-        out.setdefault(county, Tally()).add({"D": "dem", "R": "rep"}.get(party, "none"), "inp" if inp else "mail", cd, day, n)
+        if k in skip:
+            continue
+        cd = cd or one.get(k) or (pcd.get(k) or {}).get(_pkey(prec))
+        out.setdefault(k, Tally()).add({"D": "dem", "R": "rep"}.get(party, "none"), "inp" if inp else "mail", cd, day, n)
     return out
 
 
@@ -745,13 +940,14 @@ def main():
                 for c in [n for n, r in counties.items() if r.get("route") != "county" or n not in own]:
                     del counties[c]
                 for sc, t in sos_tally(db, skip).items():
-                    name = names.get(_ckey(sc))
+                    name = names.get(sc)
                     if not name:
                         unknown.append(sc)
                         continue
                     rec = t.record(route="state", span=SPAN["state"], page=SOS_PAGE, primaries=["2026-03", "2026-05"])
-                    if sc in VUID_COUNTIES:
-                        rec.update(supplement=VUID_COUNTIES[sc]["label"], supplement_page=VUID_COUNTIES[sc]["page"])
+                    lists = next((v for k_, v in COUNTY_LISTS.items() if _ckey(k_) == sc), None)
+                    if lists:
+                        rec.update(supplement=lists["label"], supplement_page=lists["page"])
                     for d, a in rec.pop("days").items():
                         b = days.setdefault(d, [0, 0, 0, 0])
                         for i in range(4):

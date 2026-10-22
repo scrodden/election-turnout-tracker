@@ -661,9 +661,12 @@ def main():
                      "(2024's aren't available statewide; Harris publishes its own). Ballots not on the rosters yet, such "
                      "as today's in-person votes, count as party not reported. %s voters matched.%s"
                      % (thr, format(ph_known, ","),
-                        "".join(" %s's mail ballots, which it doesn't send to the state, and its early voters also come "
-                                "from the county's own daily lists (%s)." % (n, r["supplement"].split("'")[0].strip())
-                                for n, r in sorted(own.items()) if r.get("supplement")))
+                        (" Where a county's own early-voting and mail lists run ahead of the state's files, they are read "
+                         "too, a voter on both counting once: %s." % ", ".join(
+                             n + (" (%s)" % re.search(r"\((.*)\)", r["supplement"]).group(1)
+                                  if re.search(r"\((.*)\)", r["supplement"]) else "")
+                             for n, r in sorted(own.items()) if r.get("supplement"))
+                         if any(r.get("supplement") for r in own.values()) else ""))
                      + (" Where the rosters count more mail or in-person voters than the state's report or a county's live "
                         "page, the roster count is used for that method: %s."
                         % ", ".join("%s %s (was %s)" % (n, format(v, ","), format(s_, ","))
