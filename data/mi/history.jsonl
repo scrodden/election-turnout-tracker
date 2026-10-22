@@ -21,3 +21,4 @@
 {"generated_at":"2026-10-19T12:00:29Z","cast":683346,"registered":7402064,"data_hash":"674d38f796851ff2fbd74794ae9094d428bc2f891cabdf0437d1acdaa8ea031c"}
 {"generated_at":"2026-10-20T11:39:51Z","cast":789572,"registered":7403946,"data_hash":"6b93743f7eba250fe951bdeba63264becc47f64181720aa3221381672f362648"}
 {"generated_at":"2026-10-21T11:27:46Z","cast":861061,"registered":7405145,"data_hash":"f3141b9cf67cf345a06ec137c5af5b0f13425e79d59c17d77390d4837dd7eb90"}
+{"generated_at":"2026-10-22T11:27:46Z","cast":920762,"registered":7406043,"data_hash":"a8ae28e13efa7ebd84a5722a6058068b790915ea3b9de4e6e54f637047f36d11","statewide":{"mail_voted":[0,0,0,0,918832],"mail_provided":[0,0,0,0,1196685],"early_voted":[0,0,0,0,1930],"cast":[0,0,0,0,920762]}}
