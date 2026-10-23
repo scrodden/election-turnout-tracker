@@ -21,5 +21,17 @@
     "mail_voted": "Mail ballots returned",
     "mail_provided": "Mail ballots outstanding"
   },
-  "mail_base_label": "Ballots issued"
+  "mail_base_label": "Ballots issued",
+  "lab_district_labels": {
+    "sdl": [
+      "Assembly District",
+      "Assembly Districts",
+      "state Assembly district"
+    ],
+    "sdu": [
+      "Senate District",
+      "Senate Districts",
+      "state Senate district"
+    ]
+  }
 }

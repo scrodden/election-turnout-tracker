@@ -1018,8 +1018,8 @@
     var order = [["rep", "Republican", "var(--rep)"], ["dem", "Democratic", "var(--dem)"],
                  ["npa", "No party", "var(--npa)"], ["oth", "Other", "var(--npa)"]];
     $("#mail-parties").innerHTML = order.filter(function (o) {
-      var p = m.parties[o[0]]; return p && p.req;   // skip buckets with no ballots (e.g. PA has no NPA)
-    }).map(function (o) {
+      var p = (m.parties || {})[o[0]]; return p && p.req;   // skip buckets with no ballots (e.g. PA has no NPA);
+    }).map(function (o) {                                    // no parties at all where ballots sent have no party
       var p = m.parties[o[0]] || { rate: null, ret: 0, req: 0 };
       var w = p.rate == null ? 0 : Math.min(100, p.rate);
       return "<div class='mail-row' title='" + fmt(p.ret) + " of " + fmt(p.req) + " returned'>" +
@@ -1452,7 +1452,9 @@
       counties: ld.counties, statewide: ld.statewide,
       methods_present: ld.methods_present || [], method_labels: ld.method_labels || base.method_labels,
       unit_label: altLabel(key, false), unit_label_plural: altLabel(key, true),
-      map_note: ld.map_note || null, statewide_only: false, county_stale: false
+      map_note: ld.map_note || null, statewide_only: false, county_stale: false,
+      // a view's units carry party when its own file says so (e.g. CA: counties turnout-only, districts by party)
+      units_partisan: "units_partisan" in ld ? ld.units_partisan : ld.partisan !== false
     });
     // a view's own party wording and per-method party coverage (e.g. TX districts: 2022-2026 primaries, all methods)
     ["party_basis", "party_labels", "party_hints", "party_methods", "party_methods_note", "unk_label"].forEach(function (k) {

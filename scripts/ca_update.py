@@ -23,6 +23,13 @@ shares and lean are over party-known ballots. Outstanding by party = the
 Lab's requested minus returned, the rest unk. The Lab's county file has no
 party, so counties stay turnout-only (data units_partisan: false).
 
+Districts: the Lab's CA_cd.csv / CA_sdl.csv / CA_sdu.csv (U.S. House, Assembly,
+state Senate; one row per district, county "ALL") do split returned ballots by
+party (Democrat / Republican / none), so the page's district views come from
+them (scripts/lab_standin.py districts(), ~hourly; maps assets/ca-cd / -sh /
+-ss.geojson). Their ballots-issued counts have no party, so outstanding
+ballots there are party-unknown.
+
 Run:  python scripts/ca_update.py [--force]
 """
 import json
@@ -206,6 +213,10 @@ def main():
     src = cfg.get("source", {})
     prev = load(LATEST_PATH, {}) or {}
     os.makedirs(DATA_DIR, exist_ok=True)
+    import lab_standin as LAB
+    for kind, suffix in (("cd", "cd"), ("sdl", "sh"), ("sdu", "ss")):   # district maps with party, ~hourly
+        LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "ca-%s.geojson" % suffix),
+                      os.path.join(DATA_DIR, "districts_%s.json" % suffix), partisan=True, force=force, kind=kind)
     if not force and prev.get("counties") and C.checked_recently(DATA_DIR, minutes=20):
         print("ca: checked under 20 minutes ago.")
         return 0
@@ -214,7 +225,6 @@ def main():
                                file_date=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=7))   # Pacific
     except Exception as e:  # noqa: BLE001
         print("CA SoS VBM statistics unavailable: %s" % str(e)[:140], file=sys.stderr)
-        import lab_standin as LAB
         LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=False, force=force)
         return 2   # the Lab stand-in kept the page current, but flag the official feed on the status page
     reg, reg_report = read_registration(src)

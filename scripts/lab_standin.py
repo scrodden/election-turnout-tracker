@@ -82,11 +82,17 @@ def _entity(row, partisan, code=None):
     req, ret, inp = (_parties(row, k, partisan) for k in KINDS)
     if code in NO_REQUESTS:
         req = ret   # no real request counts: no outstanding / ballot chase
+    # a file can split ballots returned by party but not ballots issued (CA's district files: request_all only):
+    # the outstanding ballots' party is then unknown -- not "other", and no per-party return rates
+    req_blind = partisan and code not in NO_REQUESTS and not any(k in row for k in ("request_dem", "request_rep", "request_none"))
     out = {k: max(0, req[k] - ret[k]) for k in req}
     cast = {k: ret[k] + inp[k] for k in ret}
-    e = {"mail_voted": _blk(ret, partisan), "mail_provided": _blk(out, partisan), "early_voted": _blk(inp, partisan),
-         "cast": _blk(cast, partisan), "registered": 0, "turnout_pct": None}
+    e = {"mail_voted": _blk(ret, partisan),
+         "mail_provided": C.party_block(0, 0, 0, 0, unk=out["total"]) if req_blind else _blk(out, partisan),
+         "early_voted": _blk(inp, partisan), "cast": _blk(cast, partisan), "registered": 0, "turnout_pct": None}
     m = None if code in NO_REQUESTS else C.compute_mail(e)
+    if m and req_blind:
+        m.pop("parties", None)
     if m:
         e["mail"] = m
     return e
@@ -216,7 +222,7 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         dcode = code + ":districts"
         NO_REQUESTS.add(dcode)
     data_dir = os.path.dirname(out_path)
-    label, plural, desc = KIND_LABELS[kind]
+    label, plural, desc = (cfg.get("lab_district_labels") or {}).get(kind) or KIND_LABELS[kind]   # e.g. CA's Assembly
     if not force and C.checked_recently(data_dir, "lab_" + kind):
         return
     try:
