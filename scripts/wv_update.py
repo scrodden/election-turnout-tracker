@@ -2,14 +2,18 @@
 """West Virginia turnout by county and registered party (early voting +
 absentee; WV registers by party).
 
-STAGED SKELETON: as of 2026-10-14 no live, machine-readable, per-county feed
-was found. sos.wv.gov's own "election-data" pages are historical/post-election
-only; early-voting updates during the voting window are published only as
-narrative press releases (statewide totals in prose, no county table, no
-party split, no attached CSV/XLSX -- confirmed by fetching one directly). See
-the "_comment" in config/wv.json for the full list of what was checked and
-what to look for on the next pass. Writes an empty (0) partisan snapshot until
-a real parser can be wired against a genuine county+party feed.
+No public SoS feed: sos.wv.gov's election-data pages are historical only, and
+during early voting it has posted only press releases (statewide totals in
+prose; checked 2026-10-14 and again 2026-10-22, when nothing for the general
+was up yet). The SoS shares daily county counts with the UF Election Lab,
+whose 2026 files cite "West Virginia Secretary of State" (first posted
+2026-10-22: 16,922 in-person early voters, Oct 21-22, in all 55 counties, by
+party -- Democrat / Republican / none, the last being no party and the minor
+parties). So this writes the Election Lab stand-in (scripts/lab_standin.py: US.csv
++ WV_county.csv, unaltered, attributed). The Lab notes WV publishes no mail-ballot
+figure and its "requested" columns just repeat the early votes, so they aren't
+shown (config lab_no_requests). An official feed wired in fetch_counties()
+replaces the stand-in automatically.
 
 Run:  python scripts/wv_update.py [--force]
 """
@@ -39,8 +43,7 @@ def load(p):
 def fetch_counties(cfg):
     """Return {county: {fips, methods:{mkey:{rep,dem,oth,npa}}}} from the live feed.
 
-    PENDING: no wired parser yet. Returns {} (empty snapshot); the rollout
-    routine wires the live parser in Oct.
+    None yet (see the module docstring): {} -> the Election Lab stand-in is written instead.
     """
     return {}
 
@@ -50,6 +53,11 @@ def main():
     cfg = load(CONFIG_PATH)
 
     rows = fetch_counties(cfg)
+    if not rows:   # stand-in until the SoS posts a county feed of its own
+        import lab_standin as LAB
+        if LAB.run(STATE, cfg, os.path.join(ROOT, "assets", "wv-counties.geojson"), LATEST_PATH, HISTORY_PATH,
+                   partisan=True, force=force):
+            return 0
     counties_out = {}
     for name, r in rows.items():
         ent = {"fips": r["fips"]}

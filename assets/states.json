@@ -430,7 +430,7 @@
       "data": "data/wv/latest.json",
       "geojson": "assets/wv-counties.geojson",
       "history": "data/wv/history.jsonl",
-      "source_note": "Source: <a href='https://sos.wv.gov/elections/' target='_blank' rel='noopener'>West Virginia Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> early-vote tracker, from the <a href='https://sos.wv.gov/elections/' target='_blank' rel='noopener'>West Virginia Secretary of State</a>'s daily county counts (used unaltered with attribution, CC BY-NC-ND 4.0) until the Secretary of State posts a feed of its own: in-person early voters by county and registered party (Democrat, Republican, and none &mdash; no party or a minor party). West Virginia publishes no mail-ballot figure. Early voting runs October 21 &ndash; 31. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "wy",
