@@ -35,7 +35,8 @@ RACE = [("White", "nh_white"), ("Black", "nh_black"), ("Hispanic", "hispanic"), 
         ("Native American", "nh_native_american"), ("Other/unknown", "nh_other")]
 KINDS = ("request", "accept", "inperson")
 # current county names -> the (older) names in our map files
-ALIASES = {"oglalalakota": "shannon"}   # SD: Shannon County renamed Oglala Lakota in 2015
+ALIASES = {"oglalalakota": "shannon",   # SD: Shannon County renamed Oglala Lakota in 2015
+           "stlouiscounty": "stlouis"}   # MO: the map has "St. Louis" (the county) and "St. Louis City"
 
 
 def _norm(s):
@@ -123,7 +124,7 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
         return None
     partisan = partisan and any(_n(row, k) for k in ("request_dem", "accept_dem", "request_rep", "accept_rep"))
 
-    counties, note = {}, ""
+    counties, note, partial_note = {}, "", ""
     try:
         crow = list(csv.DictReader(io.StringIO(C.http_get(BASE + st + "_county.csv", no_cache=True, retries=1))))
     except Exception:  # noqa: BLE001 - most states have no county file (404)
@@ -137,6 +138,15 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
             for r in crow:
                 g = matched[r.get("county")]
                 counties[g["name"]] = dict(_entity(r, partisan, code), fips=g["fips"])
+            if len(counties) < 0.9 * len(gidx):   # e.g. MO 10/23: St. Louis County only -- say so, the totals aren't statewide
+                names = sorted(r.get("county") for r in crow)   # the Lab's names: "St. Louis County", not the map's "St. Louis"
+                listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1] if len(names) < 8 \
+                    else "%d of the state's %d counties" % (len(names), len(gidx))
+                partial_note = ("Only %s %s so far in the Election Lab's %s data (source: %s), so every figure here covers "
+                                "%s, not the whole state; the rest of the map is gray until more counties report."
+                                % (listed, "reports" if len(names) == 1 else "report", cfg.get("state_name", st),
+                                   re.sub(r"\s+-\s+see .*$", "", row.get("data_source") or "state election office"),
+                                   "that county" if len(names) == 1 else "those counties"))
         else:
             bad = [c for c, g in matched.items() if not g]
             note = "county file not used (%s)" % ("unmatched: %s" % bad[:5] if bad else "doesn't sum to statewide")
@@ -149,6 +159,8 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
         "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
         "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
     }
+    if partial_note:
+        body["map_note"] = partial_note
     demo = _demographics(row)
     if demo:
         body["demographics"] = demo

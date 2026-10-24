@@ -1,19 +1,22 @@
 {
-  "state": "mo",
-  "state_name": "Missouri",
-  "state_fips": "29",
-  "partisan": false,
-  "election": {
-    "date": "2026-11-03",
-    "name": "2026 General"
-  },
-  "general_start": "2026-10-20",
-  "source": {
-    "_comment": "STAGED SKELETON -- checked 2026-10-14, no feed found. Missouri's first-ever no-excuse in-person early-voting window for the general runs 2026-10-20 through 2026-11-02 (general_start corrected above from the generic 10-15 placeholder) -- it has NOT started yet as of this check. sos.mo.gov/elections/results links only to final, certified, post-election PDF turnout reports (one per past election, nothing live/current). The 'Show MO Votes' tool (sos.mo.gov/elections/showmovotes) is an Angular SPA shell with no turnout content or data-api reference in its static HTML -- it appears to only populate on/after election night, not during early voting. enr.sos.mo.gov (Election Night Reporting) returns HTTP 403 (Cloudflare-style WAF block) to a non-browser fetch, same for every guessed API path under it. Missouri elections are run by 116 independent local election authorities with no evidence of a centralized statewide daily early-voting-by-county report (unlike GA's Qlik hub or WI's static CSV) -- coverage so far is county clerks quoting their own numbers to local reporters, not a state feed. Re-check once the window opens (10-20) and again close to election day: if ENR/Show MO Votes turns out to go live with per-county absentee/early numbers during the window (not just election night), it may be fetchable the way mt_update.py bootstraps its Tableau session, but that couldn't be confirmed while it's dormant. Until then this reads 0.",
-    "portal": "https://www.sos.mo.gov/elections"
-  },
-  "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Early / absentee ballots"
-  }
+ "state": "mo",
+ "state_name": "Missouri",
+ "state_fips": "29",
+ "partisan": false,
+ "election": {
+  "date": "2026-11-03",
+  "name": "2026 General"
+ },
+ "general_start": "2026-10-20",
+ "source": {
+  "_comment": "STAGED SKELETON -- checked 2026-10-14, no feed found. Missouri's first-ever no-excuse in-person early-voting window for the general runs 2026-10-20 through 2026-11-02 (general_start corrected above from the generic 10-15 placeholder) -- it has NOT started yet as of this check. sos.mo.gov/elections/results links only to final, certified, post-election PDF turnout reports (one per past election, nothing live/current). The 'Show MO Votes' tool (sos.mo.gov/elections/showmovotes) is an Angular SPA shell with no turnout content or data-api reference in its static HTML -- it appears to only populate on/after election night, not during early voting. enr.sos.mo.gov (Election Night Reporting) returns HTTP 403 (Cloudflare-style WAF block) to a non-browser fetch, same for every guessed API path under it. Missouri elections are run by 116 independent local election authorities with no evidence of a centralized statewide daily early-voting-by-county report (unlike GA's Qlik hub or WI's static CSV) -- coverage so far is county clerks quoting their own numbers to local reporters, not a state feed. Re-check once the window opens (10-20) and again close to election day: if ENR/Show MO Votes turns out to go live with per-county absentee/early numbers during the window (not just election night), it may be fetchable the way mt_update.py bootstraps its Tableau session, but that couldn't be confirmed while it's dormant. Until then this reads 0.",
+  "portal": "https://www.sos.mo.gov/elections",
+  "_standin": "2026-10-23: UF Election Lab MO rows (US.csv + MO_county.csv), data_source 'County election-night-reporting dashboards (Tally/TotalResults)', notes 'St. Louis County only'. Used unaltered with attribution until an official feed exists; lab_standin's map note names the counties covered."
+ },
+ "method_labels": {
+  "cast": "Ballots cast",
+  "early_voted": "Voted early in person",
+  "mail_voted": "Mail ballots returned",
+  "mail_provided": "Mail ballots outstanding"
+ }
 }

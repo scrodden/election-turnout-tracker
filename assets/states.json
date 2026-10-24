@@ -530,7 +530,7 @@
       "data": "data/mo/latest.json",
       "geojson": "assets/mo-counties.geojson",
       "history": "data/mo/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.mo.gov/elections' target='_blank' rel='noopener'>Missouri Secretary of State</a> — early/absentee ballots &amp; turnout% by county (no party registration). Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> early-vote tracker (used unaltered with attribution, CC BY-NC-ND 4.0), compiled from county election-night-reporting dashboards &mdash; so far St. Louis County only (the note under the map names the counties covered); Missouri's Secretary of State publishes no early-vote figures while voting is under way, and its 116 local election authorities report separately. In-person early votes, mail ballots returned and outstanding. Missouri has no party registration. Early voting runs October 20 &ndash; November 2. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "mt",

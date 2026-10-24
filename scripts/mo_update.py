@@ -2,9 +2,12 @@
 """Missouri in-person early-voting turnout by county (turnout-only; MO has no
 party registration).
 
-STAGED SKELETON: as of 2026-10-14 no statewide, machine-readable, per-county
-feed was found, and MO's first-ever no-excuse in-person early-voting window
-for the general doesn't open until 2026-10-20 anyway. sos.mo.gov/elections
+No statewide feed: as of 2026-10-23 the SoS still posts nothing during
+early voting (checked again with the window open since 10-20). The UF
+Election Lab started carrying Missouri on 10/23 from county election-night
+dashboards (Tally / TotalResults) -- so far St. Louis County only -- and this
+writes that stand-in (scripts/lab_standin.py; the map note names the counties
+covered, since the totals aren't statewide). Background from 10-14: sos.mo.gov/elections
 links only to final, certified, post-election PDF turnout reports; the "Show
 MO Votes" tool is an empty Angular SPA shell (no data/API reference in its
 static HTML); enr.sos.mo.gov (Election Night Reporting) returns HTTP 403
@@ -13,8 +16,7 @@ independent local election authorities with no sign of centralized daily
 reporting. See the "_comment" in config/mo.json for the full list of what was
 checked and what to look for on the next pass (especially once the window
 opens 10-20, and close to election night for enr.sos.mo.gov /
-showmovotes). Writes an empty (0) turnout-only snapshot until a real parser
-can be wired against a genuine county feed.
+showmovotes). An official feed wired in fetch_counties() replaces the stand-in.
 
 Run:  python scripts/mo_update.py [--force]
 """
@@ -41,10 +43,9 @@ def load(p):
 
 
 def fetch_counties(cfg):
-    """Return {county_name: {fips, cast_total, registered}} from the live WA feed.
+    """Return {county_name: {fips, cast_total, registered}} from an official feed.
 
-    PENDING: no verified machine-readable 2026 feed off-season. Returns {} for
-    now (empty snapshot). The rollout routine wires the live parser in Oct.
+    None yet (see the module docstring): {} -> the Election Lab stand-in is written instead.
     """
     return {}
 
@@ -59,6 +60,10 @@ def main():
     cfg = load(CONFIG_PATH)
 
     rows = fetch_counties(cfg)
+    if not rows:   # stand-in until an official county feed exists
+        import lab_standin as LAB
+        if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=False, force=force):
+            return 0
     counties_out = {}
     reg_total = cast_total = 0
     for name, r in rows.items():
