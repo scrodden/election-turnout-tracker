@@ -74,6 +74,26 @@ def _block(total):
             "rep_pct": None, "dem_pct": None, "npa_pct": None, "oth_pct": None, "margin": None}
 
 
+def page_links(cfg):
+    """The ballot-returns PDF(s) linked on the SoS's current-election page: the file has been renamed mid-count
+    (10/23: Ballot-Return-Dashboard-Nov-3-2026.pdf -> 2026-general-election-unofficial-ballot-returns.pdf), so the
+    page's own link comes first and the guessed names are only a fallback."""
+    import html
+    import urllib.parse
+    out = []
+    for page in cfg.get("source", {}).get("pages") or []:
+        try:
+            t = C.http_get(page, no_cache=True, retries=2, timeout=60)
+        except Exception as e:  # noqa: BLE001
+            print("OR: %s unavailable (%s)" % (page, str(e)[:100]), file=sys.stderr)
+            continue
+        for h in re.findall(r'(?i)href=["\']([^"\']*ballot[-_ ]?returns?[^"\']*\.pdf)["\']', t):
+            u = urllib.parse.urljoin(page, html.unescape(h))
+            if u not in out and re.search(r"(?i)2026|nov", u):
+                out.append(u)
+    return out
+
+
 def candidate_urls(cfg):
     src = cfg.get("source", {})
     base = src.get("base", "https://sos.oregon.gov/elections/Documents/")
@@ -236,7 +256,7 @@ def build_dashboard_snapshot(cfg, rows, gidx, url, report_time):
 def fetch_live(cfg):
     """Try each candidate URL; return (raw_bytes, url) for the first that
     looks like a real PDF, or (None, None)."""
-    for url in candidate_urls(cfg):
+    for url in page_links(cfg) + candidate_urls(cfg):
         try:
             raw = C.http_get(url, binary=True, no_cache=True, retries=2)
         except Exception:  # noqa: BLE001
@@ -303,24 +323,37 @@ def main():
 
     raw, url = fetch_live(cfg)
     snap = None
-    if raw is not None and "Dashboard" in (url or ""):
+    dashboard = False
+    if raw is not None:   # the by-party dashboard, whatever the file is called this week (its pages say what it is)
         try:
             rows, report_time = parse_dashboard(raw, county_names)
-            snap = build_dashboard_snapshot(cfg, rows, gidx, url, report_time)
-            snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
-            snap["generated_at"] = C.utc_now_iso()
+            dashboard = True
+        except ValueError as e:
+            if "dashboard pages not found" not in str(e):
+                dashboard = e
         except Exception as e:  # noqa: BLE001
-            print("OR: dashboard not usable (%s) -- trying the Election Lab" % str(e)[:160], file=sys.stderr)
-            import lab_standin as LAB
-            os.makedirs(DATA_DIR, exist_ok=True)
-            if not LAB.run(STATE, cfg, os.path.join(ROOT, "assets", "or-counties.geojson"), LATEST_PATH, HISTORY_PATH,
-                           partisan=True, force=force, role="stand-in while the SoS dashboard can't be read"):
-                print("or: no figures yet.")
-            return 2
+            dashboard = e
+    if dashboard is True:
+        snap = build_dashboard_snapshot(cfg, rows, gidx, url, report_time)
+        snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
+        snap["generated_at"] = C.utc_now_iso()
+    elif dashboard:   # the dashboard, but unreadable: the Election Lab's copy of the same figures instead
+        print("OR: dashboard not usable (%s) -- trying the Election Lab" % str(dashboard)[:160], file=sys.stderr)
+        import lab_standin as LAB
+        os.makedirs(DATA_DIR, exist_ok=True)
+        if not LAB.run(STATE, cfg, os.path.join(ROOT, "assets", "or-counties.geojson"), LATEST_PATH, HISTORY_PATH,
+                       partisan=True, force=force, role="stand-in while the SoS dashboard can't be read"):
+            print("or: no figures yet.")
+        return 2
     if snap is not None:
         pass
     elif raw is None:
-        tried = candidate_urls(cfg)
+        tried = page_links(cfg) + candidate_urls(cfg)
+        prev = load(LATEST_PATH, {}) or {}
+        if (prev.get("statewide", {}).get("cast") or {}).get("total"):   # renamed / moved mid-count: never blank the page
+            print("OR: the ballot-returns PDF wasn't found (tried %d URLs, from the current-election page and the "
+                  "guessed names) -- keeping the last figures" % len(tried), file=sys.stderr)
+            return 2
         print("OR: no live Daily Ballot Returns file yet (tried %d candidate URLs; the 2-week pre-election "
               "count window hasn't started). First tried: %s" % (len(tried), tried[0] if tried else "(none configured)"))
         snap = build_snapshot(cfg, {}, gidx, "")

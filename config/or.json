@@ -13,13 +13,18 @@
     "base": "https://sos.oregon.gov/elections/Documents/",
     "alt_base": "https://sos.oregon.gov/voting/Documents/",
     "candidates": [
+      "2026-general-election-unofficial-ballot-returns.pdf",
       "Ballot-Return-Dashboard-Nov-3-2026.pdf",
       "November-3-2026-Daily-Ballot-Returns.pdf",
       "November-03-2026-Daily-Ballot-Returns.pdf",
       "november-2026-Daily-Ballot-Returns.pdf",
       "G26-Daily-Ballot-Returns.pdf"
     ],
-    "_dashboard_comment": "2026-10-18: the SoS publishes the 2026 general as 'Ballot-Return-Dashboard-Nov-3-2026.pdf' (Power BI export): ballots received + active voters by county, and ballots received by county AND registered party (Democrat, Republican, Nonaffiliated -> npa, minor parties -> oth). Parsed with pypdf layout mode and checked (row sums, column totals, county page). Fallback: UF Election Lab OR_county.csv (same source)."
+    "_dashboard_comment": "2026-10-18: the SoS publishes the 2026 general as 'Ballot-Return-Dashboard-Nov-3-2026.pdf' (Power BI export): ballots received + active voters by county, and ballots received by county AND registered party (Democrat, Republican, Nonaffiliated -> npa, minor parties -> oth). Parsed with pypdf layout mode and checked (row sums, column totals, county page). Fallback: UF Election Lab OR_county.csv (same source).",
+    "pages": [
+      "https://sos.oregon.gov/elections/Pages/current-election.aspx"
+    ],
+    "_pages_comment": "2026-10-23: the dashboard was renamed mid-count to 2026-general-election-unofficial-ballot-returns.pdf (same Power BI pages); or_update reads the link off this page first, then the guessed names."
   },
   "method_labels": {
     "cast": "Ballots received",
