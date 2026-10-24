@@ -1,7 +1,7 @@
 {
  "_comment": "2026 statewide ballot measures on the November 3 ballot, from Ballotpedia's '2026 ballot measures' list (each with its Ballotpedia page). Vote results (yes/no, reporting %, Pass/Fail) are filled by results_update.py from official state feeds near the election. Built by scripts/build_ballot_2026.py; types: LRCA = legislatively referred constitutional amendment, LRSS = legislatively referred state statute, CICA / CISS = citizen-initiated amendment / statute, VR = veto referendum, ABR = advisory question, CCR = commission-referred, BI = bond issue.",
  "source": "https://ballotpedia.org/2026_ballot_measures",
- "built_at": "2026-10-23T13:00:03Z",
+ "built_at": "2026-10-24T13:00:02Z",
  "measures": [
   {
    "id": "meas-AL-1",
@@ -21,7 +21,7 @@
    "title": "Amendment 2",
    "name": "Alabama Amendment 2, School District Consolidation Process Amendment",
    "type": "LRCA",
-   "subject": "Local government organization; Public education governance",
+   "subject": "Public education governance; Local government organization",
    "description": "Establish a process for consolidating two or more county school districts",
    "url": "https://ballotpedia.org/Alabama_Amendment_2,_School_District_Consolidation_Process_Amendment_(2026)"
   },
@@ -32,7 +32,7 @@
    "title": "Amendment 3",
    "name": "Alabama Amendment 3, Require Pledge of Allegiance and Allow Student-Led Prayer in Public Schools Amendment",
    "type": "LRCA",
-   "subject": "State flags, symbols, and holidays; Religion in public schools",
+   "subject": "Religion in public schools; State flags, symbols, and holidays",
    "description": "Require public schools to conduct the pledge of allegiance each day, and allow student-led prayer to be conducted",
    "url": "https://ballotpedia.org/Alabama_Amendment_3,_Require_Pledge_of_Allegiance_and_Allow_Student-Led_Prayer_in_Public_Schools_Amendment_(2026)"
   },
@@ -43,7 +43,7 @@
    "title": "Amendment 4",
    "name": "Alabama Amendment 4, Broadcast The Star-Spangled Banner in Public Schools Amendment",
    "type": "LRCA",
-   "subject": "Public education governance; State flags, symbols, and holidays",
+   "subject": "State flags, symbols, and holidays; Public education governance",
    "description": "Require all public schools to broadcast or arrange for the performance of the first stanza of the Star-Spangled Banner at least once per week",
    "url": "https://ballotpedia.org/Alabama_Amendment_4,_Broadcast_The_Star-Spangled_Banner_in_Public_Schools_Amendment_(2026)"
   },
@@ -54,7 +54,7 @@
    "title": "Ballot Measure 2",
    "name": "Alaska Ballot Measure 2, Repeal Top-Four Ranked-Choice Voting Initiative",
    "type": "IndISS",
-   "subject": "Campaign finance; Ranked-choice voting; Primary election systems",
+   "subject": "Ranked-choice voting; Campaign finance; Primary election systems",
    "description": "Repeal the top-four ranked-choice voting (RCV) system that was adopted in 2020",
    "url": "https://ballotpedia.org/Alaska_Ballot_Measure_2,_Repeal_Top-Four_Ranked-Choice_Voting_Initiative_(2026)"
   },
@@ -175,7 +175,7 @@
    "title": "Issue 2",
    "name": "Arkansas Issue 2, Right to Keep and Bear Arms Amendment",
    "type": "LRCA",
-   "subject": "Firearms policy; Constitutional rights",
+   "subject": "Constitutional rights; Firearms policy",
    "description": "Provide that the right to keep and bear arms is \"a natural, fundamental, and individual right that shall not be infringed\"",
    "url": "https://ballotpedia.org/Arkansas_Issue_2,_Right_to_Keep_and_Bear_Arms_Amendment_(2026)"
   },
@@ -197,7 +197,7 @@
    "title": "Issue 4",
    "name": "Arkansas Issue 4, Natural Resources Commission Bond Measure",
    "type": "LRSS",
-   "subject": "Parks, land, and natural area conservation; Pollution, waste, and recycling policy; Sewage and stormwater; Water irrigation policy; Flood infrastructure and management; Storm infrastructure; Bond issues",
+   "subject": "Pollution, waste, and recycling policy; Sewage and stormwater; Water irrigation policy; Bond issues; Flood infrastructure and management; Parks, land, and natural area conservation; Storm infrastructure",
    "description": "Authorize the Arkansas Natural Resources Commission to issue up to $500 million in general obligation bonds to fund water-related infrastructure projects including water treatment and transportation, waste disposal, pollution abatement, drainage, irrigation, flood control, and wetlands and aquatic resources infrastructure",
    "url": "https://ballotpedia.org/Arkansas_Issue_4,_Natural_Resources_Commission_Bond_Measure_(2026)"
   },
@@ -362,7 +362,7 @@
    "title": "Amendment 81",
    "name": "Colorado Amendment 81, Notification of U.S. Department of Homeland Security for Certain Criminal Charges and Immigration Status Initiative",
    "type": "CICA",
-   "subject": "Immigration policy; Law enforcement officers and departments",
+   "subject": "Law enforcement officers and departments; Immigration policy",
    "description": "Require law enforcement to notify the U.S. Department of Homeland Security when a person is charged with a crime of violence or has a prior felony conviction and the person’s immigration status cannot be determined",
    "url": "https://ballotpedia.org/Colorado_Amendment_81,_Notification_of_U.S._Department_of_Homeland_Security_for_Certain_Criminal_Charges_and_Immigration_Status_Initiative_(2026)"
   },
@@ -373,7 +373,7 @@
    "title": "Amendment 82",
    "name": "Colorado Amendment 82, Right to Purchase and Sell Natural Gas for Cooking or Heating in Homes and Businesses Amendment",
    "type": "CICA",
-   "subject": "Constitutional rights; Business regulations; Fossil fuel energy",
+   "subject": "Business regulations; Constitutional rights; Fossil fuel energy",
    "description": "Provide a constitutional right for consumers to purchase natural gas for cooking or heating in homes and businesses and for distributors and utilities to sell natural gas for those purposes",
    "url": "https://ballotpedia.org/Colorado_Amendment_82,_Right_to_Purchase_and_Sell_Natural_Gas_for_Cooking_or_Heating_in_Homes_and_Businesses_Amendment_(2026)"
   },
@@ -406,7 +406,7 @@
    "title": "Amendment 85",
    "name": "Colorado Amendment 85, Require Plain Language and Eighth-Grade Reading Level for Ballot Measures Initiative",
    "type": "CICA",
-   "subject": "Ballot measure process; Initiative and referendum process",
+   "subject": "Initiative and referendum process; Ballot measure process",
    "description": "Require ballot questions to be in plain language, at no more than an eighth-grade reading level",
    "url": "https://ballotpedia.org/Colorado_Amendment_85,_Require_Plain_Language_and_Eighth-Grade_Reading_Level_for_Ballot_Measures_Initiative_(2026)"
   },
@@ -428,7 +428,7 @@
    "title": "Amendment 87",
    "name": "Colorado Amendment 87, Establish Graduated Income Tax and Dedicate New Revenue to Education, Healthcare, and Childcare Initiative",
    "type": "CICA/SS",
-   "subject": "Income taxes; Public education funding; Public assistance programs; Early childhood education",
+   "subject": "Early childhood education; Public education funding; Public assistance programs; Income taxes",
    "description": "Establish a graduated income tax within the state",
    "url": "https://ballotpedia.org/Colorado_Amendment_87,_Establish_Graduated_Income_Tax_and_Dedicate_New_Revenue_to_Education,_Healthcare,_and_Childcare_Initiative_(2026)"
   },
@@ -538,7 +538,7 @@
    "title": "Amendment 3",
    "name": "Florida Amendment 3, Homestead Tax Exemptions, Property Assessments, and Spending Restrictions Amendment",
    "type": "LRCA",
-   "subject": "Property taxes; Homestead tax exemptions; Local government finance and taxes; Property tax exemptions",
+   "subject": "Local government finance and taxes; Property taxes; Property tax exemptions; Homestead tax exemptions",
    "description": "Increase the homestead tax exemption, decrease the cap on how much the assessed value of non-homestead properties can increase, and limit how municipalities can spend property tax revenue",
    "url": "https://ballotpedia.org/Florida_Amendment_3,_Homestead_Tax_Exemptions,_Property_Assessments,_and_Spending_Restrictions_Amendment_(2026)"
   },
@@ -549,7 +549,7 @@
    "title": "Amendment 1",
    "name": "Georgia Amendment 1, Increase Acre Limit for Agriculture and Timber Conservation Use Property Tax Classification Measure",
    "type": "LRCA",
-   "subject": "Property tax exemptions; Agriculture policy; Forestry and timber",
+   "subject": "Agriculture policy; Forestry and timber; Property tax exemptions",
    "description": "Increase the maximum acreage of agricultural and timber property that can be classified as bona fide conservation use property, which is taxed at 40% of the land's value, from 2,000 acres to 4,000 acres",
    "url": "https://ballotpedia.org/Georgia_Amendment_1,_Increase_Acre_Limit_for_Agriculture_and_Timber_Conservation_Use_Property_Tax_Classification_Measure_(2026)"
   },
@@ -604,7 +604,7 @@
    "title": "HJR 4",
    "name": "Idaho HJR 4, Grant Legislature Exclusive Authority and Prohibit Citizen-Initiated Measures on Marijuana, Narcotics, and Psychoactive Substances Amendment",
    "type": "LRCA",
-   "subject": "State legislative authority; Initiative and referendum process; Psychedelic substances laws; Drug crime policy; Marijuana laws",
+   "subject": "Marijuana laws; Drug crime policy; Initiative and referendum process; Psychedelic substances laws; State legislative authority",
    "description": "Provide that only the state legislature has the authority to legalize marijuana, narcotics, or other psychoactive substances",
    "url": "https://ballotpedia.org/Idaho_HJR_4,_Grant_Legislature_Exclusive_Authority_and_Prohibit_Citizen-Initiated_Measures_on_Marijuana,_Narcotics,_and_Psychoactive_Substances_Amendment_(2026)"
   },
@@ -670,7 +670,7 @@
    "title": "Amendment 1",
    "name": "Iowa Amendment 1, Two-Thirds Legislative Vote Requirement for Income Tax Increase Bills Amendment",
    "type": "LRCA",
-   "subject": "State legislative vote requirements; Income taxes",
+   "subject": "Income taxes; State legislative vote requirements",
    "description": "Require a two-thirds vote of both legislative chambers to pass a bill that would increase the individual or corporate income tax rate",
    "url": "https://ballotpedia.org/Iowa_Amendment_1,_Two-Thirds_Legislative_Vote_Requirement_for_Income_Tax_Increase_Bills_Amendment_(2026)"
   },
@@ -689,12 +689,12 @@
    "id": "meas-KY-1",
    "state": "KY",
    "state_name": "Kentucky",
-   "title": "Limit Governor's Pardon Power and Commutations Near General Election Amendment",
-   "name": "Kentucky Limit Governor's Pardon Power and Commutations Near General Election Amendment",
+   "title": "Constitutional Amendment 1",
+   "name": "Kentucky Constitutional Amendment 1, Limit Governor's Pardon Power and Commutations Near General Election Amendment",
    "type": "LRCA",
    "subject": "State executive powers and duties",
    "description": "Prohibit the governor from issuing a pardon or commuting a sentence 60 days prior to the gubernatorial election and until after the fifth Tuesday succeeding the election",
-   "url": "https://ballotpedia.org/Kentucky_Limit_Governor%27s_Pardon_Power_and_Commutations_Near_General_Election_Amendment_(2026)"
+   "url": "https://ballotpedia.org/Kentucky_Constitutional_Amendment_1,_Limit_Governor%27s_Pardon_Power_and_Commutations_Near_General_Election_Amendment_(2026)"
   },
   {
    "id": "meas-LA-1",
@@ -703,7 +703,7 @@
    "title": "Amendment 1",
    "name": "Louisiana Amendment 1, One-Time Transfer of Disabled Veteran Homestead Tax Exemption for Surviving Spouses Amendment",
    "type": "LRCA",
-   "subject": "Homestead tax exemptions; Veterans policy; Property tax exemptions",
+   "subject": "Property tax exemptions; Homestead tax exemptions; Veterans policy",
    "description": "Allow the surviving spouse of a disabled veteran to transfer the homestead property tax exemption one time to a new homestead",
    "url": "https://ballotpedia.org/Louisiana_Amendment_1,_One-Time_Transfer_of_Disabled_Veteran_Homestead_Tax_Exemption_for_Surviving_Spouses_Amendment_(2026)"
   },
@@ -714,7 +714,7 @@
    "title": "Amendment 10",
    "name": "Louisiana Amendment 10, Tax Exemption for Rehabilitated Property Amendment",
    "type": "LRCA",
-   "subject": "Property taxes; Property tax exemptions",
+   "subject": "Property tax exemptions; Property taxes",
    "description": "Authorize a tax exemption for derelict or blighted property that has been rehabilitated",
    "url": "https://ballotpedia.org/Louisiana_Amendment_10,_Tax_Exemption_for_Rehabilitated_Property_Amendment_(2026)"
   },
@@ -769,7 +769,7 @@
    "title": "Amendment 6",
    "name": "Louisiana Amendment 6, Property Tax Exemption for Seniors Amendment",
    "type": "LRCA",
-   "subject": "Homestead tax exemptions; Property taxes; Property tax exemptions",
+   "subject": "Property tax exemptions; Homestead tax exemptions; Property taxes",
    "description": "Authorize a property tax exemption up to $30,000 of assessed property value, increasing with age, from taxation for homeowners 65 and older who qualify for the income-based assessment freeze",
    "url": "https://ballotpedia.org/Louisiana_Amendment_6,_Property_Tax_Exemption_for_Seniors_Amendment_(2026)"
   },
@@ -780,7 +780,7 @@
    "title": "Amendment 7",
    "name": "Louisiana Amendment 7, Use Public Funds for Drinking Water Utility Service Lines Amendment",
    "type": "LRCA",
-   "subject": "Local government finance and taxes; Pollution, waste, and recycling policy; Drinking water systems",
+   "subject": "Local government finance and taxes; Drinking water systems; Pollution, waste, and recycling policy",
    "description": "Authorize the use of public funds for the maintenance of drinking water utility services lines affected by hazardous materials on property owned by utility customers",
    "url": "https://ballotpedia.org/Louisiana_Amendment_7,_Use_Public_Funds_for_Drinking_Water_Utility_Service_Lines_Amendment_(2026)"
   },
@@ -978,7 +978,7 @@
    "title": "Amendment 3",
    "name": "Missouri Amendment 3, Prohibit Abortion and Gender Transition Procedures for Minors Amendment",
    "type": "LRCA",
-   "subject": "Sex and gender issues; Abortion policy; Constitutional rights; LGBTQ issues; Healthcare governance",
+   "subject": "Abortion policy; Healthcare governance; Sex and gender issues; LGBTQ issues; Constitutional rights",
    "description": "Prohibit abortion in most cases, and prohibit gender transition procedures for minors under eighteen",
    "url": "https://ballotpedia.org/Missouri_Amendment_3,_Prohibit_Abortion_and_Gender_Transition_Procedures_for_Minors_Amendment_(2026)"
   },
@@ -1044,7 +1044,7 @@
    "title": "CI-133",
    "name": "Montana CI-133, Add Right to Initiative and Referendum Power to Declaration of Rights Amendment",
    "type": "CICA",
-   "subject": "Initiative and referendum process; Constitutional rights",
+   "subject": "Constitutional rights; Initiative and referendum process",
    "description": "Add the power of initiative and referendum to the state's Declaration of Rights",
    "url": "https://ballotpedia.org/Montana_CI-133,_Add_Right_to_Initiative_and_Referendum_Power_to_Declaration_of_Rights_Amendment_(2026)"
   },
@@ -1055,7 +1055,7 @@
    "title": "I-194",
    "name": "Montana I-194, Exclude Political Spending from Artificial Persons’ Charter Powers Initiative",
    "type": "CISS",
-   "subject": "Business regulations; Campaign finance",
+   "subject": "Campaign finance; Business regulations",
    "description": "Prohibit artificial persons, as defined in the initiative, from contributing to campaigns, ballot measure elections, or political parties",
    "url": "https://ballotpedia.org/Montana_I-194,_Exclude_Political_Spending_from_Artificial_Persons’_Charter_Powers_Initiative_(2026)"
   },
@@ -1099,7 +1099,7 @@
    "title": "Initiative Measure 442",
    "name": "Nebraska Initiative Measure 442, Sex Requirement for School and College Sports Initiative",
    "type": "CICA",
-   "subject": "Sex and gender issues; Public education governance; Athletics and sports; LGBTQ issues",
+   "subject": "LGBTQ issues; Athletics and sports; Public education governance; Sex and gender issues",
    "description": "Require schools designate sports team as male, female, or co-ed and prohibit male participation on female sports teams",
    "url": "https://ballotpedia.org/Nebraska_Initiative_Measure_442,_Sex_Requirement_for_School_and_College_Sports_Initiative_(2026)"
   },
@@ -1132,7 +1132,7 @@
    "title": "Eliminate Office of Register of Probate Amendment",
    "name": "New Hampshire Eliminate Office of Register of Probate Amendment",
    "type": "LRCA",
-   "subject": "Administrative organization; Constitutional wording changes",
+   "subject": "Constitutional wording changes; Administrative organization",
    "description": "Eliminate the office of the register of probate",
    "url": "https://ballotpedia.org/New_Hampshire_Eliminate_Office_of_Register_of_Probate_Amendment_(2026)"
   },
@@ -1187,7 +1187,7 @@
    "title": "Constitutional Amendment 2",
    "name": "New Mexico Constitutional Amendment 2, Repeal Separate Election Requirement for School Election Dates Amendment",
    "type": "LRCA",
-   "subject": "Public education governance; Local government officials and elections",
+   "subject": "Local government officials and elections; Public education governance",
    "description": "Repeal the constitutional provision requiring that school elections be held at different times from partisan elections",
    "url": "https://ballotpedia.org/New_Mexico_Constitutional_Amendment_2,_Repeal_Separate_Election_Requirement_for_School_Election_Dates_Amendment_(2026)"
   },
@@ -1396,7 +1396,7 @@
    "title": "Constitutional Amendment L",
    "name": "South Dakota Constitutional Amendment L, 60% Vote Requirement for Constitutional Amendments Measure",
    "type": "LRCA",
-   "subject": "Ballot measure supermajority requirements; Initiative and referendum process; Ballot measure process",
+   "subject": "Ballot measure supermajority requirements; Ballot measure process; Initiative and referendum process",
    "description": "Require a 60% supermajority by voters to approve constitutional amendments",
    "url": "https://ballotpedia.org/South_Dakota_Constitutional_Amendment_L,_60%25_Vote_Requirement_for_Constitutional_Amendments_Measure_(2026)"
   },
@@ -1429,7 +1429,7 @@
    "title": "Amendment 3",
    "name": "Tennessee Amendment 3, Marsy's Law Crime Victims' Rights Measure",
    "type": "LRCA",
-   "subject": "Crime victims' rights; Criminal trials",
+   "subject": "Criminal trials; Crime victims' rights",
    "description": "Amend the list of crime victims' rights in the constitution",
    "url": "https://ballotpedia.org/Tennessee_Amendment_3,_Marsy%27s_Law_Crime_Victims%27_Rights_Measure_(2026)"
   },
@@ -1451,7 +1451,7 @@
    "title": "Constitutional Amendment B",
    "name": "Utah Constitutional Amendment B, 60% Vote Requirement for Ballot Initiatives to Increase or Expand Taxes Measure",
    "type": "LRCA",
-   "subject": "Ballot measure supermajority requirements; Initiative and referendum process",
+   "subject": "Initiative and referendum process; Ballot measure supermajority requirements",
    "description": "Require a supermajority requirement of 60% by voters for citizen-initiated ballot measures that create new taxes, increase existing tax rates, or for a property tax",
    "url": "https://ballotpedia.org/Utah_Constitutional_Amendment_B,_60%25_Vote_Requirement_for_Ballot_Initiatives_to_Increase_or_Expand_Taxes_Measure_(2026)"
   },
@@ -1528,7 +1528,7 @@
    "title": "Initiative 638",
    "name": "Washington Initiative 638, Sex Verification Requirements for Female School Sports Initiative",
    "type": "IndISS",
-   "subject": "LGBTQ issues; Sex and gender issues; Public education governance; Athletics and sports",
+   "subject": "Athletics and sports; LGBTQ issues; Sex and gender issues; Public education governance",
    "description": "Require school and voluntary nonprofit athletics to prohibit biologically male students from competing with and against biologically female students",
    "url": "https://ballotpedia.org/Washington_Initiative_638,_Sex_Verification_Requirements_for_Female_School_Sports_Initiative_(2026)"
   },
@@ -1594,7 +1594,7 @@
    "title": "Initiative 1",
    "name": "Wyoming Initiative 1, Homeowner's Primary Residence Property Tax Exemption Measure",
    "type": "CISS",
-   "subject": "Property tax exemptions; Property taxes; Homestead tax exemptions",
+   "subject": "Homestead tax exemptions; Property tax exemptions; Property taxes",
    "description": "Create a homeowner's property tax exemption that exempts 50% of a primary residence's assessed value from property taxation",
    "url": "https://ballotpedia.org/Wyoming_Initiative_1,_Homeowner%27s_Primary_Residence_Property_Tax_Exemption_Measure_(2026)"
   }
