@@ -68,22 +68,27 @@ def close_of_day(mdy):
 
 def unit(rec):
     """One district (or the statewide row): vote-by-mail returned and, since early voting opened, early
-    in-person votes, each by party ('<party>Returned' / '<party>Early'); cast = the two together, which is
-    their '<party>Cast' (checked)."""
+    in-person votes, each by party ('<party>Returned' / '<party>Early'); cast = their '<party>Cast', the two
+    together with a voter found in both files counted once (10/24: one Broward Democrat), so it may run a few
+    below returned + early -- never above, and never by more than 5 or 0.1% (checked)."""
     def parts(suffix):
         return {p: int(rec.get(k + suffix) or 0) for p, k in (("rep", "rep"), ("dem", "dem"), ("npa", "npa"), ("oth", "other"))}
-    ret, ev = parts("Returned"), parts("Early")
+    ret, ev, theirs = parts("Returned"), parts("Early"), parts("Cast")
+    both = {p: ret[p] + ev[p] for p in ret}
+    if any(theirs.values()):
+        gap = sum(both.values()) - sum(theirs.values())
+        if any(theirs[p] > both[p] for p in theirs) or gap > max(5, sum(both.values()) // 1000):
+            raise ValueError("district %s: cast %s vs returned + early %s" % (rec.get("district"), theirs, both))
+    else:
+        theirs = both
     mail = C.party_block(ret["rep"], ret["dem"], ret["oth"], ret["npa"])
     early = C.party_block(ev["rep"], ev["dem"], ev["oth"], ev["npa"])
-    cast = C.add_blocks(mail, early)
+    cast = C.party_block(theirs["rep"], theirs["dem"], theirs["oth"], theirs["npa"])
     for b in (mail, early, cast):
         b.pop("compiled", None)
         b.pop("compiled_iso", None)
-    theirs = parts("Cast")
-    if any(theirs.values()) and any(theirs[p] != ret[p] + ev[p] for p in theirs):
-        raise ValueError("district %s: returned + early != cast" % rec.get("district"))
     sent, returned = int(rec.get("sent") or 0), int(rec.get("returned") or mail["total"])
-    u = {"mail_voted": mail, "cast": cast, "registered": 0, "turnout_pct": None,
+    u = {"mail_voted": mail, "cast": cast, "registered": 0, "turnout_pct": None, "in_both": sum(both.values()) - cast["total"],
          "mail": {"requested": sent, "returned": returned, "outstanding": max(0, sent - returned),
                   "return_rate": C.pct(returned, sent), "parties": {}}}
     if early["total"]:
@@ -120,6 +125,7 @@ def main():
         return 0
     cov = idx.get("coverage") or {}
     statewide = unit(idx.get("statewide") or {})
+    in_both = statewide.pop("in_both", 0)
     has_early = bool(statewide.get("early_voted"))
     loaded, expected = cov.get("countiesLoaded"), cov.get("countiesExpected")
     short = ("; %s of %s counties loaded (%s)" % (loaded, expected, cov.get("note", "").split(".")[1].strip()
@@ -142,16 +148,22 @@ def main():
             if not d.isdigit() or int(d) not in gidx:
                 unknown.append(d)
                 continue
-            units[gidx[int(d)]["name"]] = dict(unit(r), fips=gidx[int(d)]["fips"])
+            u = unit(r)
+            u.pop("in_both")
+            units[gidx[int(d)]["name"]] = dict(u, fips=gidx[int(d)]["fips"])
         if unknown or len(units) < 0.9 * len(gidx):
             print("FL districts: %s doesn't fit the map (unknown %s, %d of %d) — keeping the previous file."
                   % (key, unknown[:5], len(units), len(gidx)), file=sys.stderr)
+            flag("%s table doesn't fit the map (%d of %d districts) -- previous file kept" % (key, len(units), len(gidx)))
             continue
         in_districts = sum(u["cast"]["total"] for u in units.values())
         note = ("%s through the close of %s (prior day) — not live like the county view. "
                 "District totals from 305 Data Girl's Florida tracker, built from the state's county voter-level "
                 "vote-by-mail and early-voting files%s." % ("Vote-by-mail ballots returned and early in-person votes" if has_early
                                                           else "Vote-by-mail ballots returned", through, short))
+        if in_both:
+            note += (" %s voter%s found in both the mail and early-voting files %s counted once in the combined totals."
+                     % (format(in_both, ","), "" if in_both == 1 else "s", "is" if in_both == 1 else "are"))
         if in_districts < statewide["cast"]["total"]:
             note += (" %s ballots have no district assignment and appear only in the statewide total."
                      % format(statewide["cast"]["total"] - in_districts, ","))
@@ -179,5 +191,20 @@ def main():
     return 0
 
 
+def flag(msg):
+    """Mark Florida's entry in data/_health.json (written by run_all_states just before this step) so a district
+    failure shows on the status page instead of the district maps silently going stale (10/23-25)."""
+    path = os.path.join(ROOT, "data", "_health.json")
+    h = load(path, {}) or {}
+    rec = h.setdefault("states", {}).setdefault("fl", {})
+    rec.update(status="error", error=("district maps: " + msg)[:300], last_error_at=C.utc_now_iso())
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(h, f, separators=(",", ":"))
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception as e:  # noqa: BLE001
+        flag("%s: %s" % (type(e).__name__, str(e)[:200]))
+        raise
