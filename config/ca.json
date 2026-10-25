@@ -17,8 +17,9 @@
     ]
   },
   "method_labels": {
-    "cast": "Mail ballots returned",
+    "cast": "Ballots cast",
     "mail_voted": "Mail ballots returned",
+    "early_voted": "Voted in person",
     "mail_provided": "Mail ballots outstanding"
   },
   "mail_base_label": "Ballots issued",

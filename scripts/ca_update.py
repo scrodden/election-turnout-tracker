@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""California vote-by-mail ballots by county, with a statewide party split.
+"""California vote-by-mail ballots (and, since vote centers opened, in-person ballots) by county, with a
+statewide party split.
 
 Source: California Secretary of State "VBM Ballot Statistics" workbook
 (bsr-statistics.xlsx, linked from the 2026 general election page; first cell
@@ -95,31 +96,40 @@ def data_date(stamp):
 
 
 def read_vbm(raw, file_date=None):
-    """-> (as-of datetime, {county: (issued, returned, accepted)}) with the Total row checked."""
+    """-> (as-of datetime, {county: (issued, returned, accepted, in person)}) with the Total row checked. The
+    header row is the one with a "COUNTY" cell, wherever it sits (10/23 the SoS added a blank first column and a
+    County Type column, and in-person ballots once vote centers opened: "Total Cast In-Person Ballots")."""
     rows = next(iter(C.read_xlsx(raw, positional=True).values()))
     as_of = data_date(rows[0][0])
     if as_of is None:   # never throw the figures away over a date format
         print("CA: unrecognised data date %r -- using the file's date" % str(rows[0][0])[:40], file=sys.stderr)
         as_of = file_date or datetime.now(timezone.utc).replace(tzinfo=None)
-    hi = next(i for i, r in enumerate(rows) if r and r[0].strip().upper() == "COUNTY")
-    head = [c.strip() for c in rows[hi]]
+    hi = next((i for i, r in enumerate(rows) if any(str(c).strip().upper() == "COUNTY" for c in r)), None)
+    if hi is None:
+        raise RuntimeError("no COUNTY header row in the workbook (layout changed?)")
+    head = [str(c).strip() for c in rows[hi]]
+    cc = next(i for i, h in enumerate(head) if h.upper() == "COUNTY")
 
-    def col(name):
-        return next(i for i, h in enumerate(head) if h.lower().startswith(name.lower()))
-    ci, cr, ca = col("Total Voters Issued"), col("Total Returned"), col("Total Accepted")
+    def col(name, need=True):
+        i = next((i for i, h in enumerate(head) if h.lower().startswith(name.lower())), None)
+        if i is None and need:
+            raise RuntimeError("no %r column in the workbook" % name)
+        return i
+    ci, cr, ca, cp = col("Total Voters Issued"), col("Total Returned"), col("Total Accepted"), col("Total Cast In-Person", False)
     out, total = {}, None
     for r in rows[hi + 1:]:
-        if not r or not r[0].strip():
+        name = str(r[cc]).strip() if len(r) > cc else ""
+        if not name:
             continue
         if len(r) <= ci or not str(r[ci]).strip().replace(".", "", 1).isdigit():
             continue   # notes / blank rows
-        vals = tuple(C.parse_number(r[i]) if i < len(r) else 0 for i in (ci, cr, ca))
-        if r[0].strip().lower() == "total":
+        vals = tuple(C.parse_number(r[i]) if i is not None and i < len(r) and str(r[i]).strip() else 0 for i in (ci, cr, ca, cp))
+        if name.lower() == "total":
             total = vals
             break   # footnotes follow
-        out[r[0].strip()] = vals
-    if not total or tuple(sum(v[i] for v in out.values()) for i in range(3)) != total:
-        raise RuntimeError("CA: county rows don't add up to the Total row")
+        out[name] = vals
+    if not total or tuple(sum(v[i] for v in out.values()) for i in range(4)) != total:
+        raise RuntimeError("county rows don't add up to the Total row")
     return as_of, out
 
 
@@ -139,9 +149,12 @@ def read_registration(src):
     return {}, ""
 
 
-def entity(issued, returned, reg):
-    e = {"mail_voted": _block(returned), "mail_provided": _block(max(0, issued - returned)), "cast": _block(returned),
-         "registered": reg, "turnout_pct": C.pct(returned, reg) if reg else None}
+def entity(issued, returned, reg, inperson=0):
+    cast = returned + inperson
+    e = {"mail_voted": _block(returned), "mail_provided": _block(max(0, issued - returned)), "cast": _block(cast),
+         "registered": reg, "turnout_pct": C.pct(cast, reg) if reg else None}
+    if inperson:
+        e["early_voted"] = _block(inperson)
     m = C.compute_mail(e)
     if m:
         e["mail"] = m
@@ -169,22 +182,22 @@ def lab_party(statewide):
     known = sum(acc.values())
     if not known:
         return None
-    ret = statewide["mail_voted"]["total"]
-    statewide["mail_voted"] = C.party_block(acc["rep"], acc["dem"], 0, acc["npa"], unk=max(0, ret - known))
+    # the Lab's party counts (PDI) cover mail and in-person ballots together, so party goes on all ballots cast
+    # (and outstanding mail ballots), not on mail returned or in person separately (data party_methods)
+    cast = statewide["cast"]["total"]
+    statewide["cast"] = C.party_block(acc["rep"], acc["dem"], 0, acc["npa"], unk=max(0, cast - known))
     out = {p: max(0, req[p] - acc[p]) for p in acc}
     prov = statewide["mail_provided"]["total"]
     statewide["mail_provided"] = C.party_block(out["rep"], out["dem"], 0, out["npa"],
                                                unk=max(0, prov - sum(out.values())))
-    statewide["cast"] = statewide["mail_voted"]
-    m = C.compute_mail(statewide)
-    if m:
-        statewide["mail"] = m
-    unk = statewide["mail_voted"].get("unk", 0)
-    return ("Party (statewide only): UF Election Lab, from Political Data Inc (as of %s) -- %s of the returned ballots "
-            "have a party%s. Counties are shown without party." % (
+    if statewide.get("mail"):   # return rates by party: the Lab's own ballots returned vs issued
+        statewide["mail"]["parties"] = {p: {"req": req[p], "ret": acc[p], "rate": C.pct(acc[p], req[p])} for p in acc}
+    unk = statewide["cast"].get("unk", 0)
+    return ("Party (statewide only): UF Election Lab, from Political Data Inc (as of %s), for mail and in-person ballots "
+            "together -- %s of the ballots cast have a party%s. Counties are shown without party." % (
                 row.get("last_update", "?"), format(known, ","),
                 (" (%s counted by the SoS but not yet in the party data)" % format(unk, ",")) if unk else
-                (" (more than the SoS's %s; the party data is ahead)" % format(ret, ",") if known > ret else "")))
+                (" (more than the SoS's %s; the party data is ahead)" % format(cast, ",") if known > cast else "")))
 
 
 def vbm_url(src):
@@ -201,9 +214,9 @@ def vbm_url(src):
     if not links:
         return src["vbm_xlsx"]
 
-    def when(u):
-        m = re.search(r"(\d{1,2})-(\d{1,2})-(\d{4})\.xlsx$", u)
-        return (int(m.group(3)), int(m.group(1)), int(m.group(2))) if m else (0, 0, 0)
+    def when(u):   # bsr-statistics-10-16-2026.xlsx, and since 10/23 bsr-statistics-10-23-26.xlsx
+        m = re.search(r"(\d{1,2})-(\d{1,2})-(\d{2}|\d{4})\.xlsx$", u)
+        return ((int(m.group(3)) % 100) + 2000, int(m.group(1)), int(m.group(2))) if m else (0, 0, 0)
     return max(links, key=when)
 
 
@@ -224,7 +237,7 @@ def main():
         as_of, rows = read_vbm(C.http_get(vbm_url(src), binary=True, no_cache=True, retries=2),
                                file_date=datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=7))   # Pacific
     except Exception as e:  # noqa: BLE001
-        print("CA SoS VBM statistics unavailable: %s" % str(e)[:140], file=sys.stderr)
+        print("CA SoS VBM statistics unavailable: %s: %s" % (type(e).__name__, str(e)[:140]), file=sys.stderr)
         LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=False, force=force)
         return 2   # the Lab stand-in kept the page current, but flag the official feed on the status page
     reg, reg_report = read_registration(src)
@@ -235,18 +248,22 @@ def main():
         print("CA: unmatched counties %s — keeping previous snapshot." % unmatched[:5], file=sys.stderr)
         return 0
     counties = {}
-    for name, (iss, ret, acc) in rows.items():
+    for name, (iss, ret, acc, inp) in rows.items():
         g = gidx[_norm(name)]
-        counties[g["name"]] = dict(entity(iss, ret, reg.get(_norm(name), 0)), fips=g["fips"], accepted=acc)
-    t_iss, t_ret, t_acc = (sum(v[i] for v in rows.values()) for i in range(3))
-    statewide = dict(entity(t_iss, t_ret, sum(reg.values())), accepted=t_acc)
+        counties[g["name"]] = dict(entity(iss, ret, reg.get(_norm(name), 0), inp), fips=g["fips"], accepted=acc)
+    t_iss, t_ret, t_acc, t_inp = (sum(v[i] for v in rows.values()) for i in range(4))
+    statewide = dict(entity(t_iss, t_ret, sum(reg.values()), t_inp), accepted=t_acc)
     party_note = lab_party(statewide)
     stamp = as_of.strftime("%Y-%m-%d %H:%M")
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "California"), "election": cfg.get("election", {}),
         "partisan": bool(party_note), "units_partisan": False,
         "unk_label": "counted by the SoS, not yet in the party data",
-        "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
+        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if (statewide.get(k) or {}).get("total")],
+        **({"party_methods": ["cast", "mail_provided"],
+            "party_methods_note": "The party figures (UF Election Lab, from Political Data Inc) cover mail and in-person "
+                                  "ballots together, so party is shown for all ballots cast and for outstanding mail "
+                                  "ballots, not for mail returned or in person separately."} if party_note else {}),
         "method_labels": cfg.get("method_labels", {}), "mail_base_label": cfg.get("mail_base_label", "Ballots issued"),
         "statewide": statewide, "counties": counties,
         "map_note": ("Returned ballots (%s of them accepted so far after signature checks). 'Issued' counts every voter "
