@@ -195,30 +195,162 @@ def parse_mail_xlsx(raw, idx):
     return as_of, out, unmatched
 
 
-def mail_snapshot(cfg, as_of, rows, url):
+def parse_early_raw(text, idx):
+    """In-person early voting from the SBE's 'EarlyVoting RAW data' CSV (GG26/EarlyVoting_RAW_data.csv): one row per
+    county x congressional / legislative district x precinct x status x gender x age group x party x early-vote
+    center, with that row's voters on Day1..Day8. Party DEM / REP; everything else (UNA, OTH, WCP, GRN) -> oth, as
+    the mail-in reports count unaffiliated voters in Other.
+    -> (days reported, {geo county name: {dem, rep, oth, npa}}, {cd number: {...}}, unmatched counties)"""
+    import csv
+    import io
+    rows = csv.reader(io.StringIO(text.lstrip("\ufeff")))
+    head = [h.strip() for h in next(rows)]
+    H = {h: i for i, h in enumerate(head)}
+    days = [h for h in head if re.fullmatch(r"Day\d+", h)]
+    if any(k not in H for k in ("COUNTY_NAME", "congressional_district_code", "PARTY_CODE")) or not days:
+        raise RuntimeError("MD early voting: unexpected columns %s" % head[:12])
+    counties, cds, unmatched, reported = {}, {}, set(), set()
+
+    def z():
+        return {"dem": 0, "rep": 0, "oth": 0, "npa": 0}
+    for r in rows:
+        if len(r) < len(head):
+            continue
+        n = 0
+        for d in days:
+            v = r[H[d]].strip()
+            if v.isdigit() and int(v):
+                n += int(v)
+                reported.add(d)
+        if not n:
+            continue
+        party = {"DEM": "dem", "REP": "rep"}.get(r[H["PARTY_CODE"]].strip().upper(), "oth")
+        g = idx.get(norm(r[H["COUNTY_NAME"]]))
+        if not g:
+            unmatched.add(r[H["COUNTY_NAME"]])
+        else:
+            counties.setdefault(g["name"], z())[party] += n
+        cd = r[H["congressional_district_code"]].strip()
+        if cd.isdigit():
+            cds.setdefault(str(int(cd)), z())[party] += n
+    return len(reported), counties, cds, sorted(unmatched)
+
+
+def parse_mail_cd_xlsx(raw):
+    """The SBE's 'Mail-in Sent and Returned by Congressional District' workbook: 'ALL' rows per district
+    ('Congressional District Code 01', county ALL), DEM / REP / OTH (incl. unaffiliated) sent and received.
+    -> (as_of, {cd number: {"sent": {..}, "recv": {..}}})"""
+    rows = next(iter(C.read_xlsx(raw, positional=True).values()), [])
+    as_of = ""
+    for r in rows[:6]:
+        for c in r:
+            m = re.search(r"As of:\s*([A-Za-z]+ \d{1,2}, \d{4}(?: +\d{1,2}(?::\d{2})? ?[AP]M)?)", c)
+            if m:
+                as_of = re.sub(r"\s+", " ", m.group(1))
+    head = next((r for r in rows if "DISTRICT" in [c.strip().upper() for c in r]), None)
+    if not head:
+        raise RuntimeError("MD mail by district: header row not found")
+    H = {c.strip().upper(): i for i, c in enumerate(head) if c.strip()}
+
+    def num(r, k):
+        v = r[H[k]] if H[k] < len(r) else ""
+        return int(float(v)) if str(v).replace(".", "", 1).isdigit() else 0
+    out = {}
+    for r in rows:
+        if len(r) <= H["DISTRICT"] or r[H["CATEGORY"]].strip().upper() != "ALL" or r[H["COUNTY NAME"]].strip().upper() != "ALL":
+            continue
+        m = re.search(r"(\d+)\s*$", r[H["DISTRICT"]])
+        if not m:
+            continue
+        sent = {"dem": num(r, "DEM SENT"), "rep": num(r, "REP SENT"), "oth": num(r, "OTH SENT"), "npa": 0}
+        recv = {"dem": num(r, "DEM RECEIVED"), "rep": num(r, "REP RECEIVED"), "oth": num(r, "OTH RECEIVED"), "npa": 0}
+        if sum(sent.values()) != num(r, "TOTAL SENT"):
+            raise RuntimeError("MD mail by district: party columns don't add up for district %s" % m.group(1))
+        out[str(int(m.group(1)))] = {"sent": sent, "recv": recv}
+    return as_of, out
+
+
+def _ent(sent, recv, early=None):
+    """One unit: mail sent / returned and in-person early votes, each by party -> the page's blocks."""
     def pb(d):
         return C.party_block(d["rep"], d["dem"], d["oth"], d["npa"])
+    early = early or {"dem": 0, "rep": 0, "oth": 0, "npa": 0}
+    e = {"mail_voted": pb(recv), "mail_provided": pb({k: max(0, sent[k] - recv[k]) for k in sent}),
+         "cast": pb({k: recv[k] + early[k] for k in recv}), "registered": 0, "turnout_pct": None}
+    if sum(early.values()):
+        e["early_voted"] = pb(early)
+    m = C.compute_mail(dict(e, cast=None))
+    if m:
+        e["mail"] = m
+    return e
 
-    def ent(sent, recv):
-        e = {"mail_voted": pb(recv), "mail_provided": pb({k: max(0, sent[k] - recv[k]) for k in sent}),
-             "cast": pb(recv), "registered": 0, "turnout_pct": None}
-        m = C.compute_mail(e)
-        if m:
-            e["mail"] = m
-        return e
-    counties, S, R = {}, {"dem": 0, "rep": 0, "oth": 0, "npa": 0}, {"dem": 0, "rep": 0, "oth": 0, "npa": 0}
+
+def early_through(cfg, n_days):
+    from datetime import date, timedelta
+    y, mo, d = (int(x) for x in cfg["source"].get("early_start", "2026-10-22").split("-"))
+    return (date(y, mo, d) + timedelta(days=n_days - 1)).strftime("%B %-d" if os.name != "nt" else "%B %#d") if n_days else ""
+
+
+def write_districts(cfg, early_cd, n_days):
+    """data/md/districts_cd.json: the official mail-in by congressional district workbook plus in-person early votes
+    by district from the raw early-voting file."""
+    as_of, mail = parse_mail_cd_xlsx(C.http_get(cfg["source"]["mail_by_cd"], binary=True, no_cache=True, retries=2))
+    geo = load(os.path.join(ROOT, "assets", "md-cd.geojson"))
+    gidx = {str(f["properties"]["district_number"]): f["properties"] for f in geo["features"]}
+    if sorted(mail) != sorted(gidx):
+        raise RuntimeError("MD mail by district: districts %s vs the map's %s" % (sorted(mail), sorted(gidx)))
+    zero = {"dem": 0, "rep": 0, "oth": 0, "npa": 0}
+    units = {gidx[n]["name"]: dict(_ent(r["sent"], r["recv"], (early_cd or {}).get(n)), fips=gidx[n]["fips"])
+             for n, r in mail.items()}
+    S, Rv, E = dict(zero), dict(zero), dict(zero)
+    for n, r in mail.items():
+        for k in zero:
+            S[k] += r["sent"][k]
+            Rv[k] += r["recv"][k]
+            E[k] += (early_cd or {}).get(n, zero)[k]
+    thr = early_through(cfg, n_days)
+    body = {"state": STATE, "election": cfg["election"], "unit_label": "District", "unit_label_plural": "Districts",
+            "partisan": True,
+            "source": "MD State Board of Elections: Mail-in Sent and Returned by Congressional District (as of %s) and "
+                      "the early-voting raw data file (in-person early votes by district%s); unaffiliated voters are "
+                      "included in Other" % (as_of, ", through " + thr if thr else ""),
+            "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if (_ent(S, Rv, E).get(k) or {}).get("total")],
+            "method_labels": cfg.get("method_labels", {}), "coverage": {"ok": len(units), "total": len(gidx), "unmatched": []},
+            "as_of": as_of, "statewide": _ent(S, Rv, E), "counties": units}
+    out = os.path.join(DATA_DIR, "districts_cd.json")
+    prev = load(out) if os.path.exists(out) else {}
+    h = C.data_hash(body)
+    if h == prev.get("data_hash"):
+        return
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(dict(body, data_hash=h, generated_at=C.utc_now_iso(), source_compiled=as_of,
+                       source_compiled_iso=C.utc_now_iso()), f, separators=(",", ":"))
+    print("md districts: CHANGED %d districts, mail returned %d, early in person %d" % (len(units), sum(Rv.values()), sum(E.values())))
+
+
+def mail_snapshot(cfg, as_of, rows, url, early=None, n_days=0):
+    """The mail-in workbook's counties, plus in-person early votes by county (parse_early_raw) when there are any:
+    cast = mail returned + early in person."""
+    early = early or {}
+    zero = {"dem": 0, "rep": 0, "oth": 0, "npa": 0}
+    counties, S, R, E = {}, dict(zero), dict(zero), dict(zero)
     for name, r in rows.items():
-        counties[name] = dict(ent(r["sent"], r["recv"]), fips=r["fips"])
+        counties[name] = dict(_ent(r["sent"], r["recv"], early.get(name)), fips=r["fips"])
         for k in S:
             S[k] += r["sent"][k]
             R[k] += r["recv"][k]
-    statewide = ent(S, R)
+            E[k] += early.get(name, zero)[k]
+    statewide = _ent(S, R, E)
+    thr = early_through(cfg, n_days)
     return {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"], "partisan": True,
-        "source": {"primary": "MD State Board of Elections 'Mail-in Sent and Returned' by county (2026 general), as of %s; "
-                              "unaffiliated voters are included in Other" % as_of, "url": url, "as_of": as_of},
+        "source": {"primary": "MD State Board of Elections 'Mail-in Sent and Returned' by county (2026 general), as of %s%s; "
+                              "unaffiliated voters are included in Other" % (
+                                  as_of, "; in-person early voting from its raw data file, through " + thr if thr else ""),
+                   "url": url, "as_of": as_of},
         "source_compiled": as_of, "source_compiled_iso": C.utc_now_iso(),
-        "methods_present": [k for k in ("mail_voted", "mail_provided") if statewide[k]["total"]],
+        "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if (statewide.get(k) or {}).get("total")],
         "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
     }
 
@@ -264,8 +396,21 @@ def main():
         except Exception as e:  # noqa: BLE001
             print("MD mail-in workbook unavailable: %s" % str(e)[:140])
             rows = {}
+        early, early_cd, n_days = {}, {}, 0
+        try:   # in-person early voting (Oct 22 - 29), by county and congressional district
+            n_days, early, early_cd, bad = parse_early_raw(
+                C.http_get(cfg["source"]["early_raw"], no_cache=True, retries=2, timeout=120), idx)
+            if bad:
+                raise RuntimeError("unmatched counties %s" % bad)
+        except Exception as e:  # noqa: BLE001
+            print("MD early-voting raw data unavailable: %s" % str(e)[:140], file=sys.stderr)
+            early, early_cd, n_days = {}, {}, 0
+        try:
+            write_districts(cfg, early_cd, n_days)
+        except Exception as e:  # noqa: BLE001 - the district view must never sink the county update
+            print("MD districts not written: %s" % str(e)[:140], file=sys.stderr)
         if rows:
-            snap = mail_snapshot(cfg, as_of, rows, mail_url)
+            snap = mail_snapshot(cfg, as_of, rows, mail_url, early, n_days)
         else:
             import lab_standin as LAB   # nothing official yet -> UF Election Lab stand-in
             if LAB.run(STATE, cfg, GEO_PATH, LATEST_PATH, HISTORY_PATH, partisan=True, force=force):
@@ -289,8 +434,10 @@ def main():
                                     "statewide": {"cast": [c["rep"], c["dem"], c["oth"], c["npa"], c["total"]]}},
                                    separators=(",", ":")) + "\n")
             m = snap["statewide"].get("mail") or {}
-            print("CHANGED  MD mail-in as of %s: %d counties | received=%d of %d sent (R%d D%d Oth%d) margin=%s"
-                  % (as_of, len(snap["counties"]), c["total"], m.get("requested", 0), c["rep"], c["dem"], c["oth"], c["margin"]))
+            print("CHANGED  MD mail-in as of %s: %d counties | cast=%d (mail %d of %d sent, early in person %d) "
+                  "(R%d D%d Oth%d) margin=%s" % (as_of, len(snap["counties"]), c["total"], m.get("returned", 0),
+                                                m.get("requested", 0), (snap["statewide"].get("early_voted") or {}).get("total", 0),
+                                                c["rep"], c["dem"], c["oth"], c["margin"]))
             return 0
 
     snap, unmatched = build_snapshot(cfg, parsed, idx, src_label)

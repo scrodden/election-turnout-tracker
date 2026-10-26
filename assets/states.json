@@ -149,7 +149,15 @@
       "data": "data/md/latest.json",
       "geojson": "assets/md-counties.geojson",
       "history": "data/md/history.jsonl",
-      "source_note": "Source: <a href='https://elections.maryland.gov/press_room/index.html' target='_blank' rel='noopener'>Maryland State Board of Elections</a> daily &ldquo;Mail-in Sent and Returned&rdquo; report by county and registered party. Maryland's report groups unaffiliated voters with minor parties, so they appear under Other. Early in-person voting starts October 22."
+      "source_note": "Source: <a href='https://elections.maryland.gov/press_room/index.html' target='_blank' rel='noopener'>Maryland State Board of Elections</a> daily &ldquo;Mail-in Sent and Returned&rdquo; reports by county and by congressional district, and its early-voting raw data file (in-person early votes by county, district and party, updated each morning; early voting runs October 22 &ndash; 29), by registered party. Maryland's mail reports group unaffiliated voters with minor parties, so they appear under Other (early votes too, to match).",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/md/districts_cd.json",
+          "geojson": "assets/md-cd.geojson"
+        }
+      ]
     },
     {
       "code": "ia",
