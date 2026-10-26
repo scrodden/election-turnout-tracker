@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""New York early-voting turnout by county, plus enrollment by party.
+"""New York early-voting turnout by county (turnout only for now).
 
-STAGED SKELETON: as of 2026-10-14 no live, machine-readable feed was found.
-www.elections.ny.gov sits fully behind a Cloudflare JS challenge for every
-page (confirmed via direct fetch -- a "Just a moment..." interstitial, HTTP
-403 to any non-browser client), and data.ny.gov (the state's own open-data
-portal) carries no early-voting/turnout/ballot dataset. See the "_comment" in
-config/ny.json for the full list of what was checked and what to look for on
-the next pass. Writes an empty (0) partisan snapshot until a real parser can
-be wired against a genuine county+party feed.
+No feed we can read directly: www.elections.ny.gov sits behind a Cloudflare
+browser challenge on every page (not worked around), and data.ny.gov has no
+early-voting dataset. The state Board of Elections' daily early-voting report
+reaches the UF Election Lab, whose 2026 files cite it ("Data provided by the
+New York State Board of Elections"; first posted 2026-10-26: 265,428 in-person
+early voters in all 62 counties). Per the Lab, that report is a cumulative
+county total of in-person early voters only -- no party, no mail ballots, no
+demographics -- so this writes the Lab stand-in turnout-only
+(scripts/lab_standin.py, unaltered, attributed). An official feed wired in
+fetch_counties() replaces it automatically.
 
 Run:  python scripts/ny_update.py [--force]
 """
@@ -36,10 +38,9 @@ def load(p):
 
 
 def fetch_counties(cfg):
-    """Return {county: {fips, methods:{mkey:{rep,dem,oth,npa}}}} from the live feed.
+    """Return {county: {fips, methods:{mkey:{rep,dem,oth,npa}}}} from an official feed.
 
-    PENDING: no wired parser yet. Returns {} (empty snapshot); the rollout
-    routine wires the live parser in Oct.
+    None yet (see the module docstring): {} -> the Election Lab stand-in is written instead.
     """
     return {}
 
@@ -49,6 +50,11 @@ def main():
     cfg = load(CONFIG_PATH)
 
     rows = fetch_counties(cfg)
+    if not rows:   # stand-in until a county feed we can read directly exists
+        import lab_standin as LAB
+        if LAB.run(STATE, cfg, os.path.join(ROOT, "assets", "ny-counties.geojson"), LATEST_PATH, HISTORY_PATH,
+                   partisan=False, force=force):
+            return 0
     counties_out = {}
     for name, r in rows.items():
         ent = {"fips": r["fips"]}

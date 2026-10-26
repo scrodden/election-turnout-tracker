@@ -1,20 +1,20 @@
 {
-  "state": "ny",
-  "state_name": "New York",
-  "state_fips": "36",
-  "partisan": true,
-  "election": {
-    "date": "2026-11-03",
-    "name": "2026 General"
-  },
-  "general_start": "2026-10-24",
-  "source": {
-    "_comment": "STAGED SKELETON -- checked 2026-10-14, no feed found. www.elections.ny.gov sits fully behind a Cloudflare JS challenge ('Just a moment...' interstitial) for every page, including EarlyVoting.html -- confirmed via direct fetch (both a plain and a browser-header-spoofed request got HTTP 403 with the Cloudflare challenge body), so there is no way to pull its daily early-voting-by-county report without a real browser. Checked data.ny.gov (the state's own Socrata open-data portal) directly, scoped to domains=data.ny.gov: no early-voting, turnout, or ballot dataset exists there at all (only campaign-finance data matches 'election'). A generic cross-domain Socrata catalog search surfaces a dataset called 'Early Voting by Day in General Elections 2008-2026' but its metadata.domain is data.macoupincountyil.gov (an unrelated Illinois county portal, unofficial, statewide-total-only, no county breakdown) -- not usable. NY's actual 2026 general early-voting window is ~Oct 24-Nov 1 (general_start corrected above from the generic 10-15 placeholder). Re-check once that window opens: news coverage in past cycles cites 'state Board of Elections figures' directly, suggesting NYSBE does release numbers (possibly via press PDF) even though the web UI is Cloudflare-walled -- worth checking for a direct PDF/data link bypassing the challenged pages, or whether NYC BOE (a different domain, covers only the 5 NYC counties) exposes something fetchable. Until then this reads 0.",
-    "portal": "https://www.elections.ny.gov/"
-  },
-  "method_labels": {
-    "cast": "Ballots cast",
-    "early_voted": "Voted early",
-    "mail_voted": "Voted by mail"
-  }
+ "state": "ny",
+ "state_name": "New York",
+ "state_fips": "36",
+ "partisan": true,
+ "election": {
+  "date": "2026-11-03",
+  "name": "2026 General"
+ },
+ "general_start": "2026-10-24",
+ "source": {
+  "_comment": "www.elections.ny.gov: Cloudflare browser challenge on every page (HTTP 403 to scripts; not worked around). data.ny.gov: no early-voting dataset. Stand-in since 2026-10-26: UF Election Lab NY rows (US.csv + NY_county.csv), 'Data provided by the New York State Board of Elections' -- per the Lab, the daily report is a cumulative county total of in-person early voters only (no party, mail or demographics). NYC BOE (vote.nyc) covers only the five NYC counties. Early voting runs Oct 24 - Nov 1.",
+  "portal": "https://www.elections.ny.gov/"
+ },
+ "method_labels": {
+  "cast": "Ballots cast",
+  "early_voted": "Voted early in person",
+  "mail_voted": "Voted by mail"
+ }
 }

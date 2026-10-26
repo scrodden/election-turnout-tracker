@@ -391,7 +391,7 @@
       "data": "data/ny/latest.json",
       "geojson": "assets/ny-counties.geojson",
       "history": "data/ny/history.jsonl",
-      "source_note": "Source: <a href='https://www.elections.ny.gov/' target='_blank' rel='noopener'>New York Secretary of State</a> — early/absentee turnout by county &amp; registered party. Staged; figures read zero until the feed is wired when early voting opens in October."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> early-vote tracker, from the New York State Board of Elections' daily early-voting report (used unaltered with attribution, CC BY-NC-ND 4.0): cumulative in-person early voters by county. The report has no party, mail-ballot or demographic figures, so this is turnout only. Early voting runs October 24 &ndash; November 1. Boundaries: U.S. Census Bureau."
     },
     {
       "code": "ok",
