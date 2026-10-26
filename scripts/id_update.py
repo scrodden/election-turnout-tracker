@@ -69,6 +69,10 @@ def dw_csv(base, cid):
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {}) or {}
+    import lab_standin as LAB
+    # congressional districts: the Lab's ID_cd.csv (mail ballots only, by party), ~hourly
+    LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "id-cd.geojson"), os.path.join(DATA_DIR, "districts_cd.json"),
+                  partisan=True, force=force)
     src = cfg.get("source", {})
     base = src.get("dw_base", "https://datawrapper.dwcdn.net/")
     geo = load(GEO_PATH, {"features": []})

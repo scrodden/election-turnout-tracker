@@ -178,6 +178,9 @@ def _arg(n):
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {}) or {}
+    # congressional districts: the Lab's OK_cd.csv (district x county pieces, by party), ~hourly
+    LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "ok-cd.geojson"), os.path.join(DATA_DIR, "districts_cd.json"),
+                  partisan=True, force=force)
     src = cfg.get("source", {})
     want = _arg("--test-date") or src.get("election_date", "11/3/2026")
     test = bool(_arg("--test-mail") or _arg("--test-inperson"))

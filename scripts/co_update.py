@@ -149,6 +149,10 @@ def discover(cfg):
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH)
+    import lab_standin as LAB
+    # congressional districts: the Lab's CO_cd.csv (district x county pieces, by party), ~hourly
+    LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "co-cd.geojson"), os.path.join(DATA_DIR, "districts_cd.json"),
+                  partisan=True, force=force)
     idx = geo_index()
 
     counties_out = {}

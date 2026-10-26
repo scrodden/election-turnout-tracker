@@ -81,7 +81,15 @@
       "data": "data/co/latest.json",
       "geojson": "assets/co-counties.geojson",
       "history": "data/co/history.jsonl",
-      "source_note": "Source: Until the <a href='https://www.coloradosos.gov/' target='_blank' rel='noopener'>Colorado Secretary of State</a> posts its daily ballot-return file (once ballots mail in mid-October), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Secretary of State. Unaffiliated voters are shown as NPA; &ldquo;sent&rdquo; counts every active voter, since Colorado mails everyone a ballot."
+      "source_note": "Source: Until the <a href='https://www.coloradosos.gov/' target='_blank' rel='noopener'>Colorado Secretary of State</a> posts its daily ballot-return file (once ballots mail in mid-October), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, which gets them from the Secretary of State. Unaffiliated voters are shown as NPA; &ldquo;sent&rdquo; counts every active voter, since Colorado mails everyone a ballot.",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/co/districts_cd.json",
+          "geojson": "assets/co-cd.geojson"
+        }
+      ]
     },
     {
       "code": "la",
@@ -356,7 +364,15 @@
       "data": "data/id/latest.json",
       "geojson": "assets/id-counties.geojson",
       "history": "data/id/history.jsonl",
-      "source_note": "Source: <a href='https://voteidaho.gov/data-and-dashboards/absentee-tracker/' target='_blank' rel='noopener'>Idaho Secretary of State VoteIdaho absentee tracker</a> — absentee ballots returned by county &amp; registered party."
+      "source_note": "Source: <a href='https://voteidaho.gov/data-and-dashboards/absentee-tracker/' target='_blank' rel='noopener'>Idaho Secretary of State VoteIdaho absentee tracker</a> — absentee ballots returned by county &amp; registered party.",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/id/districts_cd.json",
+          "geojson": "assets/id-cd.geojson"
+        }
+      ]
     },
     {
       "code": "ky",
@@ -409,7 +425,15 @@
       "data": "data/ok/latest.json",
       "geojson": "assets/ok-counties.geojson",
       "history": "data/ok/history.jsonl",
-      "source_note": "Source: Until the <a href='https://oklahoma.gov/elections/voters/absentee-voting-statistics/absentee-voting-statistics.html' target='_blank' rel='noopener'>Oklahoma State Election Board</a> posts its county-by-party absentee reports (it does so only in the final weeks), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, drawn from the Election Board's data warehouse. Independents are shown as NPA."
+      "source_note": "Source: Until the <a href='https://oklahoma.gov/elections/voters/absentee-voting-statistics/absentee-voting-statistics.html' target='_blank' rel='noopener'>Oklahoma State Election Board</a> posts its county-by-party absentee reports (it does so only in the final weeks), figures by county and registered party come from the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>, drawn from the Election Board's data warehouse. Independents are shown as NPA.",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/ok/districts_cd.json",
+          "geojson": "assets/ok-cd.geojson"
+        }
+      ]
     },
     {
       "code": "or",

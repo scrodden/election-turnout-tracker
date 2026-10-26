@@ -186,13 +186,16 @@ def unassigned_note(gap, total, unit="county or district"):
             "map add up to %s." % (format(gap, ","), format(total, ","), unit, format(total - gap, ",")))
 
 
-def reconcile(parts, row, code=None):
+def reconcile(parts, row, code=None, mail_only=False):
     """Lab district rows vs its statewide row. Ballots cast without a district
     may be up to 10% of the total (DE's senate file leaves ~8% as "NA"); mail
     requests without one up to 1% (not checked where the Lab has no real
-    request counts). -> (ok, unassigned requests, unassigned ballots cast)."""
-    cast = _n(row, "accept_all") + _n(row, "inperson_all")
-    cast_gap = cast - sum(_n(r, "accept_all") + _n(r, "inperson_all") for r in parts)
+    request counts). mail_only: the district file has mail ballots only (ID), so
+    only those are compared. -> (ok, unassigned requests, unassigned ballots cast)."""
+    def cast_of(r):
+        return _n(r, "accept_all") + (0 if mail_only else _n(r, "inperson_all"))
+    cast = cast_of(row)
+    cast_gap = cast - sum(cast_of(r) for r in parts)
     req_gap = _n(row, "request_all") - sum(_n(r, "request_all") for r in parts)
     ok_cast = 0 <= cast_gap <= max(10, cast // 10)
     ok_req = code in NO_REQUESTS or 0 <= req_gap <= max(50, _n(row, "request_all") // 100)
@@ -215,7 +218,7 @@ def _dnum(v):
         return None
     if v.isdigit():
         return int(v)
-    m = re.search(r"District\s+0*(\d+)\s*$", v, re.I)
+    m = re.search(r"(?:District|Congressional)\s+0*(\d+)\s*$", v, re.I)   # ... "Congressional 3" (CO)
     return int(m.group(1)) if m else None
 
 
@@ -250,7 +253,8 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     geo = _load(cd_geo_path, {"features": []})
     gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
     placed = [r for r in parts if _dnum(r.get(kind)) is not None]
-    ok, gap, cast_gap = reconcile(placed, row, dcode)
+    mail_only = bool(cfg.get("lab_district_mail_only"))   # ID: the district files have mail ballots only
+    ok, gap, cast_gap = reconcile(placed, row, dcode, mail_only)
     sums = {}
     unknown = sorted({_dnum(r[kind]) for r in placed if _dnum(r[kind]) not in gidx})
     for r in placed:
@@ -262,7 +266,10 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     # share in every county (NV 10/22: 227,226 of 269,277). Used, with its own totals and a note, rather than kept
     # frozen at an old file (NV's had stayed at 10/19 for three days).
     req_ok = dcode in NO_REQUESTS or 0 <= gap <= max(50, _n(row, "request_all") // 100)
-    lag = not ok and req_ok and cast_gap > 0 and not unknown
+    # ... and when its mail requests trail too (NV 10/26: 94.5% of the requests, 92.7% of the ballots; the file had
+    # been kept at 10/22 for four days): a file behind by up to a quarter is used, with its own totals and a note
+    behind = 0 <= gap <= _n(row, "request_all") // 4 and cast_gap <= (_n(row, "accept_all") + _n(row, "inperson_all")) // 4
+    lag = not ok and cast_gap > 0 and not unknown and (req_ok or behind)
     if (not ok and not lag) or unknown or not gidx:
         print("%s: Lab district file doesn't reconcile (districts not on the map: %s) — keeping the previous one."
               % (st, unknown[:5]), file=sys.stderr)
@@ -275,7 +282,7 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         if d:
             ent["demographics"] = d
         out_units[gidx[num]["name"]] = ent
-    if lag:   # the district file's own totals, so the cards match the map
+    if lag or mail_only:   # the district file's own totals, so the cards match the map
         tot = {}
         for a in sums.values():
             for k, v in a.items():
@@ -294,7 +301,15 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         "as_of": row.get("last_update", ""), "statewide": statewide, "counties": out_units,
     }
     note = None if dcode in NO_REQUESTS else unassigned_note(gap, _n(row, "request_all"), "district")
-    if lag:
+    if lag and not req_ok:   # the whole file is an older snapshot: requests and ballots both behind
+        cast_all = _n(row, "accept_all") + _n(row, "inperson_all")
+        req_all = _n(row, "request_all")
+        note = ("The Election Lab's %s file is behind its statewide count: it has %s of the %s ballots (%s%%) and %s of "
+                "the %s mail-ballot requests (%s%%), so these figures trail the statewide totals until the Lab updates "
+                "the file." % (desc, format(cast_all - cast_gap, ","), format(cast_all, ","),
+                               round(100.0 * (cast_all - cast_gap) / cast_all, 1), format(req_all - gap, ","),
+                               format(req_all, ","), round(100.0 * (req_all - gap) / req_all, 1)))
+    elif lag:
         cast_all = _n(row, "accept_all") + _n(row, "inperson_all")
         na_cast = sum(_n(r, "accept_all") + _n(r, "inperson_all") for r in parts if _dnum(r.get(kind)) is None)
         note = ((note + " ") if note else "") + (
@@ -308,6 +323,11 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         note = ((note + " ") if note else "") + (
             "%s of the %s ballots cast in the Election Lab's data (%s%%) have no %s and appear only in the statewide "
             "total." % (format(cast_gap, ","), format(cast_all, ","), round(100.0 * cast_gap / cast_all, 1), desc))
+    if mail_only and _n(row, "inperson_all"):
+        note = ((note + " ") if note else "") + (
+            "District figures are mail ballots only: the Election Lab's %s file doesn't include the %s in-person early "
+            "votes, which the state reports by county only, so these totals run below the statewide ones."
+            % (desc, format(_n(row, "inperson_all"), ",")))
     if note:
         body["map_note"] = note
     prev = _load(out_path, {}) or {}

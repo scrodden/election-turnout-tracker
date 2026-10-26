@@ -1,22 +1,24 @@
 {
-  "state": "id",
-  "state_name": "Idaho",
-  "state_fips": "16",
-  "partisan": true,
-  "election": {
-    "date": "2026-11-03",
-    "name": "2026 General"
-  },
-  "general_start": "2026-09-19",
-  "source": {
-    "_comment": "LIVE. Idaho SoS VoteIdaho absentee dashboard (voteidaho.gov/data-and-dashboards/absentee-tracker/) is powered by Datawrapper charts that expose clean CSV datasets. County x party of returned ballots = chart 5f5QM (ResCountyDesc, Republican, Democratic, Unaffiliated); county totals = 3EDnv (Returned, total_issued, early_voting, total_voted); statewide x party issued/returned = Jgr2z (for the partisan mail chase). Datawrapper bumps the version integer on each update, so resolve the current version from https://datawrapper.dwcdn.net/<id>/ then fetch /<id>/<ver>/dataset.csv. Republican->rep, Democratic->dem, Unaffiliated->npa, minor parties->oth.",
-    "dw_base": "https://datawrapper.dwcdn.net/",
-    "chart_county_party": "5f5QM",
-    "chart_county_totals": "3EDnv",
-    "chart_statewide_party": "Jgr2z"
-  },
-  "method_labels": {
-    "cast": "Absentee ballots returned",
-    "mail_voted": "Returned by mail"
-  }
+ "state": "id",
+ "state_name": "Idaho",
+ "state_fips": "16",
+ "partisan": true,
+ "election": {
+  "date": "2026-11-03",
+  "name": "2026 General"
+ },
+ "general_start": "2026-09-19",
+ "source": {
+  "_comment": "LIVE. Idaho SoS VoteIdaho absentee dashboard (voteidaho.gov/data-and-dashboards/absentee-tracker/) is powered by Datawrapper charts that expose clean CSV datasets. County x party of returned ballots = chart 5f5QM (ResCountyDesc, Republican, Democratic, Unaffiliated); county totals = 3EDnv (Returned, total_issued, early_voting, total_voted); statewide x party issued/returned = Jgr2z (for the partisan mail chase). Datawrapper bumps the version integer on each update, so resolve the current version from https://datawrapper.dwcdn.net/<id>/ then fetch /<id>/<ver>/dataset.csv. Republican->rep, Democratic->dem, Unaffiliated->npa, minor parties->oth.",
+  "dw_base": "https://datawrapper.dwcdn.net/",
+  "chart_county_party": "5f5QM",
+  "chart_county_totals": "3EDnv",
+  "chart_statewide_party": "Jgr2z"
+ },
+ "method_labels": {
+  "cast": "Absentee ballots returned",
+  "mail_voted": "Returned by mail"
+ },
+ "lab_district_mail_only": true,
+ "_lab_district_mail_only": "Per the Lab, ID's congressional and legislative district files are mail ballots only (in-person early votes come from the SoS dashboard by county only)."
 }
