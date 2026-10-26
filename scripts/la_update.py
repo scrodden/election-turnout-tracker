@@ -12,6 +12,16 @@ We report `cast` = early ballots cast (in person + absentee), by party. LA gives
 the in-person / absentee split only as totals (no party), so we do not split
 `cast` by method here.
 
+Race and sex (WHITE / BLACK / OTHER, MALE / FEMALE; as recorded on each voter's
+registration) go into the demographics card, statewide and per parish. Race
+over time: the PDF is cumulative ("Begin Date 1/1/1900 AND End Date <date>")
+and the SoS keeps no daily copies, so each day's statewide race totals are
+recorded in data/la/_race_days.json (keyed by the report's End Date) and turned
+into data/la/race_share.json (ballots per day by race) for the page's "share of
+ballots over time" chart -- the days before the first one recorded (10/25)
+are folded into it. Past generals (config source.race_compare) come from their
+final statewide files, lined up at Election Day.
+
 The 2026 general file (2026_1103_StatewideStats.pdf) publishes when early voting
 opens (~late Oct); until then the fetch 404s and this writes an empty snapshot
 (reads 0), lighting up automatically once the file appears.
@@ -89,6 +99,36 @@ def parse_statewide(raw_bytes, cols):
     return out
 
 
+RACES = (("White", "white"), ("Black", "black"), ("Other", "other"))
+
+
+def race_totals(parsed, cols):
+    return {label: sum(nums[cols[k]] for nums in parsed.values()) for label, k in RACES}
+
+
+def demographics(nums_list, cols):
+    """Race and sex of early voters (from their registration records) -> the page's demographics block."""
+    votes = sum(n[cols["votes"]] for n in nums_list)
+    if not votes:
+        return None
+    race = [{"label": label, "count": sum(n[cols[k]] for n in nums_list)} for label, k in RACES]
+    male, female = (sum(n[cols[k]] for n in nums_list) for k in ("male", "female"))
+    sex = [{"label": "Female", "count": female}, {"label": "Male", "count": male}]
+    if votes > male + female:
+        sex.append({"label": "Unknown", "count": votes - male - female})
+    return {"race": race, "gender": sex,
+            "note": "Race and sex as recorded on each voter's registration (Louisiana's form asks both)."}
+
+
+def report_end(raw_bytes):
+    """The report's End Date ('... Begin Date 1/1/1900 AND End Date 10/25/2026') -> ISO date, or ''."""
+    import io
+    import pypdf
+    text = pypdf.PdfReader(io.BytesIO(raw_bytes)).pages[0].extract_text() or ""
+    m = re.search(r"End Date (\d{1,2})/(\d{1,2})/(\d{4})", text)
+    return "%s-%02d-%02d" % (m.group(3), int(m.group(1)), int(m.group(2))) if m else ""
+
+
 def build_snapshot(cfg, parsed, idx, src_label):
     cols = cfg["source"]["cols"]
     counties_out = {}
@@ -101,6 +141,9 @@ def build_snapshot(cfg, parsed, idx, src_label):
         rep = nums[cols["rep"]]; dem = nums[cols["dem"]]; oth = nums[cols["oth"]]
         blk = C.party_block(rep, dem, oth, 0)
         counties_out[m["name"]] = {"fips": m["fips"], "cast": blk}
+        d = demographics([nums], cols)
+        if d:
+            counties_out[m["name"]]["demographics"] = d
     statewide = {"cast": C.add_blocks(*[c["cast"] for c in counties_out.values()]) if counties_out
                  else C.party_block(0, 0, 0, 0)}
     snap = {
@@ -110,7 +153,60 @@ def build_snapshot(cfg, parsed, idx, src_label):
         "methods_present": [], "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
+    d = demographics(list(parsed.values()), cols) if counties_out else None
+    if d:
+        snap["demographics"] = d
     return snap, unmatched
+
+
+RACE_DAYS_PATH = os.path.join(DATA_DIR, "_race_days.json")
+RACE_SHARE_PATH = os.path.join(DATA_DIR, "race_share.json")
+
+
+def write_race_share(cfg, parsed, end_iso):
+    """Record today's statewide race totals (cumulative through the report's End Date) and rewrite
+    data/la/race_share.json when anything changed."""
+    cols, src = cfg["source"]["cols"], cfg["source"]
+    days = (load(RACE_DAYS_PATH) if os.path.exists(RACE_DAYS_PATH) else {}) or {}
+    tot = race_totals(parsed, cols)
+    if end_iso and sum(tot.values()) and days.get(end_iso) != tot:
+        days[end_iso] = tot
+        with open(RACE_DAYS_PATH, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(dict(sorted(days.items())), f, indent=0)
+    if not days:
+        return
+    dates = sorted(days)
+    labels = [label for label, _ in RACES]
+    counts = {lab: [days[d][lab] - (days[dates[i - 1]][lab] if i else 0) for i, d in enumerate(dates)] for lab in labels}
+    series = {cfg["election"]["date"][:4]: {"election_day": cfg["election"]["date"], "dates": dates, "counts": counts,
+                                            "total": sum(days[dates[-1]].values())}}
+    prev = (load(RACE_SHARE_PATH) if os.path.exists(RACE_SHARE_PATH) else {}) or {}
+    for yr, spec in (src.get("race_compare") or {}).items():   # past generals' final files: fixed, read once
+        old = (prev.get("series") or {}).get(yr)
+        if old and old.get("file") == spec["file"]:
+            series[yr] = old
+            continue
+        try:
+            past = parse_statewide(C.http_get(src["base"] + spec["file"], binary=True, retries=2), cols)
+            t = race_totals(past, cols)
+            series[yr] = {"election_day": spec["election_day"], "dates": [spec["election_day"]],
+                          "counts": {lab: [t[lab]] for lab in labels}, "total": sum(t.values()), "file": spec["file"]}
+        except Exception as e:  # noqa: BLE001
+            print("LA: %s race comparison unavailable (%s)" % (yr, str(e)[:80]), file=sys.stderr)
+    body = {"state": STATE, "series": series, "markers": src.get("race_markers", []),
+            "compare_default": src.get("race_compare_default", ""),
+            "compare_note": "Past generals: their final early-vote totals (Louisiana keeps no day-by-day copies), shown at "
+                            "Election Day.",
+            "source": "LA Secretary of State early-voting statistics (statewide PDF): early voters by the race on their "
+                      "registration (White, Black, Other). The report is cumulative and not kept day by day, so ballots "
+                      "per day come from the daily reports recorded here since %s (earlier days are folded into that "
+                      "first one)." % dates[0]}
+    h = C.data_hash(body)
+    if h == prev.get("data_hash"):
+        return
+    with open(RACE_SHARE_PATH, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(dict(body, as_of=dates[-1], data_hash=h), f, separators=(",", ":"))
+    print("la: race_share.json updated (%s)" % ", ".join("%s: %d" % (k, v["total"]) for k, v in sorted(series.items())))
 
 
 def main():
@@ -137,12 +233,19 @@ def main():
     fn = cfg["election"]["file_token"] + cfg["source"]["suffix"]
     parsed = {}
     src_label = ""
+    end_iso = ""
     try:
         raw = C.http_get(base + fn, binary=True, no_cache=True, retries=2)
         parsed = parse_statewide(raw, cfg["source"]["cols"])
         src_label = cfg["election"]["name"]
+        end_iso = report_end(raw)
     except Exception as e:  # noqa: BLE001 - file not posted yet -> empty snapshot
         print("no live file yet (%s): %s" % (fn, str(e)[:70]))
+    if parsed:
+        try:
+            write_race_share(cfg, parsed, end_iso)
+        except Exception as e:  # noqa: BLE001 - the chart file must never sink the turnout update
+            print("LA: race_share.json not written (%s)" % str(e)[:120], file=sys.stderr)
 
     snap, unmatched = build_snapshot(cfg, parsed, idx, src_label)
     snap["data_hash"] = C.data_hash(snap)

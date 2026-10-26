@@ -1623,7 +1623,8 @@
     var big = el("b"); big.textContent = last.share.toFixed(1) + "%"; hero.appendChild(big);
     hero.appendChild(document.createTextNode(" of the " + fmt(last.cum) + " ballots cast so far are from " + raceGroup +
       " voters" + (then ? ", vs " + then.share.toFixed(1) + "% at the same point in " + cmpYr + " (" + last.days + " days before Election Day)" +
-      (fin ? "; " + cmpYr + " ended at " + fin.share.toFixed(1) + "%" : "") : "") + "."));
+      (fin ? "; " + cmpYr + " ended at " + fin.share.toFixed(1) + "%" : "") :
+      (fin ? "; " + cmpYr + "'s early vote ended at " + fin.share.toFixed(1) + "%" : "")) + "."));   // e.g. LA: past years final-only
     $("#rt-leg-cur").textContent = cy + ", ballots so far";
     $("#rt-leg-cmp-wrap").hidden = !B.length;
     $("#rt-leg-cmp").textContent = cmpYr ? cmpYr + ", same number of days before Election Day" : "";

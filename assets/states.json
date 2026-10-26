@@ -90,7 +90,8 @@
       "data": "data/la/latest.json",
       "geojson": "assets/la-parishes.geojson",
       "history": "data/la/history.jsonl",
-      "source_note": "Source: <a href='https://www.sos.la.gov/ElectionsAndVoting/Pages/EarlyVotingStatisticsStatewide.aspx' target='_blank' rel='noopener'>Louisiana Secretary of State</a> early-voting statistics — early ballots cast (in person + absentee) by parish &amp; registered party. General-election early voting begins in late October, so figures read zero until then."
+      "source_note": "Source: <a href='https://www.sos.la.gov/ElectionsAndVoting/Pages/EarlyVotingStatisticsStatewide.aspx' target='_blank' rel='noopener'>Louisiana Secretary of State</a> early-voting statistics (statewide report, updated each morning): early ballots cast (in person + absentee) by parish and registered party, and by the race and sex on each voter's registration. The report is cumulative and not kept day by day, so the race-over-time chart builds from the daily reports recorded here since October 25 (earlier days are folded into that first point); past generals are their final early-vote totals. Early voting runs October 20 &ndash; 27.",
+      "race_share": "data/la/race_share.json"
     },
     {
       "code": "wa",
