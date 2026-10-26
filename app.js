@@ -1568,7 +1568,8 @@
     var host = $("#l2-model"); if (host) host.hidden = true;
     if (!st) return;
     var want = st;
-    getJSON("data/" + st.code + "/l2.json").then(function (d) { if (st === want) { l2 = d; renderL2(); } }).catch(function () {});
+    getJSON("data/" + st.code + "/l2.json").then(function (d) { if (st === want) { l2 = d; renderL2(); } })
+      .catch(function () { if (st === want) renderL2(); });   // no L2 file: the card still links NBC's tracker
   }
   function l2Unit() {   // [name, unit] for the clicked county / district when L2 has it, else null (statewide)
     if (!l2 || !selected) return null;
@@ -1579,9 +1580,25 @@
     }
     return unitMode === "primary" && l2.counties && l2.counties[selected] ? [selected, l2.counties[selected]] : null;
   }
+  function nbcLink(alone) {   // NBC News's state page: its early-vote section carries TargetSmart's modeled party, demographics and vote history
+    var name = (st && st.name) || "";
+    if (!name) return "";
+    var url = "https://www.nbcnews.com/politics/2026-elections/" + name.toLowerCase().replace(/[^a-z]+/g, "-") + "-results";
+    return (alone ? "See " : "Also: ") + "<a href='" + url + "' target='_blank' rel='noopener'>NBC News&rsquo;s " + name + " early-vote tracker</a> " +
+      "(modeled partisanship, demographics and voting history from TargetSmart).";
+  }
   function renderL2() {
     var host = $("#l2-model"); if (!host) return;
-    if (!l2 || !l2.statewide || !l2.statewide.n[0]) { host.hidden = true; return; }
+    var none = !l2 || !l2.statewide || !l2.statewide.n[0];
+    $("#l2-nbc").innerHTML = nbcLink(none);
+    $("#l2-sub").hidden = none;
+    if (none) {   // no L2 data for this state: just the NBC link
+      $("#l2-tabs").innerHTML = ""; $("#l2-body").innerHTML = ""; $("#l2-note").innerHTML = "";
+      $("#l2-title").textContent = "Modeled data";
+      host.hidden = !st;
+      return;
+    }
+    $("#l2-title").textContent = "Modeled profile — L2";
     var pick = l2Unit(), u = pick ? pick[1] : l2.statewide, fields = l2.fields || [];
     if (!fields.some(function (f) { return f[0] === l2Field; })) l2Field = fields.length ? fields[0][0] : "party";
     var tabs = $("#l2-tabs");
