@@ -89,9 +89,9 @@
     }
   },
   "county_links": {
-    "_comment": "Click-out link for counties not on TQV (county panel + table). Broward: the 'Unofficial Vote By Mail Statistics' dashboard linked from browardvotes.gov; switch to its early-voting page if one is published.",
+    "_comment": "Click-out link for counties not on TQV (county panel + table). Broward: its 'Unofficial Voter Turnout' summary dashboard (Sam, 2026-10-26; was the vote-by-mail dashboard).",
     "BRO": {
-      "url": "https://my.browardvotes.gov/TEDElectionLink/AbsenteeTurnOut/dashboard/view/absturnout-party",
+      "url": "https://my.browardvotes.gov/TEDElectionLink/TurnOutWidget/dashboard/view/turnout-summary",
       "label": "Broward turnout dashboard"
     }
   },
