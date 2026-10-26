@@ -364,6 +364,11 @@ def _join(names):
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH, {}) or {}
+    import lab_standin as LAB
+    # congressional districts: the Lab's OH_cd.csv (district x county pieces; ballots requested / returned / in
+    # person, no party -- the SoS dashboard has no district field), ~hourly
+    LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "oh-cd.geojson"), os.path.join(DATA_DIR, "districts_cd.json"),
+                  partisan=True, force=force)
     src = cfg.get("source", {})
     prev = load(LATEST_PATH, {}) or {}
     state = state_refresh(cfg, src, load(STATE_CACHE, {}) or {}, force)

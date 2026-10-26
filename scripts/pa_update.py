@@ -37,6 +37,11 @@ def load(p):
 def main():
     force = "--force" in sys.argv
     cfg = load(CONFIG_PATH)
+    import lab_standin as LAB
+    # congressional districts: the UF Election Lab's PA_cd.csv (district x county pieces, by party; from the state's
+    # voter-level mail-ballot file, so a little off the dashboard's county totals), ~hourly
+    LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "pa-cd.geojson"), os.path.join(DATA_DIR, "districts_cd.json"),
+                  partisan=True, force=force)
     counties = {c["name"].upper(): c for c in load(COUNTIES_PATH)["counties"]}
     party_map = cfg["party_map"]
     status_map = cfg["status_map"]

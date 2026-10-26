@@ -1,23 +1,26 @@
 {
-  "state": "ct",
-  "state_name": "Connecticut",
-  "state_fips": "09",
-  "partisan": true,
-  "election": {
-    "date": "2026-11-03",
-    "name": "2026 General"
-  },
-  "source": {
-    "_comment": "UF Election Lab stand-in, statewide (the Lab's CT_county.csv is by mailing city, not town). CC BY-NC-ND 4.0.",
-    "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
-  },
-  "method_labels": {
-    "cast": "Ballots returned",
-    "mail_voted": "Absentee ballots returned",
-    "mail_provided": "Absentee ballots outstanding",
-    "early_voted": "Early in person"
-  },
-  "unit_label": "Town",
-  "unit_label_plural": "Towns",
-  "mail_base_label": "Ballots requested"
+ "state": "ct",
+ "state_name": "Connecticut",
+ "state_fips": "09",
+ "partisan": true,
+ "election": {
+  "date": "2026-11-03",
+  "name": "2026 General"
+ },
+ "source": {
+  "_comment": "UF Election Lab stand-in, statewide (the Lab's CT_county.csv is by mailing city, not town). CC BY-NC-ND 4.0.",
+  "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/"
+ },
+ "method_labels": {
+  "cast": "Ballots returned",
+  "mail_voted": "Absentee ballots returned",
+  "mail_provided": "Absentee ballots outstanding",
+  "early_voted": "Early in person"
+ },
+ "unit_label": "Town",
+ "unit_label_plural": "Towns",
+ "mail_base_label": "Ballots requested",
+ "lab_county_mail_only": true,
+ "lab_district_mail_only": true,
+ "_lab_mail_only": "2026-10-26: the Lab's CT town and district files carry mail ballots only; in-person early votes are statewide only."
 }

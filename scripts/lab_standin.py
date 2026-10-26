@@ -133,7 +133,9 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
         geo = _load(geo_path, {"features": []})
         gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}
         matched = {r.get("county"): gidx.get(_norm(r.get("county"))) for r in crow}
-        sums_ok = all(sum(_n(r, k + "_all") for r in crow) == _n(row, k + "_all") for k in KINDS)
+        unit_mail_only = bool(cfg.get("lab_county_mail_only"))   # CT: the town file has mail ballots only
+        sums_ok = all(sum(_n(r, k + "_all") for r in crow) == _n(row, k + "_all") for k in KINDS
+                      if not (unit_mail_only and k == "inperson"))
         if all(matched.values()) and sums_ok:
             for r in crow:
                 g = matched[r.get("county")]
@@ -159,6 +161,11 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
         "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
         "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
     }
+    if counties and cfg.get("lab_county_mail_only") and _n(row, "inperson_all"):
+        partial_note = ((partial_note + " ") if partial_note else "") + (
+            "%s show mail ballots only: the Election Lab's file for them doesn't include the %s in-person early votes, "
+            "which are reported statewide only." % (cfg.get("unit_label_plural") or "Counties",
+                                                   format(_n(row, "inperson_all"), ",")))
     if partial_note:
         body["map_note"] = partial_note
     demo = _demographics(row)
@@ -249,6 +256,7 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
         return
     if not row or not parts:
         return
+    wanted = partisan
     partisan = partisan and any(_n(row, k) for k in ("request_dem", "accept_dem", "request_rep", "accept_rep"))
     geo = _load(cd_geo_path, {"features": []})
     gidx = {f["properties"]["district_number"]: f["properties"] for f in geo["features"]}
@@ -326,8 +334,11 @@ def districts(code, cfg, cd_geo_path, out_path, partisan, force=False, kind="cd"
     if mail_only and _n(row, "inperson_all"):
         note = ((note + " ") if note else "") + (
             "District figures are mail ballots only: the Election Lab's %s file doesn't include the %s in-person early "
-            "votes, which the state reports by county only, so these totals run below the statewide ones."
+            "votes, so these totals run below the statewide ones."
             % (desc, format(_n(row, "inperson_all"), ",")))
+    if wanted and not partisan:   # a party state whose Lab district file has no party (OH): say where party is
+        body["no_party_text"] = ("The Election Lab's %s file has no party breakdown, so %s show turnout; party is on "
+                                 "the county map." % (desc, desc + "s"))
     if note:
         body["map_note"] = note
     prev = _load(out_path, {}) or {}

@@ -38,6 +38,7 @@
     unitPartisan = partisan && data.units_partisan !== false;
   }
   function noPartyText() {
+    if (data && data.no_party_text) return data.no_party_text;   // e.g. OH districts: party on the county map only
     if (data && !partyFor(method) && data.partisan !== false)
       return data.party_methods_note || "Party is shown for all ballots combined only, so this view is turnout only.";
     if (partisan && data && data.units_partisan === false)
@@ -1454,7 +1455,9 @@
       unit_label: altLabel(key, false), unit_label_plural: altLabel(key, true),
       map_note: ld.map_note || null, statewide_only: false, county_stale: false,
       // a view's units carry party when its own file says so (e.g. CA: counties turnout-only, districts by party)
-      units_partisan: "units_partisan" in ld ? ld.units_partisan : ld.partisan !== false
+      units_partisan: "units_partisan" in ld ? ld.units_partisan : ld.partisan !== false,
+      // a view without party in a party state (OH districts): turnout cards, and its own note on why
+      partisan: ld.partisan === false ? false : base.partisan, no_party_text: ld.no_party_text || null
     });
     // a view's own party wording and per-method party coverage (e.g. TX districts: 2022-2026 primaries, all methods)
     ["party_basis", "party_labels", "party_hints", "party_methods", "party_methods_note", "unk_label"].forEach(function (k) {

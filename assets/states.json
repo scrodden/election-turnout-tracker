@@ -60,7 +60,15 @@
       "data": "data/pa/latest.json",
       "geojson": "assets/pa-counties.geojson",
       "history": "data/pa/history.jsonl",
-      "source_note": "Source: <a href='https://data.pa.gov/Government-Efficiency-Citizen-Engagement/2026-General-Election-Mail-Ballot-Requests-Departm/nbwd-pfn4' target='_blank' rel='noopener'>PA Department of State open data</a> — 2026 general mail-ballot applications by county &amp; registered party. PA has no in-person early voting; “mail outstanding” = approved applications not yet returned."
+      "source_note": "Source: <a href='https://data.pa.gov/Government-Efficiency-Citizen-Engagement/2026-General-Election-Mail-Ballot-Requests-Departm/nbwd-pfn4' target='_blank' rel='noopener'>PA Department of State open data</a> — 2026 general mail-ballot applications by county &amp; registered party. PA has no in-person early voting; “mail outstanding” = approved applications not yet returned.",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/pa/districts_cd.json",
+          "geojson": "assets/pa-cd.geojson"
+        }
+      ]
     },
     {
       "code": "va",
@@ -254,7 +262,15 @@
       "data": "data/oh/latest.json",
       "geojson": "assets/oh-counties.geojson",
       "history": "data/oh/history.jsonl",
-      "source_note": "Source: <a href='https://data.ohiosos.gov/portal/election-dashboards' target='_blank' rel='noopener'>Ohio Secretary of State Absentee and Early Voting dashboard</a>, refreshed daily around noon ET. Ohio has no party registration; party here is the SoS's voter-affiliated party, based on which party's primary ballot a voter last chose (never voted in a partisan primary = Unaffiliated, shown as NPA). Early in-person voting starts October 6."
+      "source_note": "Source: <a href='https://data.ohiosos.gov/portal/election-dashboards' target='_blank' rel='noopener'>Ohio Secretary of State Absentee and Early Voting dashboard</a>, refreshed daily around noon ET. Ohio has no party registration; party here is the SoS's voter-affiliated party, based on which party's primary ballot a voter last chose (never voted in a partisan primary = Unaffiliated, shown as NPA). Early in-person voting starts October 6.",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/oh/districts_cd.json",
+          "geojson": "assets/oh-cd.geojson"
+        }
+      ]
     },
     {
       "code": "tx",
@@ -331,7 +347,15 @@
       "geojson": "assets/ct-towns.geojson",
       "history": "data/ct/history.jsonl",
       "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (Dr. Michael McDonald), from Connecticut Secretary of the State data; used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Statewide absentee ballots requested and returned by registered party (unaffiliated voters shown as NPA). The Lab's local breakdown is by voters' mailing city (villages and post offices as well as towns), which doesn't line up with Connecticut's 169 towns, so no map is shown yet. Early in-person voting runs October 20 &ndash; November 1.",
-      "partisan": true
+      "partisan": true,
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/ct/districts.json",
+          "geojson": "assets/ct-cd.geojson"
+        }
+      ]
     },
     {
       "code": "de",
