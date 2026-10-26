@@ -12,6 +12,9 @@ We use them unaltered, with attribution, under CC BY-NC-ND 4.0 (credit the
 Lab, non-commercial, numbers unmodified); county rows must sum to the Lab's
 statewide row.
 
+Congressional districts (the page's district view): the Lab's NJ_cd.csv, same
+fields per district x county piece, summed by district (lab_standin.districts).
+
 Democratic->dem, Republican->rep, unaffiliated ('none')->npa; any remainder of
 *_all over the three -> oth. mail_provided = requested - returned (outstanding)
 -> ballot chase. Turnout % uses total registered voters per county from the
@@ -104,6 +107,9 @@ def main():
     cfg = load(CONFIG_PATH, {}) or {}
     src = cfg.get("source", {})
     import lab_standin as LAB
+    # congressional districts: the Lab's NJ_cd.csv (one row per district x county piece, by party), ~hourly
+    LAB.districts(STATE, cfg, os.path.join(ROOT, "assets", "nj-cd.geojson"), os.path.join(DATA_DIR, "districts_cd.json"),
+                  partisan=True, force=force)
     prev0 = load(LATEST_PATH, {}) or {}
     # the Lab updates ~daily: skip once we hold today's figures, else check ~hourly
     if prev0.get("counties") and not LAB.due(dict(prev0, lab_standin=True), force, DATA_DIR):

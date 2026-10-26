@@ -382,7 +382,15 @@
       "data": "data/nj/latest.json",
       "geojson": "assets/nj-counties.geojson",
       "history": "data/nj/history.jsonl",
-      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> early-vote tracker (Dr. Michael McDonald), by county and registered party, using figures from the New Jersey Division of Elections, which does not publish them itself before Election Day. Used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Turnout is measured against the Division of Elections' registered-voter counts. Unaffiliated voters are shown as NPA. Early in-person voting starts October 24."
+      "source_note": "Source: <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> early-vote tracker (Dr. Michael McDonald), by county and registered party, using figures from the New Jersey Division of Elections, which does not publish them itself before Election Day. Used unaltered under <a href='https://creativecommons.org/licenses/by-nc-nd/4.0/' target='_blank' rel='noopener'>CC BY-NC-ND 4.0</a>. Turnout is measured against the Division of Elections' registered-voter counts. Unaffiliated voters are shown as NPA. Early in-person voting starts October 24.",
+      "views": [
+        {
+          "key": "cd",
+          "label": "Congressional",
+          "data": "data/nj/districts_cd.json",
+          "geojson": "assets/nj-cd.geojson"
+        }
+      ]
     },
     {
       "code": "ny",
