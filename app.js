@@ -836,7 +836,7 @@
       if (row) row.scrollIntoView({ block: "nearest" });
     }
     if (selected) renderCountyPanel(selected); else { closeCountyPanel(); closePrecincts(); }
-    renderDemographics();
+    renderDemographics(); renderL2();
     updateHash();
   }
   function cssEscape(s) { return s.replace(/'/g, "\\'"); }
@@ -987,7 +987,7 @@
         if (precinctGeo) getJSON(PRECINCT_DATA_URL).then(function (pd) {
           precinctData = pd; if (mapMode === "precinct") renderMap();
         }).catch(function () {});
-        loadTrends(); loadRaceShare(); loadPartyShare();
+        loadTrends(); loadRaceShare(); loadPartyShare(); loadL2();
         flashUpdated();
       } else { data.generated_at = nd.generated_at; renderMeta(); }
     }).catch(function () { /* transient; try again next tick */ });
@@ -1349,7 +1349,7 @@
         if (h2.v === "precinct" && PRECINCT_GEO_URL) setMode("precinct");
         if (h2.c && data.counties[h2.c]) selectCounty(h2.c, true);
       }
-      loadTrends(); loadRaceShare(); loadPartyShare();
+      loadTrends(); loadRaceShare(); loadPartyShare(); loadL2();
       loadLocalityLookup(wantUnit);
       if (BASELINE_URL) getJSON(BASELINE_URL).then(function (b) { baseline = b; renderAll(); }).catch(function () {});
       PAST_URL = st.data ? st.data.replace(/latest\.json$/, "turnout_history.json") : null;
@@ -1556,6 +1556,61 @@
         ? " — click a " + unitLabel.toLowerCase() + " for its breakdown" : "")) + "</div>";
     body.innerHTML = scope + group("Age", dm.age) + group("Gender", dm.gender) + group("Race", dm.race) +
       group("Hispanic / Latino", dm.ethnicity) + ((data.demographics || {}).note ? "<p class='dim' style='font-size:12px'>" + data.demographics.note + "</p>" : "");
+    host.hidden = false;
+  }
+
+  // ---- modeled profile of early voters (data/<st>/l2.json, scripts/l2_update.py; L2) ----
+  // Early voters vs all registered voters by party / age / gender / ethnicity / area, from L2's voter-file
+  // data with its modeled fields, for the state or the clicked county / congressional district.
+  var l2 = null, l2Field = "party";
+  function loadL2() {
+    l2 = null;
+    var host = $("#l2-model"); if (host) host.hidden = true;
+    if (!st) return;
+    var want = st;
+    getJSON("data/" + st.code + "/l2.json").then(function (d) { if (st === want) { l2 = d; renderL2(); } }).catch(function () {});
+  }
+  function l2Unit() {   // [name, unit] for the clicked county / district when L2 has it, else null (statewide)
+    if (!l2 || !selected) return null;
+    var v = unitMode === "primary" ? st : viewOf(unitMode), cdMap = v && /-cd\.geojson$/.test(v.geojson || "");
+    if (cdMap) {
+      var m = String(selected).match(/(\d+)\s*$/), u = m && l2.cd && l2.cd[String(+m[1])];
+      return u ? [selected, u] : null;
+    }
+    return unitMode === "primary" && l2.counties && l2.counties[selected] ? [selected, l2.counties[selected]] : null;
+  }
+  function renderL2() {
+    var host = $("#l2-model"); if (!host) return;
+    if (!l2 || !l2.statewide || !l2.statewide.n[0]) { host.hidden = true; return; }
+    var pick = l2Unit(), u = pick ? pick[1] : l2.statewide, fields = l2.fields || [];
+    if (!fields.some(function (f) { return f[0] === l2Field; })) l2Field = fields.length ? fields[0][0] : "party";
+    var tabs = $("#l2-tabs");
+    tabs.innerHTML = fields.map(function (f) {
+      return "<button data-l2='" + f[0] + "' role='tab' aria-selected='" + (f[0] === l2Field) + "'>" + f[1] + "</button>";
+    }).join("");
+    tabs.onclick = function (e) { var b = e.target.closest("button[data-l2]"); if (b) { l2Field = b.getAttribute("data-l2"); renderL2(); } };
+    var ret = (u.ret || {})[l2Field] || [], reg = (u.reg || {})[l2Field] || [];
+    var rt = ret.reduce(function (a, x) { return a + x[1]; }, 0) || 1, gt = reg.reduce(function (a, x) { return a + x[1]; }, 0) || 1;
+    var regOf = {}; reg.forEach(function (x) { regOf[x[0]] = x[1]; });
+    var labels = ret.map(function (x) { return x[0]; });
+    reg.forEach(function (x) { if (labels.indexOf(x[0]) < 0) labels.push(x[0]); });
+    var retOf = {}; ret.forEach(function (x) { retOf[x[0]] = x[1]; });
+    var rows = labels.map(function (lab) {
+      var a = 100 * (retOf[lab] || 0) / rt, b = 100 * (regOf[lab] || 0) / gt, dd = a - b;
+      return "<tr><td>" + lab + "</td><td>" + fmt(retOf[lab] || 0) + "</td><td><b>" + a.toFixed(1) + "%</b></td><td>" + b.toFixed(1) +
+        "%</td><td style='color:" + (Math.abs(dd) < 0.05 ? "var(--muted)" : dd > 0 ? "var(--ink)" : "var(--muted)") + "'>" +
+        (dd >= 0 ? "+" : "−") + Math.abs(dd).toFixed(1) + "</td></tr>";
+    }).join("");
+    var where = pick ? pick[0] : (data && data.state_name) || "Statewide";
+    $("#l2-body").innerHTML = "<div class='dim' style='font-size:12.5px;margin:8px 0 2px'>" + where + ": " + fmt(u.n[0]) +
+      " early voters in L2's data, of " + fmt(u.n[2]) + " registered" + (pick ? " — click it again for statewide" :
+      (Object.keys(l2.counties || {}).length || Object.keys(l2.cd || {}).length ? " — click a " + unitLabel.toLowerCase() + " for its own" : "")) +
+      "</div><div class='rt-table-wrap'><table class='rt-table'><thead><tr><th>" + (fields.filter(function (f) { return f[0] === l2Field; })[0] || [0, ""])[1] +
+      "</th><th>Early voters</th><th>Share</th><th>Of registered</th><th>Gap (pts)</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    $("#l2-note").innerHTML = "Source: <a href='" + l2.url + "' target='_blank' rel='noopener'>L2</a> early-vote data, as of " + (l2.as_of || "?") +
+      ". L2 builds these from state voter files plus its own modeling: party is the registered party where the state registers by " +
+      "party and L2's model elsewhere, ethnicity is modeled everywhere, and area (urban / suburban / rural) is L2's classification. " +
+      "Its counts can differ from the official figures elsewhere on this page.";
     host.hidden = false;
   }
 
@@ -2153,7 +2208,7 @@
     host.hidden = false;
   }
 
-  function renderAll() { applyMethodParty(); renderStatewideOnly(); if (trendData) renderTrends(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderRemaining(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderProjection(); }
+  function renderAll() { applyMethodParty(); renderStatewideOnly(); if (trendData) renderTrends(); renderMeta(); renderMethodPicker(); updateCmpNote(); renderSummary(); renderRemaining(); renderSpCard(); renderPastCard(); renderLookalike(); renderMail(); renderMap(); renderTable(); renderTableNote(); renderDemographics(); renderL2(); renderProjection(); }
 
   // ---- boot ----------------------------------------------------------------
   function boot() {

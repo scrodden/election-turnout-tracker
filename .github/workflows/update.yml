@@ -79,6 +79,10 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/fl_districts_update.py || echo "fl districts update failed (non-fatal)"
 
+      - name: Update L2 modeled profiles (data/<st>/l2.json; about hourly, a state only when L2 updates it)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/l2_update.py || echo "l2 update failed (non-fatal)"
+
       - name: Refresh 2026 ballot lists (candidates + measures; at most daily, frozen on Election Day)
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/build_ballot_2026.py || echo "ballot list refresh failed (non-fatal; previous lists kept)"
