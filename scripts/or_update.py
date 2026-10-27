@@ -188,13 +188,16 @@ def parse_dashboard(raw_bytes, county_names):
     import pypdf
     reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
     texts = [pg.extract_text(extraction_mode="layout") or "" for pg in reader.pages]
-    cty_page = next((t for t in texts if "Ballots Returns by County" in t and "Active Voters" in t and "by Party" not in t), None)
+    # 10/26: the county page's text came out rotated, so layout mode returns nothing for it; plain mode still reads it
+    plain = [pg.extract_text() or "" for pg in reader.pages]
+    cty_page = next((t for t in texts + plain if "Ballots Returns by County" in t and "Active Voters" in t
+                     and "by Party" not in t and "by Day" not in t), None)
     party_page = next((t for t in texts if "by County by Party" in t), None)
     if not cty_page or not party_page:
         raise ValueError("dashboard pages not found")
     base = {}
     for l in cty_page.splitlines():
-        m = re.match(r"^\s*([A-Z][A-Z .]+?)\s{2,}([\d,]+)(?:\s+([\d,]+))?", l)
+        m = re.match(r"^\s*([A-Z][A-Z .]+?)\s+([\d,]+)(?:\s+([\d,]+))?", l)
         if m and m.group(1).strip() in county_names:
             base[m.group(1).strip()] = (int(m.group(2).replace(",", "")), int((m.group(3) or "0").replace(",", "")))
     rows = _layout_rows(party_page, DASH_PARTIES)
