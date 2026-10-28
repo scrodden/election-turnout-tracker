@@ -42,7 +42,7 @@ HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 GEO_PATH = os.path.join(ROOT, "assets", "nv-counties.geojson")
 CD_GEO_PATH = os.path.join(ROOT, "assets", "nv-cd.geojson")
 DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
-VOTED_METHODS = ["mail_voted", "early_voted"]
+VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]
 
 
 def load(p):
@@ -88,6 +88,7 @@ def main():
     counties = {c["name"]: c for c in load(COUNTIES_PATH)["counties"]}
     ref = cfg["source"]["referer"]
     gstart = cfg["general_start"]
+    eday = cfg["election"]["date"]
 
     # accumulator: county -> method -> {rep,dem,oth,npa}
     agg = {}
@@ -100,7 +101,9 @@ def main():
     src_date = ""
     feed_stamps = []   # the feeds' own generatedAt (ISO, UTC): the in-person feed refreshes through the day
 
-    # 1) in-person early voting (sum days within the general window)
+    # 1) in-person voting (sum days within the general window); VIVID tags Election
+    # Day (Nov 3) in the same per-day/county/party rows -- split it into its own
+    # method rather than folding it into early_voted.
     try:
         t = json.loads(C.http_get(cfg["source"]["turnout_seed"], referer=ref, no_cache=True))
         used_ev = False
@@ -108,10 +111,11 @@ def main():
             d = day.get("date", "")
             if not ignore_gate and d < gstart:
                 continue
+            method = "election_day" if d >= eday else "early_voted"
             for r in day.get("rows", []):
-                add(r.get("county"), "early_voted", "dem", r.get("dem"))
-                add(r.get("county"), "early_voted", "rep", r.get("rep"))
-                add(r.get("county"), "early_voted", "oth", r.get("other"))
+                add(r.get("county"), method, "dem", r.get("dem"))
+                add(r.get("county"), method, "rep", r.get("rep"))
+                add(r.get("county"), method, "oth", r.get("other"))
                 used_ev = True
                 if d > src_date:
                     src_date = d
@@ -183,14 +187,14 @@ def main():
         counties_out[name] = ent
 
     statewide = {}
-    for mkey in ["mail_voted", "early_voted", "mail_provided"]:
+    for mkey in ["mail_voted", "early_voted", "election_day", "mail_provided"]:
         blocks = [counties_out[n][mkey] for n in counties_out if counties_out[n].get(mkey)]
         if blocks:
             statewide[mkey] = C.add_blocks(*blocks)
     voted = [statewide[m] for m in VOTED_METHODS if statewide.get(m)]
     statewide["cast"] = C.add_blocks(*voted) if voted else C.party_block(0, 0, 0, 0)
 
-    methods_present = sorted({m for c in counties_out.values() for m in ["mail_voted", "early_voted", "mail_provided"] if c.get(m)})
+    methods_present = sorted({m for c in counties_out.values() for m in ["mail_voted", "early_voted", "election_day", "mail_provided"] if c.get(m)})
     snap = {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
         "source": {"primary": "NV SoS VIVID (in-person early voting + mail ballot tracker), by registered party"},
