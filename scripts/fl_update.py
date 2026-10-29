@@ -528,6 +528,29 @@ def append_history(snap):
 COUNTY_LINKS = {}
 
 
+def county_drop(old, new):
+    """A county feed that suddenly loses most of its ballots (Pinellas's TQV file at 10/29 20:50 UTC: 211,735 -> 197
+    ballots, back to normal at 21:00) -> the reason, or None if the new figures look fine. Counts are cumulative, so
+    a fall of more than half (from over 1,000 ballots) is a bad file: the county's previous figures are kept, for up
+    to 12 hours, after which the new ones are taken."""
+    if not old:
+        return None
+    a = (old.get("cast") or {}).get("total", 0)
+    b = (new.get("cast") or {}).get("total", 0)
+    if a < 1000 or b >= a * 0.5:
+        return None
+    since = old.get("held_since")
+    if since:
+        from datetime import datetime, timezone
+        try:
+            t = datetime.strptime(since, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            if (datetime.now(timezone.utc) - t).total_seconds() > 12 * 3600:
+                return None
+        except ValueError:
+            pass
+    return "ballots fell from %s to %s" % (format(a, ","), format(b, ","))
+
+
 def main():
     force = "--force" in sys.argv
     cfg = load_json(CONFIG_PATH)
@@ -583,10 +606,28 @@ def main():
     precinct_payloads = {}
     precincts_all = {}   # code -> {precinct: [eligible,cast,mail,early,ed,prov]} for the map
     max_iso = ""
+    try:
+        prev_snap = load_json(LATEST_PATH)
+    except (OSError, ValueError):
+        prev_snap = {}
+    prev_pall = None
     for county in counties:
         name = county["name"]
         tqv, _eid, _note = results[name]
         ent = build_county_entity(county, tqv, dos.get(name))
+        old = (prev_snap.get("counties") or {}).get(name)
+        why = county_drop(old, ent) if tqv is not None else None   # TQV counties (Broward is rebuilt below)
+        if why:   # a bad county file: its previous figures (and precinct files) stay
+            print("  ! %s: %s -- keeping its previous figures" % (name, why), file=sys.stderr)
+            ent = dict(old, held_since=old.get("held_since") or C.utc_now_iso())
+            if prev_pall is None:
+                try:
+                    prev_pall = load_json(PRECINCTS_ALL_PATH).get("counties") or {}
+                except (OSError, ValueError):
+                    prev_pall = {}
+            if county["code"] in prev_pall:
+                precincts_all[county["code"]] = prev_pall[county["code"]]
+            tqv = None
         counties_out[name] = ent
         if ent.get("last_updated", "") > max_iso:
             max_iso = ent["last_updated"]
