@@ -1,11 +1,11 @@
 {
  "_comment": "General-election candidates per race, from Wikipedia's 2026 election articles (CC BY-SA 4.0), whose race tables cite each state's certified candidate list. Shown on the results page until official results arrive. Built by scripts/build_ballot_2026.py.",
- "built_at": "2026-10-28T22:04:58Z",
+ "built_at": "2026-10-29T18:09:00Z",
  "sources": {
   "senate": {
    "title": "2026 United States Senate elections",
-   "url": "https://en.wikipedia.org/w/index.php?oldid=1382454543",
-   "revision": 1382454543,
+   "url": "https://en.wikipedia.org/w/index.php?oldid=1382650593",
+   "revision": 1382650593,
    "races": 35,
    "found": 35,
    "with_candidates": 35,
@@ -14,8 +14,8 @@
   },
   "governor": {
    "title": "2026 United States gubernatorial elections",
-   "url": "https://en.wikipedia.org/w/index.php?oldid=1382460061",
-   "revision": 1382460061,
+   "url": "https://en.wikipedia.org/w/index.php?oldid=1382656152",
+   "revision": 1382656152,
    "races": 36,
    "found": 36,
    "with_candidates": 36,
@@ -24,8 +24,8 @@
   },
   "house": {
    "title": "2026 United States House of Representatives elections",
-   "url": "https://en.wikipedia.org/w/index.php?oldid=1382402033",
-   "revision": 1382402033,
+   "url": "https://en.wikipedia.org/w/index.php?oldid=1382635583",
+   "revision": 1382635583,
    "races": 435,
    "found": 435,
    "with_candidates": 435,
