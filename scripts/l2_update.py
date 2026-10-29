@@ -103,7 +103,15 @@ def build(st, d, cfg_state):
         return None
     counties = {}
     town_or_cd = re.search(r"-(towns|cd)\.geojson$", cfg_state["geojson"])   # CT/MA/RI towns share county names
-    for k, rec in ([] if town_or_cd else (d.get("County") or {}).items()):
+    if cfg_state["geojson"].endswith("-sh.geojson"):   # AK: the map is the state house districts
+        by_num = {str(f["properties"]["district_number"]): f["properties"]["name"] for f in geo["features"]}
+        for k, rec in (d.get("State_House_District") or {}).items():
+            name = by_num.get(cd_number(k) or "")
+            if name:
+                counties[name] = unit(rec)
+        if len(counties) != len(by_num):
+            counties = {}
+    for k, rec in ([] if town_or_cd or counties else (d.get("County") or {}).items()):
         name = gidx.get(_norm(k.split("##", 1)[-1]))
         if name:
             counties[name] = unit(rec)

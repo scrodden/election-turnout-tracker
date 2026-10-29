@@ -216,9 +216,9 @@
       "name": "Alaska",
       "hidden": true,
       "data": "data/ak/latest.json",
-      "geojson": "assets/ak-boroughs.geojson",
+      "geojson": "assets/ak-sh.geojson",
       "history": "data/ak/history.jsonl",
-      "source_note": "Source: <a href='https://www.elections.alaska.gov/statistics/' target='_blank' rel='noopener'>Alaska Division of Elections</a> Absentee, Early, and Questioned Ballot Statistics: ballots issued and received statewide by type (mail, fax and online delivery; early and in-person absentee; questioned), as of the table's own update time. Registered voters from the Division's monthly voters-by-party report. The Division's report by house district and party isn't readable by our updater yet, so Alaska shows statewide totals without a party split."
+      "source_note": "Source: <a href='https://www.elections.alaska.gov/statistics/' target='_blank' rel='noopener'>Alaska Division of Elections</a> Absentee, Early, and Questioned Ballot Statistics: ballots issued and received statewide by type (mail, fax and online delivery; early and in-person absentee; questioned), as of the table's own update time. Registered voters from the Division's monthly voters-by-party report. The map is by house district: the Division's Combined Ballot Report by district (ballots by type; no party), as republished by the <a href='https://election.lab.ufl.edu/early-vote/2026-early-voting/' target='_blank' rel='noopener'>UF Election Lab</a> (CC BY-NC-ND 4.0) because the Division's own copy isn't readable by our updater, so district figures run about a day behind the statewide totals; registered voters per district from the Division's monthly voters-by-party report. Neither Division report splits ballots by party."
     },
     {
       "code": "ks",
