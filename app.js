@@ -113,6 +113,8 @@
     if (cty.registered) return 100 * ((b && b.total) || 0) / cty.registered;
     return method === "cast" && cty.turnout_pct != null ? cty.turnout_pct : null;
   }
+  // a unit missing from a state whose counties fill in as they report (e.g. MO) hasn't reported: not "0 ballots"
+  function unreported(name) { return !!(data && data.units_fill_in && !data.counties[name]); }
   function compareActive() { return compare && baseline && CMP_METHODS.indexOf(method) >= 0; }
   function spActive() { return !!(spYear && data && data.same_point && data.same_point.years && data.same_point.years[spYear]); }
   function spCountyOn() { return spActive() && unitMode === "primary" && mapMode !== "precinct"; }
@@ -499,7 +501,8 @@
     if (pastCountyOn()) {
       $("#map-title").textContent = "Ballots so far as a share of " + pastYear + "'s final, by " + unitLc;
       $("#map-note").textContent = "Shaded by all ballots cast so far as a share of each " + unitLc + "'s " + basis +
-        " in the " + pastYear + " general; darkest = " + pastScale() + "% or more (the scale stretches as ballots come in). County totals: MIT Election Data + Science Lab official returns.";
+        " in the " + pastYear + " general; darkest = " + pastScale() + "% or more (the scale stretches as ballots come in). County totals: MIT Election Data + Science Lab official returns." +
+        (data.units_fill_in && data.map_note ? " Gray = not reported yet. ⚠ " + data.map_note : "");
     } else if (mapMode !== "precinct") {
       $("#map-note").textContent += " The " + pastYear + " comparison is statewide only here (no " + unitLc + " totals for that year).";
     }
@@ -517,7 +520,7 @@
           (data && data.party_basis ? " with a known party" : "") + " yet."
         : hasT
           ? "Shaded by turnout: the share of registered voters who have cast a ballot in the selected category, relative to the highest " + unitLc + " (darker = higher). " + noPartyText()
-          : "Shaded by early-ballot volume in the selected category (darker = more ballots). " + noPartyText() + " Gray = no ballots yet.");
+          : "Shaded by early-ballot volume in the selected category (darker = more ballots). " + noPartyText() + (data && data.units_fill_in ? " Gray = not reported yet." : " Gray = no ballots yet."));
     // e.g. SD: statewide totals from the state, county map from a source that's behind it
     if (outlined) $("#map-note").textContent += " Outlines: " + unitLabelPlural.toLowerCase() + "; the table lists their figures.";
     if ((mapMode !== "precinct" || outlined) && data && data.map_note) $("#map-note").textContent += " ⚠ " + data.map_note;
@@ -542,7 +545,9 @@
       var name = ft.properties.name;
       var b = block(data.counties[name], method);
       var fill;
-      if (spCountyOn()) {
+      if (unreported(name)) {
+        fill = "#c9ced6";
+      } else if (spCountyOn()) {
         fill = colorForChange(spChange(name));
       } else if (pastCountyOn()) {
         var pp = pastPct(name);
@@ -670,7 +675,7 @@
     tip.hidden = false;
     if (!unitPartisan) {
       var cty = data.counties[name] || {}, tv = turnoutOf(data.counties[name], b);
-      tip.innerHTML = "<b>" + name + "</b><br>Ballots: " + fmt(b.total) +
+      tip.innerHTML = "<b>" + name + "</b><br>" + (unreported(name) ? "Not reported yet" : "Ballots: " + fmt(b.total)) +
         (tv != null ? "<br>Turnout: <span class='tt-margin'>" + pctText(tv) + "</span>" +
           (cty.registered ? " of " + fmt(cty.registered) + " registered" : "") : "") + pastTipLine(name);
       var hh = $("#map-holder").getBoundingClientRect();
@@ -759,7 +764,7 @@
       var shift = (compareActive() && b.margin != null && m22 != null) ? Math.round((b.margin - m22) * 10) / 10 : null;
       var res = rcActive() ? rcMarginOf(name) : null;
       var gap = (rcActive() && b.margin != null && res != null) ? Math.round((b.margin - res) * 10) / 10 : null;
-      return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: b.total,
+      return { name: name, rep: b.rep, dem: b.dem, oth: b.oth, npa: b.npa, total: unreported(name) ? null : b.total,
                margin: b.margin, turnout: unitPartisan ? cty.turnout_pct : turnoutOf(data.counties[name], b),
                tqv: cty.tqv_url, source: cty.source, srcUrl: cty.source_url, srcLabel: cty.source_label,
                m22: m22, shift: shift, res: res, gap: gap, past: pastCountyOn() ? pastPct(name) : null,

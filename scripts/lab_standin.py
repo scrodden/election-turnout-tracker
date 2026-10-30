@@ -109,6 +109,35 @@ def _demographics(row):
     return groups or None
 
 
+def _county_units(crow, rules):
+    """The Lab's county rows -> one row per map unit, for a turnout-only state whose file needs it (cfg
+    lab_county_rows). MO's rows are its 116 election authorities: "Greene County", plus Kansas City's board and
+    "Rest of Jackson County", which are both Jackson on the map. A row of all zeros hasn't reported (AP's county feed
+    fills in as clerks report), so it's left out: gray on the map, not a county with no ballots.
+    -> (rows, sentences for the map note)."""
+    groups = {}
+    for r in crow:
+        raw = r.get("county") or ""
+        groups.setdefault(rules.get("merge", {}).get(raw) or re.sub(r"\s+County$", "", raw), []).append(r)
+    rows, notes = [], []
+    for name, parts in groups.items():
+        live = [r for r in parts if any(_n(r, k + "_all") for k in KINDS)]
+        if not live:
+            continue
+        rows.append(dict({k + "_all": sum(_n(r, k + "_all") for r in live) for k in KINDS}, county=name))
+        if len(live) < len(parts):
+            notes.append("%s shows %s only so far; %s hasn't reported."
+                         % (name, " and ".join(r["county"] for r in live),
+                            " and ".join(r["county"] for r in parts if r not in live)))
+    gaps = [(sum(1 for r in rows if r["inperson_all"] and not r["accept_all"]), "in-person votes but no mail ballots"),
+            (sum(1 for r in rows if r["accept_all"] and not r["inperson_all"]), "mail ballots but no in-person votes"),
+            (sum(1 for r in rows if not r["request_all"]), "no mail-ballot requests, so none read as outstanding")]
+    gaps = ["%d %s %s" % (n, "shows" if n == 1 else "show", what) for n, what in gaps if n]
+    if gaps:
+        notes.append("Some counties are incomplete: %s." % "; ".join(gaps))
+    return rows, notes
+
+
 def build(code, cfg, geo_path, partisan, role="stand-in until the official source is wired"):
     """-> snapshot dict (without generated_at) or None if the Lab has nothing."""
     st = code.upper()
@@ -129,6 +158,9 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
         crow = list(csv.DictReader(io.StringIO(C.http_get(BASE + st + "_county.csv", no_cache=True, retries=1))))
     except Exception:  # noqa: BLE001 - most states have no county file (404)
         crow = []
+    rules, unit_notes = cfg.get("lab_county_rows"), []
+    if crow and rules:
+        crow, unit_notes = _county_units(crow, rules)
     if crow:
         geo = _load(geo_path, {"features": []})
         gidx = {_norm(f["properties"]["name"]): f["properties"] for f in geo["features"]}
@@ -140,15 +172,19 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
             for r in crow:
                 g = matched[r.get("county")]
                 counties[g["name"]] = dict(_entity(r, partisan, code), fips=g["fips"])
-            if len(counties) < 0.9 * len(gidx):   # e.g. MO 10/23: St. Louis County only -- say so, the totals aren't statewide
+                if rules and _n(r, "accept_all") and not _n(r, "request_all"):   # the Lab's "Inf %": no return rate
+                    counties[g["name"]].pop("mail", None)
+            # e.g. MO 10/23: St. Louis County only -- say so, the totals aren't statewide
+            if len(counties) < (len(gidx) if rules else 0.9 * len(gidx)):
                 names = sorted(r.get("county") for r in crow)   # the Lab's names: "St. Louis County", not the map's "St. Louis"
                 listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1] if len(names) < 8 \
-                    else "%d of the state's %d counties" % (len(names), len(gidx))
+                    else "%d of the state's %d counties%s" % (len(names), len(gidx), (rules or {}).get("units_note", ""))
                 partial_note = ("Only %s %s so far in the Election Lab's %s data (source: %s), so every figure here covers "
                                 "%s, not the whole state; the rest of the map is gray until more counties report."
                                 % (listed, "reports" if len(names) == 1 else "report", cfg.get("state_name", st),
                                    re.sub(r"\s+-\s+see .*$", "", row.get("data_source") or "state election office"),
                                    "that county" if len(names) == 1 else "those counties"))
+            partial_note = " ".join(x for x in [partial_note] + unit_notes if x)
         else:
             bad = [c for c, g in matched.items() if not g]
             note = "county file not used (%s)" % ("unmatched: %s" % bad[:5] if bad else "doesn't sum to statewide")
@@ -168,6 +204,8 @@ def build(code, cfg, geo_path, partisan, role="stand-in until the official sourc
                                                    format(_n(row, "inperson_all"), ",")))
     if partial_note:
         body["map_note"] = partial_note
+    if rules and counties:
+        body["units_fill_in"] = True   # a unit that's missing hasn't reported (app.js): not "0 ballots"
     demo = _demographics(row)
     if demo:
         body["demographics"] = demo

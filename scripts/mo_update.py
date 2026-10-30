@@ -4,10 +4,11 @@ party registration).
 
 No statewide feed: as of 2026-10-23 the SoS still posts nothing during
 early voting (checked again with the window open since 10-20). The UF
-Election Lab started carrying Missouri on 10/23 from county election-night
-dashboards (Tally / TotalResults) -- so far St. Louis County only -- and this
-writes that stand-in (scripts/lab_standin.py; the map note names the counties
-covered, since the totals aren't statewide). Background from 10-14: sos.mo.gov/elections
+Election Lab started carrying Missouri on 10/23 (St. Louis County only at
+first; by 10/29 AP's county feed, with counties filling in as they report) and
+this writes that stand-in (scripts/lab_standin.py; the map note says how many
+counties are covered, since the totals aren't statewide; config lab_county_rows
+maps the Lab's election authorities to the map). Background from 10-14: sos.mo.gov/elections
 links only to final, certified, post-election PDF turnout reports; the "Show
 MO Votes" tool is an empty Angular SPA shell (no data/API reference in its
 static HTML); enr.sos.mo.gov (Election Night Reporting) returns HTTP 403
