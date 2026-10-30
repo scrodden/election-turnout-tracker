@@ -16,12 +16,17 @@ reporting_pct, called} }. Register it in SOURCES[usps].
 
 Run:  python scripts/results_update.py [--force]
 """
+import io
 import os
+import re
 import sys
 import json
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
+sys.path.insert(0, HERE)
+import common as C  # noqa: E402
 SLATE_PATH = os.path.join(ROOT, "config", "results_races.json")
 CHAMBERS_PATH = os.path.join(ROOT, "config", "chambers.json")
 MEASURES_PATH = os.path.join(ROOT, "config", "measures.json")
@@ -81,9 +86,72 @@ def load(p):
         return json.load(f)
 
 
+def parse_NC():
+    """NC SBE statewide precinct-by-contest results file, same ENRS S3 bucket as
+    the absentee feed (config/nc.json source.absentee_zip) and the same naming
+    convention confirmed against the 2024 general's archived file:
+    dl.ncsbe.gov/ENRS/<election>/results_pct_<election>.zip, a single tab-
+    separated .txt with one row per county/precinct/contest/choice: County,
+    Election Date, Precinct, Contest Group ID, Contest Type, Contest Name,
+    Choice, Choice Party, Vote For, Election Day, Early Voting, Absentee by
+    Mail, Provisional, Total Votes, Real Precinct. NCSBE preloads this with the
+    real ballot (every real candidate/party, already matching
+    config/candidates_2026.json) weeks before Election Day, every vote column
+    at 0 until polls start closing -- so a race is only emitted once it shows
+    real (nonzero) votes; before then this returns {} and the slate's existing
+    "not yet reported" / ballot-preview path is what shows. reporting_pct is
+    estimated as the share of real precincts with any nonzero vote in that
+    race (NCSBE doesn't publish a precinct-complete flag in this file)."""
+    url = "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/results_pct_20261103.zip"
+    z = zipfile.ZipFile(io.BytesIO(C.http_get(url, binary=True, timeout=60)))
+    name = next(n for n in z.namelist() if n.endswith(".txt"))
+    lines = z.read(name).decode("utf-8", "replace").splitlines()
+    header = lines[0].split("\t")
+    idx = {h: i for i, h in enumerate(header)}
+    need = ["County", "Precinct", "Contest Name", "Choice", "Choice Party", "Total Votes", "Real Precinct"]
+    if any(h not in idx for h in need):
+        raise RuntimeError("NC results: expected column missing (%s)" % header)
+
+    def race_id_for(contest):
+        if contest == "US SENATE":
+            return "sen-NC"
+        m = re.match(r"US HOUSE OF REPRESENTATIVES DISTRICT (\d+)$", contest)
+        return "house-NC-%02d" % int(m.group(1)) if m else None
+
+    races = {}   # race_id -> {cands: {name: {party, votes}}, precincts: set, reported: set}
+    for ln in lines[1:]:
+        f = ln.split("\t")
+        if len(f) <= idx["Real Precinct"] or f[idx["Real Precinct"]] != "Y":
+            continue
+        rid = race_id_for(f[idx["Contest Name"]])
+        if not rid:
+            continue
+        votes = int(f[idx["Total Votes"]] or 0)
+        r = races.setdefault(rid, {"cands": {}, "precincts": set(), "reported": set()})
+        precinct = (f[idx["County"]], f[idx["Precinct"]])
+        r["precincts"].add(precinct)
+        c = r["cands"].setdefault(f[idx["Choice"]], {"party": f[idx["Choice Party"]], "votes": 0})
+        c["votes"] += votes
+        if votes:
+            r["reported"].add(precinct)
+
+    out = {}
+    for rid, r in races.items():
+        total_votes = sum(c["votes"] for c in r["cands"].values())
+        if not total_votes:   # unreported (pre-election or no precincts in yet) -- stay out of the slate
+            continue
+        total_p = len(r["precincts"])
+        out[rid] = {
+            "candidates": [{"name": n, "party": c["party"], "votes": c["votes"]} for n, c in r["cands"].items()],
+            "reporting_pct": round(100.0 * len(r["reported"]) / total_p, 1) if total_p else 0.0,
+            "called": None,
+        }
+    return out
+
+
 # --- wired per-state results sources (added near Election Day) -----------------
 # SOURCES[usps] -> function() -> {race_id: {candidates, reporting_pct, called}}
-SOURCES = {}
+SOURCES = {"NC": parse_NC}
 
 
 def utc_now():

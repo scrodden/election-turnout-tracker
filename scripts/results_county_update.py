@@ -18,13 +18,17 @@ A source: parse_<usps>() -> {County Name: {"gov": {rep,dem,other,reporting}, "se
 
 Run:  python scripts/results_county_update.py [--force]
 """
+import io
 import os
 import sys
 import json
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 SLATE_PATH = os.path.join(ROOT, "config", "results_races.json")
+sys.path.insert(0, HERE)
+import common as C  # noqa: E402
 
 
 def load(p):
@@ -32,8 +36,45 @@ def load(p):
         return json.load(f)
 
 
+def parse_NC():
+    """NC SBE statewide precinct-by-contest results file (same source as
+    scripts/results_update.py's parse_NC -- see its docstring for the file's
+    shape and the pre-election all-zero caveat). Sums "US SENATE" (NC's only
+    2026 Governor/Senate-slate race -- no NC governor contest this cycle) by
+    county/choice; a county with no reported votes yet is left out, same as
+    the statewide parser."""
+    url = "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/results_pct_20261103.zip"
+    z = zipfile.ZipFile(io.BytesIO(C.http_get(url, binary=True, timeout=60)))
+    name = next(n for n in z.namelist() if n.endswith(".txt"))
+    lines = z.read(name).decode("utf-8", "replace").splitlines()
+    header = lines[0].split("\t")
+    idx = {h: i for i, h in enumerate(header)}
+    need = ["County", "Contest Name", "Choice Party", "Total Votes", "Real Precinct"]
+    if any(h not in idx for h in need):
+        raise RuntimeError("NC county results: expected column missing (%s)" % header)
+    names = {c["code"]: c["name"] for c in load(os.path.join(ROOT, "config", "nc_counties.json"))["counties"]}
+
+    counties = {}   # county name -> {rep, dem, other}
+    for ln in lines[1:]:
+        f = ln.split("\t")
+        if len(f) <= idx["Real Precinct"] or f[idx["Real Precinct"]] != "Y":
+            continue
+        if f[idx["Contest Name"]] != "US SENATE":
+            continue
+        name = names.get(f[idx["County"]])
+        if not name:
+            continue
+        votes = int(f[idx["Total Votes"]] or 0)
+        party = f[idx["Choice Party"]]
+        key = "rep" if party == "REP" else "dem" if party == "DEM" else "other"
+        c = counties.setdefault(name, {"rep": 0, "dem": 0, "other": 0})
+        c[key] += votes
+
+    return {name: {"sen": v} for name, v in counties.items() if (v["rep"] + v["dem"] + v["other"])}
+
+
 # SOURCES[usps] -> function() -> {County: {race_type: {rep,dem,other,reporting}}}
-SOURCES = {}
+SOURCES = {"NC": parse_NC}
 
 
 def margin(rep, dem, other=0):
