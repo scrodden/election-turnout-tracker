@@ -566,8 +566,14 @@ def parse_ca():
     if not slugs:
         raise RuntimeError("CA: no report links found")
     slug = slugs[-1]
-    sheets = C.read_xlsx(C.http_get(
-        "https://elections.cdn.sos.ca.gov/ror/%s/county.xlsx" % slug, binary=True, timeout=60))
+    # the CDN asset folder doesn't always match the page slug (2026 general: page
+    # "60day-general-2026" vs assets under "60day-gen-2026") -- read the real
+    # county.xlsx link off the report page instead of guessing it from the slug.
+    page = C.http_get("https://www.sos.ca.gov/elections/report-registration/%s" % slug, no_cache=True)
+    xlsx_links = re.findall(r'href="(https://elections\.cdn\.sos\.ca\.gov/ror/[a-z0-9-]+/county\.xlsx)"', page)
+    if not xlsx_links:
+        raise RuntimeError("CA: no county.xlsx link on report page")
+    sheets = C.read_xlsx(C.http_get(xlsx_links[0], binary=True, timeout=60))
     rows = sheets.get("By County") or (list(sheets.values())[0] if sheets else [])
     total_row = next((r for r in rows if r and str(r[0]).strip() == "State Total"), None)
     if not total_row:
@@ -586,7 +592,6 @@ def parse_ca():
         raise RuntimeError("CA: party columns don't sum to the total")
     as_of = ""
     try:
-        page = C.http_get("https://www.sos.ca.gov/elections/report-registration/%s" % slug)
         dm = re.search(r"<h1>Report of Registration - ([^<]+)</h1>", page)
         if dm:
             as_of = datetime.strptime(dm.group(1).strip(), "%B %d, %Y").strftime("%Y-%m-%d")
@@ -668,14 +673,17 @@ def parse_ks():
         raise RuntimeError("KS: no monthly workbook linked")
     href, y, mo = max(files, key=lambda f: (f[1], f[2]))
     url = href if href.startswith("http") else "https://sos.ks.gov/elections/" + href.lstrip("/").replace("elections/", "", 1)
-    rows = C.read_xlsx(C.http_get(url, binary=True, timeout=60)).get("By County", [])
+    # positional=True: a county with zero registrants in a minor party (e.g. "No Labels
+    # Kansas") has that cell omitted from the row entirely, which would otherwise shift
+    # every later column left; positional keeps each value under its real header.
+    rows = C.read_xlsx(C.http_get(url, binary=True, timeout=60), positional=True).get("By County", [])
     head = rows[0] if rows else []
-    tot = next((r for r in rows if r and r[0].strip().lower() == "grand total"), None)
+    tot = next((r for r in rows if len(r) > 1 and r[1].strip().lower() == "grand total"), None)
     if not tot:
         raise RuntimeError("KS: Grand Total row not found")
-    vals = {h.strip().lower(): _num(v) for h, v in zip(head[1:], tot[1:])}
-    rep, dem, npa = vals.get("republican", 0), vals.get("democratic", 0), vals.get("unaffiliated", 0)
-    total = vals.get("total", 0)
+    vals = {h.strip().lower(): v for h, v in zip(head, tot)}
+    rep, dem, npa = _num(vals.get("republican")), _num(vals.get("democratic")), _num(vals.get("unaffiliated"))
+    total = _num(vals.get("total"))
     oth = total - rep - dem - npa
     if min(rep, dem, npa, oth) < 0 or not total:
         raise RuntimeError("KS: unexpected columns %s" % head)

@@ -20,10 +20,10 @@
       "note": "Manual snapshot of the Secretary of the Commonwealth's newest enrollment breakdown published as a web page (as of 02/01/2025; total 5,025,826). Unenrolled -> npa; political designations -> oth. sec.state.ma.us blocks automated requests. A September 2026 state-primary workbook exists on the Election Data Hub (download only). Refresh late Oct 2026 when the state-election enrollment breakdown is posted."
     },
     "nv": {
-      "rep": 568665, "dem": 569337, "npa": 796805, "oth": 127329,
-      "as_of": "August 2026",
+      "rep": 571078, "dem": 575465, "npa": 809764, "oth": 128070,
+      "as_of": "September 2026",
       "source": "https://www.nvsos.gov/Home/Components/News/News/3788/23",
-      "note": "Manual snapshot of ACTIVE registered voters from the NV SoS monthly release (Sept 2, 2026; total 2,062,136). Nonpartisan -> npa; Independent American 82,903 + Libertarian 13,620 + other minor 30,806 -> oth. nvsos.gov blocks automated requests (Incapsula). Refresh monthly/late Oct 2026."
+      "note": "Manual snapshot of ACTIVE registered voters from the NV SoS monthly release for September 2026 (total 2,084,377; released ~Oct 5, 2026). nvsos.gov blocks automated requests (Incapsula), so read via local-news coverage of the release (Fox5 Vegas, 2026-10-05: https://www.fox5vegas.com/2026/10/05/nevada-sees-surge-active-registered-voters-secretary-states-office-reports/), which matches the NVSOS party-sum==total invariant. Nonpartisan -> npa; Independent American 83,392 + Libertarian 13,691 + other minor 30,987 -> oth. Refresh monthly/when the October release posts."
     },
     "nh": {
       "rep": 298965, "dem": 255943, "npa": 307254, "oth": 0,
