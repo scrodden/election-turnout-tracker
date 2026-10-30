@@ -53,7 +53,7 @@ def git(*args, check=True):
 
 
 GH_REPO = "scrodden/election-turnout-tracker"
-CHAIN_STALE_MIN = 45
+CHAIN_STALE_MIN = 20   # the chain runs about every 10 minutes (was 45: 10/30's stall sat for 47 minutes)
 ACTIVE = ("in_progress", "queued", "waiting", "pending", "requested")
 
 
@@ -67,15 +67,14 @@ def chain_watchdog():
     if not os.path.exists(gh) and not shutil.which("gh"):
         return
 
-    def newest(workflow):
-        r = subprocess.run([gh, "run", "list", "--repo", GH_REPO, "--workflow", workflow, "--limit", "1",
+    def recent(workflow):   # a few, not just the newest: a skipped restart check can be newer than a waiting timer
+        r = subprocess.run([gh, "run", "list", "--repo", GH_REPO, "--workflow", workflow, "--limit", "5",
                             "--json", "createdAt,status"], capture_output=True, text=True, timeout=60)
-        runs = json.loads(r.stdout or "[]") if not r.returncode else None
-        return runs[0] if runs else None
-    upd, tick = newest("update.yml"), newest("tick.yml")
-    if not upd or any(r and r.get("status") in ACTIVE for r in (upd, tick)):
+        return json.loads(r.stdout or "[]") if not r.returncode else []
+    upd, tick = recent("update.yml"), recent("tick.yml")
+    if not upd or any(r.get("status") in ACTIVE for r in upd + tick):
         return
-    age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.strptime(upd["createdAt"], "%Y-%m-%dT%H:%M:%SZ")
+    age = (dt.datetime.now(dt.timezone.utc) - dt.datetime.strptime(upd[0]["createdAt"], "%Y-%m-%dT%H:%M:%SZ")
            .replace(tzinfo=dt.timezone.utc)).total_seconds() / 60
     if age < CHAIN_STALE_MIN:
         return

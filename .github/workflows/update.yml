@@ -145,8 +145,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # one chain only: skip if a timer is already waiting/running
-          active=$(gh run list --repo "${{ github.repository }}" --workflow tick.yml --limit 10 --json status --jq '[.[] | select(.status != "completed")] | length' || echo 0)
+          # one chain only: skip if a timer is still waiting to fire. A timer that's in_progress has already started
+          # an update, usually this one, and GitHub can show it in_progress for a minute after its job ends: counting
+          # it stopped the chain on 10/30 (19:04 UTC) when this run took only 46 seconds.
+          active=$(gh run list --repo "${{ github.repository }}" --workflow tick.yml --limit 10 --json status --jq '[.[] | select(.status != "completed" and .status != "in_progress")] | length' || echo 0)
           if [ "$active" = "0" ]; then
             gh workflow run tick.yml --repo "${{ github.repository }}" --ref main
           else
