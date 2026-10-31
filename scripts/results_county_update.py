@@ -117,9 +117,15 @@ def main():
             continue  # we don't track county turnout for this state
         out = {"state": st, "updated": (_now() if counties else ""),
                "race_types": sorted(race_types), "counties": counties,
-               "note": "County result margins wired near Election Day; empty until then."}
-        with open(os.path.join(outdir, "results_county.json"), "w", encoding="utf-8") as f:
-            json.dump(out, f, separators=(",", ":"))
+               "note": "County result margins from official state feeds where one has county figures."}
+        path = os.path.join(outdir, "results_county.json")
+        try:
+            old = load(path)
+        except (OSError, ValueError):
+            old = {}
+        if {k: v for k, v in old.items() if k != "updated"} != {k: v for k, v in out.items() if k != "updated"}:
+            with open(path, "w", encoding="utf-8") as f:   # only when figures change: the 2-minute loop commits what changes
+                json.dump(out, f, separators=(",", ":"))
         wrote += 1
     print("results_county: wrote %d state files; %s" % (wrote, "has data" if any_data else "all empty (expected off Election Day)"))
     return 0

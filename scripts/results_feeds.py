@@ -152,13 +152,15 @@ def _surname(name):
 
 def names_match(feed_cands, ballot):
     """Does a feed's race have someone from the 2026 ballot? Guards against a feed still showing another election
-    or a race mapped to the wrong seat. No ballot list -> nothing to check."""
+    or a race mapped to the wrong seat. Goes by the Democrats and Republicans where the feed has any: a minor candidate
+    who also ran in 2022 (NC's Senate race) shouldn't pass 2022's figures. No ballot list -> nothing to check."""
     if not ballot:
         return True
     want = {_surname(b.get("name", "")) for b in ballot} - {""}
     if not want:
         return True
-    text = " ".join(str(c.get("name", "")) for c in feed_cands)
+    major = [c for c in feed_cands if c.get("party") in ("DEM", "REP")] or feed_cands
+    text = " ".join(str(c.get("name", "")) for c in major)
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
     have = set(re.findall(r"[a-z'-]+", text))
     return bool(want & have)
@@ -424,6 +426,22 @@ def _pa_rows(body):
         if len(c) >= 7:
             out.append((c[0], c[1], c[2], num(c[6])))
     return out
+
+
+def county_PA():
+    with open(os.path.join(ROOT, "assets", "pa-counties.geojson"), encoding="utf-8") as f:
+        names = {ft["properties"]["name"].upper(): ft["properties"]["name"] for ft in json.load(f)["features"]}
+    out = {}
+    for title, body in _pa_items():
+        if race_id("PA", html.unescape(title)) != "gov-PA":
+            continue
+        for county, _name, p, v in _pa_rows(body):
+            c = names.get(county.upper())
+            if c:
+                e = out.setdefault(c, {}).setdefault("gov", {"rep": 0, "dem": 0, "other": 0})
+                pp = party(p)
+                e["rep" if pp == "REP" else "dem" if pp == "DEM" else "other"] += v
+    return {c: v for c, v in out.items() if sum(v["gov"].values())}
 
 
 def parse_PA():
@@ -961,7 +979,8 @@ def measures_RI(year="2026"):
 # Elections hosted on Clarity Elections answer a home connection but not GitHub's runners (an empty HTTP 202 on 10/31),
 # so scripts/results_local.py reads them on the PC and pushes data/results/local/<ST>.json, which the workflow reads.
 # Without the PC those states keep their last figures, then show "No live feed".
-CLARITY = {"IA": "https://electionresults.iowa.gov/IA/", "CO": "https://results.enr.clarityelections.com/CO/"}
+CLARITY = {"IA": "https://electionresults.iowa.gov/IA/", "CO": "https://results.enr.clarityelections.com/CO/",
+           "SC": "https://www.enr-scvotes.org/SC/", "WV": "https://results.enr.clarityelections.com/WV/"}   # SC, WV: empty lists on 10/31
 LOCAL_DIR = os.path.join(ROOT, "data", "results", "local")
 LOCAL_STALE_MIN = 45
 
@@ -1021,16 +1040,19 @@ def _local(usps, key):
 
 def parse_IA(): return _local("IA", "races")
 def parse_CO(): return _local("CO", "races")
+def parse_SC(): return _local("SC", "races")
+def parse_WV(): return _local("WV", "races")
 def measures_IA(): return _local("IA", "measures")
 def measures_CO(): return _local("CO", "measures")
+def measures_WV(): return _local("WV", "measures")
 
 
 # ---- registries -------------------------------------------------------------
 SOURCES = {"NC": parse_NC, "MN": parse_MN, "CA": parse_CA, "GA": parse_GA, "WA": parse_WA, "VA": parse_VA, "UT": parse_UT,
            "PA": parse_PA, "TX": parse_TX, "FL": parse_FL, "LA": parse_LA, "IN": parse_IN, "CT": parse_CT, "DE": parse_DE,
            "MD": parse_MD, "VT": parse_VT, "NM": parse_NM, "ID": parse_ID, "NE": parse_NE, "SD": parse_SD, "ND": parse_ND, "OR": parse_OR,
-           "AK": parse_AK, "RI": parse_RI, "IA": parse_IA, "CO": parse_CO}
+           "AK": parse_AK, "RI": parse_RI, "IA": parse_IA, "CO": parse_CO, "SC": parse_SC, "WV": parse_WV}
 MEASURES = {"NC": measures_NC, "CA": measures_CA, "MN": measures_MN, "GA": measures_GA, "WA": measures_WA, "VA": measures_VA,
             "UT": measures_UT, "FL": measures_FL, "LA": measures_LA, "MD": measures_MD, "ID": measures_ID, "NE": measures_NE, "SD": measures_SD,
-            "ND": measures_ND, "AK": measures_AK, "RI": measures_RI, "IA": measures_IA, "CO": measures_CO}
-COUNTIES = {"MN": county_MN}
+            "ND": measures_ND, "AK": measures_AK, "RI": measures_RI, "IA": measures_IA, "CO": measures_CO, "WV": measures_WV}
+COUNTIES = {"MN": county_MN, "PA": county_PA}

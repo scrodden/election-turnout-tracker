@@ -19,6 +19,7 @@ Run:  python scripts/results_update.py
 import os
 import sys
 import json
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -64,16 +65,22 @@ def write_if_changed(name, doc):
 def gather(registry, health, key):
     """Run the feeds whose polls have closed, one bad state never sinking the rest. -> {usps: {id: result}}"""
     live = {}
-    for usps, fn in registry.items():
-        if not F.polls_closed(usps):
-            health.setdefault(usps, {})[key] = "waiting"
-            continue
+
+    def read(usps):
         try:
-            live[usps] = fn() or {}
+            live[usps] = registry[usps]() or {}
             health.setdefault(usps, {})[key] = "ok"
         except Exception as e:  # noqa: BLE001
             print("  ! %s %s feed failed: %s" % (usps, key, str(e)[:100]), file=sys.stderr)
             health.setdefault(usps, {})[key] = "failed: " + str(e)[:100]
+    due = []
+    for usps in registry:
+        if F.polls_closed(usps):
+            due.append(usps)
+        else:
+            health.setdefault(usps, {})[key] = "waiting"
+    with ThreadPoolExecutor(max_workers=12) as pool:   # a slow feed doesn't hold up the others
+        list(pool.map(read, due))
     return live
 
 
@@ -209,6 +216,7 @@ def main():
             rc["feed"] = rc["state"] in F.SOURCES and not str(health.get(rc["state"], {}).get("races", "")).startswith("failed")
             if links.get(rc["state"]):
                 rc["official_url"] = links[rc["state"]]
+            rc["polls_close"] = F.POLLS_CLOSE.get(rc["state"])
             if apply_feed(rc, live.get(rc["state"], {}).get(rc["id"]), prev.get(rc["id"]), ballot_races.get(rc["id"]), held):
                 any_data = True
             called = rc.get("called")

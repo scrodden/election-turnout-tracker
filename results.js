@@ -303,7 +303,8 @@
           (r.year && year.indexOf("offcycle") === 0 ? r.year + " · " : "") + (r.first_round ? "Won runoff" : "Won") + "</span>"
         : r.called ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>Called " + r.called + "</span>"
         : c.hasData ? "<span class='badge unc'>Leading</span>"
-        : (!isPast() && noFeed(r)) ? noFeedBadge(r) : "<span class='badge unc'>" + (isPast() ? "—" : "On the ballot") + "</span>";
+        : (!isPast() && noFeed(r)) ? noFeedBadge(r)
+        : "<span class='badge unc'>" + (isPast() ? "—" : (r.polls_close && Date.now() >= Date.parse(r.polls_close)) ? "Not yet reported" : "On the ballot") + "</span>";
       var ovBadge = (whatif && (r.id in overrides)) ? " <span class='badge " + (overrides[r.id] === "D" ? "dem" : overrides[r.id] === "R" ? "rep" : "unc") + "'>" + (overrides[r.id] || "UND") + "?</span>" : "";
       var tds = ["<span class='lean' style='background:" + (c.hasData ? color(c.rd) : ON_BALLOT) + "'></span>" + r.state_name + (r.special ? " *" : "") + ovBadge];
       if (office === "house") tds.push(r.district);
