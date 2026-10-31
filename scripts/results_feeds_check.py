@@ -25,6 +25,17 @@ def main():
     with open(os.path.join(ROOT, "config", "measures.json"), encoding="utf-8") as f:
         measures = json.load(f).get("measures", [])
     want = sys.argv[1:] or sorted(set(F.SOURCES) | set(F.MEASURES))
+    pc = {}
+    for st in F.CLARITY:   # read directly here rather than from the PC reader's files
+        try:
+            pc[st] = F.clarity_parse(st)
+        except Exception as e:  # noqa: BLE001
+            pc[st] = e
+        def src(st0=st, kind=0):
+            if isinstance(pc[st0], Exception):
+                raise pc[st0]
+            return pc[st0][kind]
+        F.SOURCES[st], F.MEASURES[st] = (lambda st0=st: src(st0, 0)), (lambda st0=st: src(st0, 1))
     bad = 0
     print("state  races        measures   notes")
     for st in want:

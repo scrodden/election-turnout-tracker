@@ -68,6 +68,7 @@ jobs:
           pip install --quiet pypdf || true
           end=$(( $(date +%s) + 570 ))   # ~9.5 minutes, then the next run continues
           while [ "$(date +%s)" -lt "$end" ]; do
+            git pull --quiet --rebase --autostash origin "${GITHUB_REF_NAME}" || git rebase --abort || true   # the PC reader's files
             python scripts/results_update.py || echo "results update failed (non-fatal)"
             python scripts/results_county_update.py || echo "county results update failed (non-fatal)"
             if [ "${{ inputs.rehearse }}" = "true" ]; then

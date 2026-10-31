@@ -100,7 +100,7 @@ def apply_feed(rc, src, old, ballot, held):
     use = src or (old if old and old.get("candidates") else None)
     if not use:
         return False
-    rc["candidates"] = use.get("candidates", [])
+    rc["candidates"] = F.ballot_names(use.get("candidates", []), ballot)
     rc["reporting_pct"] = use.get("reporting_pct")
     rc["called"] = use.get("called")
     rc["leader_party"] = leader(rc["candidates"])
@@ -117,7 +117,7 @@ def write_measures(health, links):
     out = []
     for m in slate:
         r = dict(m); r["office"] = "Ballot Measure"
-        r["feed"] = m.get("state") in F.MEASURES
+        r["feed"] = m.get("state") in F.MEASURES and not str(health.get(m.get("state"), {}).get("measures", "")).startswith("failed")
         if links.get(m.get("state")):
             r["official_url"] = links[m["state"]]
         src = live.get(m.get("state"), {}).get(m.get("id"))
@@ -205,7 +205,8 @@ def main():
             rc = dict(race)
             if ballot_races.get(rc["id"]):   # names on the ballot, shown until results arrive (never as votes)
                 rc["ballot"] = ballot_races[rc["id"]]
-            rc["feed"] = rc["state"] in F.SOURCES
+            # a wired feed that can't be read once polls have closed reads as "No live feed", with the official link
+            rc["feed"] = rc["state"] in F.SOURCES and not str(health.get(rc["state"], {}).get("races", "")).startswith("failed")
             if links.get(rc["state"]):
                 rc["official_url"] = links[rc["state"]]
             if apply_feed(rc, live.get(rc["state"], {}).get(rc["id"]), prev.get(rc["id"]), ballot_races.get(rc["id"]), held):

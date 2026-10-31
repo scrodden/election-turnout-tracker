@@ -16,6 +16,7 @@ here can call a race: state feeds report votes, not winners.
 Race ids: sen-<ST>, sen-<ST>-special, gov-<ST>, house-<ST>-<NN or AL>.
 """
 import base64
+import gzip
 import html
 import json
 import os
@@ -161,6 +162,16 @@ def names_match(feed_cands, ballot):
     text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
     have = set(re.findall(r"[a-z'-]+", text))
     return bool(want & have)
+
+
+def ballot_names(cands, ballot):
+    """Prefer the ballot list's name where a feed gives only a surname ('Begich') or all capitals."""
+    by_surname = {_surname(b.get("name", "")): b.get("name") for b in ballot or []}
+    for c in cands:
+        n = str(c.get("name", ""))
+        if (" " not in n or n.isupper() or n != n.title() and n.upper() == n) and by_surname.get(_surname(n)):
+            c["name"] = by_surname[_surname(n)]
+    return cands
 
 
 # ---- North Carolina ---------------------------------------------------------
@@ -309,7 +320,8 @@ def measures_CA():
 # The same results platform and JSON: /results/public/api/jurisdictions/<name> lists elections;
 # /results/public/api/elections/<name>/<election id>/data has every contest.
 EV_SITES = {"GA": ("https://results.sos.ga.gov", "Georgia"), "WA": ("https://results.votewa.gov", "washington"),
-            "VA": ("https://enr.elections.virginia.gov", "Virginia"), "UT": ("https://electionresults.utah.gov", "Utah")}
+            "VA": ("https://enr.elections.virginia.gov", "Virginia"), "UT": ("https://electionresults.utah.gov", "Utah"),
+            "ID": ("https://results.voteidaho.gov", "Idaho")}
 
 
 def _en(items):
@@ -352,6 +364,7 @@ def _ev_parse(usps):
 EV_MEASURE_KEYS = {   # a statewide measure's name in the feed -> its title in config/measures.json
     "VA": (r"Question (\d+)", "Question %s"), "WA": (r"No\. I[LP]\d+-0*(\d+)", "Initiative %s"),
     "GA": (r"Amendment\s*(?:No\.?\s*|#\s*)?(\d+)", "Amendment %s"), "UT": (r"Amendment\s+([A-Z])\b", "Constitutional Amendment %s"),
+    "ID": (r"\b(HJR\s*\d+|Proposition\s*\d+)", "%s"),
 }
 
 
@@ -376,10 +389,12 @@ def parse_GA(): return _ev_parse("GA")
 def parse_WA(): return _ev_parse("WA")
 def parse_VA(): return _ev_parse("VA")
 def parse_UT(): return _ev_parse("UT")
+def parse_ID(): return _ev_parse("ID")
 def measures_GA(): return _ev_measures("GA")
 def measures_WA(): return _ev_measures("WA")
 def measures_VA(): return _ev_measures("VA")
 def measures_UT(): return _ev_measures("UT")
+def measures_ID(): return _ev_measures("ID")
 
 
 # ---- Pennsylvania -----------------------------------------------------------
@@ -761,10 +776,261 @@ def parse_NM():
     return out
 
 
+# ---- Nebraska, South Dakota, North Dakota (and Oregon): one vendor's results site ----
+# Server-rendered pages per office group. North Dakota's still showed 2024 on 10/31, so every page's hidElectionDate is
+# checked; the parser was tested on that 2024 page against its figures. Nebraska's and South Dakota's pages list no
+# contests until results start ("Testing In Progress"), and Oregon's site is offline until election night.
+VENDOR = {
+    "NE": ("https://electionresults.nebraska.gov/resultsSW.aspx?", ["text=Race&type=SW&map=CTY", "text=Race&type=CG&map=DIST"], ["text=Race&type=PA&map=CTY"]),
+    "SD": ("https://electionresults.sd.gov/resultsSW.aspx?", ["text=Race&type=SWR&map=CTY", "text=Race&type=FED&map=CTY"], ["text=Race&type=BQ&map=CTY"]),
+    "ND": ("https://results.sos.nd.gov/ResultsSW.aspx?", ["text=All&type=SW&map=CTY"], ["text=BQ&type=SW&map=CTY"]),
+    "OR": ("https://results.oregonvotes.gov/ResultsSW.aspx?", ["text=Race&type=FED&map=CTY", "text=Race&type=SW&map=CTY"], []),
+}
+VENDOR_DATE = "11/3/2026"
+
+
+def _vendor_sections(url, date=None):
+    """[(contest title, reporting %, [(name, party, votes)])] from one results page."""
+    s = C.http_get(url, no_cache=True, timeout=60)
+    m = re.search(r'hidElectionDate[^>]*value="([^"]+)"', s)
+    if not m or m.group(1) != (date or VENDOR_DATE):
+        raise RuntimeError("not the Nov 3 election: %s" % (m.group(1) if m else "no date on the page"))
+    parts = s.split('id="ContestGraphCands')
+    out = []
+    for i, part in enumerate(parts[1:]):
+        head = text_of(parts[i][-9000:])
+        ms = list(re.finditer(r"([^|]{3,160}?)\s+Vote For \d+\s+Precincts Fully:\s*([\d,]+)\s*/\s*([\d,]+)", head))
+        if not ms:
+            continue
+        title = re.split(r"/>|\bTop\s|Export Page\s", ms[-1].group(1))[-1].strip()
+        rows = [(text_of(a), text_of(b), num(text_of(c))) for a, b, c in re.findall(
+            r'display-results-box-d"[^>]*>\s*<h2>(.*?)</h2>.*?display-results-box-e">\s*<div class="[^"]*"\s*>(.*?)</div>.*?display-results-box-g"\s*>(.*?)</h2>', part, re.S)]
+        out.append((title, share(ms[-1].group(2), ms[-1].group(3)), rows))
+    return out
+
+
+def _vendor_parse(usps, date=None):
+    base, pages, _m = VENDOR[usps]
+    out = {}
+    for pg in pages:
+        for title, rep_pct, rows in _vendor_sections(base + pg, date):
+            rid = race_id(usps, title)
+            got = race([(nice(n), party(p), v) for n, p, v in rows], rep_pct) if rid else None
+            if got:
+                out[rid] = got
+    return out
+
+
+def _vendor_measures(usps, date=None):
+    base, _p, pages = VENDOR[usps]
+    wanted = {re.sub(r"[^a-z0-9]", "", m["title"].lower()): m["id"] for m in _measures_for(usps)}
+    out = {}
+    for pg in pages:
+        for title, rep_pct, rows in _vendor_sections(base + pg, date):
+            key = re.sub(r"[^a-z0-9]", "", title.lower())
+            mid = next((v for k, v in wanted.items() if k in key), None)
+            if mid:
+                yes = sum(v for n, _x, v in rows if n.strip().lower().startswith(("yes", "for")))
+                no = sum(v for n, _x, v in rows if n.strip().lower().startswith(("no", "against")))
+                if yes + no or KEEP_ZERO:
+                    out[mid] = {"yes": yes, "no": no, "reporting": rep_pct}
+    return out
+
+
+def parse_NE(): return _vendor_parse("NE")
+def parse_SD(): return _vendor_parse("SD")
+def parse_ND(): return _vendor_parse("ND")
+def parse_OR(): return _vendor_parse("OR")
+def measures_NE(): return _vendor_measures("NE")
+def measures_SD(): return _vendor_measures("SD")
+def measures_ND(): return _vendor_measures("ND")
+
+
+# ---- Alaska -----------------------------------------------------------------
+# The Division of Elections' map data. It still held the August primary on 10/31, so the election name is checked.
+# Ranked-choice: these are first-choice votes; any later rounds are tabulated by the Division after the night.
+AK_URL = "https://www.elections.alaska.gov/enr26/results/statewide.js"
+
+
+def _ak_cand(s):
+    m = re.match(r"(.*?)\s*\(([A-Za-z/]+)\)\s*$", s)   # 'Kreiss-Tomkins/Johnson (DEM/NON)': the ticket's lead candidate
+    name, p = (m.group(1), m.group(2).split("/")[0]) if m else (s, "")
+    name = re.split(r"\s*/\s*", name)[0]
+    if "," in name:
+        last, first = name.split(",", 1)
+        name = first.strip() + " " + last.strip()
+    return name.replace('"', ""), party(p)
+
+
+def _ak_data(check=True):
+    d = json.loads(C.http_get(AK_URL, no_cache=True, timeout=60))
+    if check and not ("General" in d.get("name", "") and "2026" in d.get("name", "")):
+        raise RuntimeError("not the general yet: %s" % d.get("name"))
+    return d
+
+
+def parse_AK(check=True):
+    d = _ak_data(check)
+    out = {}
+    for t in d.get("totals") or []:
+        rid = race_id("AK", d["contestNames"][t["n"]])
+        if not rid:
+            continue
+        cands = []
+        for c in t.get("c") or []:
+            n, p = _ak_cand(d["candidateNames"][c["n"]])
+            cands.append((n, p, num(c.get("t"))))
+        got = race(cands, share(t.get("r"), t.get("p")))
+        if got:
+            out[rid] = got
+    return out
+
+
+def measures_AK(check=True):
+    d = _ak_data(check)
+    ids = {m["title"]: m["id"] for m in _measures_for("AK")}
+    out = {}
+    for t in d.get("totals") or []:
+        m = re.match(r"BM#\s*(\d+)", d["contestNames"][t["n"]])
+        mid = ids.get("Ballot Measure " + m.group(1)) if m else None
+        if not mid:
+            continue
+        v = {d["candidateNames"][c["n"]].strip().upper(): num(c.get("t")) for c in t.get("c") or []}
+        if v.get("YES", 0) + v.get("NO", 0) or KEEP_ZERO:
+            out[mid] = {"yes": v.get("YES", 0), "no": v.get("NO", 0), "reporting": share(t.get("r"), t.get("p"))}
+    return out
+
+
+# ---- Rhode Island -----------------------------------------------------------
+# RI.gov's results site posts each election under its year; the 2026 pages aren't up yet, and the parser was tested on
+# the 2024 pages' figures.
+RI_BASE = "https://www.ri.gov/election/results/%s/general_election/"
+
+
+def _ri_sections(year="2026"):
+    s = C.http_get(RI_BASE % year, no_cache=True, timeout=60)
+    if "%s General Election" % year not in s:
+        raise RuntimeError("no %s general election page" % year)
+    out = []
+    for part in s.split("<h3>")[1:]:
+        title = text_of(part[:part.find("</h3>")])
+        rows = []
+        for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", part[:part.find("</table>")], re.S):
+            tds = re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)
+            total = re.search(r'data-title="Total votes"[^>]*>([\d,]+)', tr)
+            if tds and total:
+                rows.append((text_of(tds[0]), num(total.group(1))))
+        out.append((title, rows))
+    return out
+
+
+def parse_RI(year="2026"):
+    out = {}
+    for title, rows in _ri_sections(year):
+        rid = race_id("RI", title)
+        if not rid:
+            continue
+        cands = []
+        for n, v in rows:   # 'DEM Gabriel Amo (DEM)'
+            m = re.match(r"(.*?)\s*\((\w+)\)\s*$", n)
+            name, p = (m.group(1), m.group(2)) if m else (n, "")
+            if p and name.lower().startswith(p.lower() + " "):
+                name = name[len(p) + 1:]
+            cands.append((nice(name), party(p), v))
+        got = race(cands, None)
+        if got:
+            out[rid] = got
+    return out
+
+
+def measures_RI(year="2026"):
+    ids = {m["title"]: m["id"] for m in _measures_for("RI")}
+    out = {}
+    for title, rows in _ri_sections(year):
+        m = re.search(r"Question\s*(?:No\.?\s*)?(\d+)", title)
+        mid = ids.get("Question " + m.group(1)) if m else None
+        if mid:
+            yes = sum(v for n, v in rows if n.strip().lower().startswith(("yes", "approve")))
+            no = sum(v for n, v in rows if n.strip().lower().startswith(("no", "reject")))
+            if yes + no or KEEP_ZERO:
+                out[mid] = {"yes": yes, "no": no, "reporting": None}
+    return out
+
+
+# ---- Clarity states read from Sam's PC: Iowa, Colorado --------------------------------
+# Elections hosted on Clarity Elections answer a home connection but not GitHub's runners (an empty HTTP 202 on 10/31),
+# so scripts/results_local.py reads them on the PC and pushes data/results/local/<ST>.json, which the workflow reads.
+# Without the PC those states keep their last figures, then show "No live feed".
+CLARITY = {"IA": "https://electionresults.iowa.gov/IA/", "CO": "https://results.enr.clarityelections.com/CO/"}
+LOCAL_DIR = os.path.join(ROOT, "data", "results", "local")
+LOCAL_STALE_MIN = 45
+
+
+def _clarity_get(url):
+    b = C.http_get(url, no_cache=True, timeout=45, binary=True)
+    return (gzip.decompress(b) if b[:2] == b"\x1f\x8b" else b).decode("utf-8", "replace")
+
+
+def clarity_contests(usps):
+    base = CLARITY[usps]
+    today = [e for e in json.loads(_clarity_get(base + "elections.json")) if str(e.get("Date", "")).startswith("11/3/2026")]
+    if not today:
+        raise RuntimeError("no Nov 3 election listed yet")
+    eid = today[0]["EID"]
+    ver = _clarity_get("%s%s/current_ver.txt" % (base, eid)).strip()
+    return json.loads(_clarity_get("%s%s/%s/json/en/summary.json" % (base, eid, ver)))
+
+
+def clarity_parse(usps, contests=None):
+    """-> (races, measures) in the same shape as the other feeds."""
+    wanted = {re.sub(r"[^a-z0-9]", "", m["title"].lower()): m["id"] for m in _measures_for(usps)}
+    races, measures = {}, {}
+    for c in contests if contests is not None else clarity_contests(usps):
+        title = c.get("C", "")
+        rep_pct = share(c.get("PR"), c.get("TP"))
+        names, parties, votes = c.get("CH") or [], c.get("P") or [], c.get("V") or []
+        rid = race_id(usps, title)
+        if rid:
+            got = race([(nice(n), party(parties[i] if i < len(parties) else ""), num(votes[i] if i < len(votes) else 0)) for i, n in enumerate(names)], rep_pct)
+            if got:
+                races[rid] = got
+            continue
+        key = re.sub(r"[^a-z0-9]", "", title.lower())
+        mid = next((v for k, v in wanted.items() if k in key), None)
+        if mid:
+            tot = {str(n).strip().lower(): num(votes[i] if i < len(votes) else 0) for i, n in enumerate(names)}
+            yes = next((v for k, v in tot.items() if k.startswith(("yes", "for"))), 0)
+            no = next((v for k, v in tot.items() if k.startswith(("no", "against"))), 0)
+            if yes + no or KEEP_ZERO:
+                measures[mid] = {"yes": yes, "no": no, "reporting": rep_pct}
+    return races, measures
+
+
+def _local(usps, key):
+    """What the PC reader last wrote for a state. A stale file is a failed feed (the last published figures stay)."""
+    try:
+        with open(os.path.join(LOCAL_DIR, usps + ".json"), encoding="utf-8") as f:
+            d = json.load(f)
+    except OSError:
+        raise RuntimeError("the PC reader hasn't written this state yet")
+    age = (datetime.now(timezone.utc) - datetime.strptime(d["fetched"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)).total_seconds() / 60
+    if age > LOCAL_STALE_MIN:
+        raise RuntimeError("the PC reader's last read is %d minutes old" % age)
+    return d.get(key) or {}
+
+
+def parse_IA(): return _local("IA", "races")
+def parse_CO(): return _local("CO", "races")
+def measures_IA(): return _local("IA", "measures")
+def measures_CO(): return _local("CO", "measures")
+
+
 # ---- registries -------------------------------------------------------------
 SOURCES = {"NC": parse_NC, "MN": parse_MN, "CA": parse_CA, "GA": parse_GA, "WA": parse_WA, "VA": parse_VA, "UT": parse_UT,
            "PA": parse_PA, "TX": parse_TX, "FL": parse_FL, "LA": parse_LA, "IN": parse_IN, "CT": parse_CT, "DE": parse_DE,
-           "MD": parse_MD, "VT": parse_VT, "NM": parse_NM}
+           "MD": parse_MD, "VT": parse_VT, "NM": parse_NM, "ID": parse_ID, "NE": parse_NE, "SD": parse_SD, "ND": parse_ND, "OR": parse_OR,
+           "AK": parse_AK, "RI": parse_RI, "IA": parse_IA, "CO": parse_CO}
 MEASURES = {"NC": measures_NC, "CA": measures_CA, "MN": measures_MN, "GA": measures_GA, "WA": measures_WA, "VA": measures_VA,
-            "UT": measures_UT, "FL": measures_FL, "LA": measures_LA, "MD": measures_MD}
+            "UT": measures_UT, "FL": measures_FL, "LA": measures_LA, "MD": measures_MD, "ID": measures_ID, "NE": measures_NE, "SD": measures_SD,
+            "ND": measures_ND, "AK": measures_AK, "RI": measures_RI, "IA": measures_IA, "CO": measures_CO}
 COUNTIES = {"MN": county_MN}

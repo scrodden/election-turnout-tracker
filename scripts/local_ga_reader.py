@@ -145,6 +145,26 @@ def tx_rosters():
     return commit_push(TX_FILES, "Texas county rosters (local reader)", summary)
 
 
+def results_local():
+    """Election night (UTC Nov 4-5): read the feeds that only answer a home connection every 3 minutes for most of this
+    run (the scheduled task starts one run at a time, every ~20 minutes), pushing data/results/local/*."""
+    today = dt.datetime.now(dt.timezone.utc).date()
+    if today not in (dt.date(2026, 11, 4), dt.date(2026, 11, 5)):
+        return
+    import time
+    sys.path.insert(0, os.path.join(CLONE, "scripts"))
+    os.chdir(CLONE)
+    import results_local as RL
+    end = time.time() + 17 * 60
+    while time.time() < end:
+        git("fetch", "--quiet", "origin", "main")
+        git("reset", "--hard", "--quiet", "origin/main")
+        wrote = RL.read_all()
+        if wrote:
+            commit_push([os.path.relpath(p, CLONE).replace(os.sep, "/") for p in wrote], "Local results (PC reader)", "%d states" % len(wrote))
+        time.sleep(180)
+
+
 def main():
     try:
         chain_watchdog()
@@ -168,6 +188,11 @@ def main():
         except Exception as e:  # noqa: BLE001 - one job's failure doesn't stop the other
             log("%s error: %s" % (job.__name__, str(e)[:300]))
             rc = 1
+    try:
+        results_local()
+    except Exception as e:  # noqa: BLE001
+        log("results_local error: %s" % str(e)[:300])
+        rc = 1
     return rc
 
 
