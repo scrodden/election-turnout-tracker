@@ -29,6 +29,7 @@ ROOT = os.path.dirname(HERE)
 SLATE_PATH = os.path.join(ROOT, "config", "results_races.json")
 sys.path.insert(0, HERE)
 import common as C  # noqa: E402
+import results_feeds as F  # noqa: E402
 
 
 def load(p):
@@ -37,19 +38,19 @@ def load(p):
 
 
 def parse_NC():
-    """NC SBE statewide precinct-by-contest results file (same source as
-    scripts/results_update.py's parse_NC -- see its docstring for the file's
-    shape and the pre-election all-zero caveat). Sums "US SENATE" (NC's only
-    2026 Governor/Senate-slate race -- no NC governor contest this cycle) by
-    county/choice; a county with no reported votes yet is left out, same as
-    the statewide parser."""
+    """NC SBE statewide precinct-by-contest results file: one tab-separated row per
+    county/precinct/contest/choice, all zeros until polls close. Sums "US SENATE"
+    (NC's only 2026 Governor/Senate-slate race -- no NC governor contest this cycle)
+    by county/choice, over every row: votes counted outside regular precincts
+    (absentee, early voting; "Real Precinct" = N) belong to the county too. A county
+    with no reported votes yet is left out."""
     url = "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/results_pct_20261103.zip"
     z = zipfile.ZipFile(io.BytesIO(C.http_get(url, binary=True, timeout=60)))
     name = next(n for n in z.namelist() if n.endswith(".txt"))
     lines = z.read(name).decode("utf-8", "replace").splitlines()
     header = lines[0].split("\t")
     idx = {h: i for i, h in enumerate(header)}
-    need = ["County", "Contest Name", "Choice Party", "Total Votes", "Real Precinct"]
+    need = ["County", "Contest Name", "Choice Party", "Total Votes"]
     if any(h not in idx for h in need):
         raise RuntimeError("NC county results: expected column missing (%s)" % header)
     names = {c["code"]: c["name"] for c in load(os.path.join(ROOT, "config", "nc_counties.json"))["counties"]}
@@ -57,9 +58,7 @@ def parse_NC():
     counties = {}   # county name -> {rep, dem, other}
     for ln in lines[1:]:
         f = ln.split("\t")
-        if len(f) <= idx["Real Precinct"] or f[idx["Real Precinct"]] != "Y":
-            continue
-        if f[idx["Contest Name"]] != "US SENATE":
+        if len(f) <= idx["Total Votes"] or f[idx["Contest Name"]] != "US SENATE":
             continue
         name = names.get(f[idx["County"]])
         if not name:
@@ -74,7 +73,7 @@ def parse_NC():
 
 
 # SOURCES[usps] -> function() -> {County: {race_type: {rep,dem,other,reporting}}}
-SOURCES = {"NC": parse_NC}
+SOURCES = dict(F.COUNTIES, NC=parse_NC)
 
 
 def margin(rep, dem, other=0):
@@ -95,7 +94,7 @@ def main():
     for usps, race_types in types.items():
         live = {}
         fn = SOURCES.get(usps)
-        if fn:
+        if fn and F.polls_closed(usps):   # feeds carry test data before polls close
             try:
                 live = fn() or {}
             except Exception as e:  # noqa: BLE001

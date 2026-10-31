@@ -22,6 +22,7 @@
   var year = "2026";
   function isPast() { return year !== "2026"; }
   var NO_RACE = "#e6e8ec", ON_BALLOT = "#efe0b0";   // 2026 map before results: no race / race on the ballot
+  var NO_FEED = "#f6f1e4";   // a race on the ballot in a state with no readable results feed (see results_feeds.py)
   // The last time each 2026 seat was up (2026-specific): Senate class II seats 2020, the
   // FL and OH specials (class III) 2022; governors 2022, NH / VT (two-year terms) 2024.
   var PREV = {
@@ -122,6 +123,10 @@
     }
     return out;
   }
+  function noFeed(r) { return r.feed === false && !computeRace(r).hasData && !r.called; }
+  function officialLink(r, text) {
+    return r.official_url ? "<a href='" + r.official_url + "' target='_blank' rel='noopener'>" + text + " &#8599;</a>" : "";
+  }
   function racesByState(data) { var m = {}; (data.races || []).forEach(function (r) { (m[r.state] = m[r.state] || []).push(r); }); return m; }
 
   function stateColor(usps, byState) {
@@ -129,19 +134,19 @@
     if (office === "measures") {
       var pass = 0, dec = 0;
       rs.forEach(function (r) { if (r.called === "Pass" || (r.candidates && r.candidates.length && r.yes_pct != null)) { dec++; if (r.called === "Pass" || (r.yes_pct != null && r.yes_pct >= 50)) pass++; } });
-      if (!dec) return "#cfe8cf";                 // has measures, none decided yet
+      if (!dec) return noFeed(rs[0]) ? NO_FEED : "#cfe8cf";                 // has measures, none decided yet
       var f = Math.max(0, Math.min(1, pass / rs.length));
       return "rgb(" + Math.round(199 - 150 * f) + "," + Math.round(233 - 90 * f) + "," + Math.round(192 - 140 * f) + ")"; // greener = more passing
     }
     if (office === "house") {
       var R = 0, D = 0, dec = 0;
       rs.forEach(function (r) { var c = computeRace(r); if (c.hasData) { dec++; if (c.leader === "R") R++; else if (c.leader === "D") D++; } });
-      if (!dec) return ON_BALLOT;
+      if (!dec) return noFeed(rs[0]) ? NO_FEED : ON_BALLOT;
       return color((R - D) / rs.length * 100);
     }
     var cc = computeRace(rs[0]);
     if (cc.hasData && cc.leader !== "D" && cc.leader !== "R") return "#9b84c4";   // independent / third-party leader or winner
-    return cc.hasData ? color(cc.rd) : ON_BALLOT;
+    return cc.hasData ? color(cc.rd) : noFeed(rs[0]) ? NO_FEED : ON_BALLOT;
   }
 
   // ---- map ----
@@ -237,12 +242,12 @@
       });
       return;
     }
-    var d = 0, r = 0, o = 0, u = 0;
-    races.forEach(function (rc) { var c = computeRace(rc); if (!c.hasData && !rc.called) u++; else { var w = rc.called || c.leader; if (w === "D") d++; else if (w === "R") r++; else u++; } });
-    if (!races.some(function (rc) { return computeRace(rc).hasData || rc.called; })) { d = r = o = 0; u = races.length; }
+    var d = 0, r = 0, o = 0, u = 0, nf = 0;
+    races.forEach(function (rc) { var c = computeRace(rc); if (noFeed(rc)) nf++; else if (!c.hasData && !rc.called) u++; else { var w = rc.called || c.leader; if (w === "D") d++; else if (w === "R") r++; else u++; } });
+    if (!races.some(function (rc) { return computeRace(rc).hasData || rc.called; })) { d = r = o = 0; u = races.length - nf; }
     host.innerHTML = "";
     var pills = isPast() ? [["dem", "Democratic wins", d], ["rep", "Republican wins", r], ["", "Other", u], ["", "Races", races.length]]
-      : [["dem", "Dem leading/won", d], ["rep", "Rep leading/won", r], ["", "Total races", races.length], ["unc", "Not yet reported", u]];
+      : [["dem", "Dem leading/won", d], ["rep", "Rep leading/won", r], ["", "Total races", races.length], ["unc", "Not yet reported", u]].concat(nf ? [["unc", "No live feed", nf]] : []);
     pills.forEach(function (p) {
       var e = el("span", "pill " + p[0]); e.innerHTML = p[1] + ": <b>" + p[2] + "</b>"; host.appendChild(e);
     });
@@ -254,6 +259,10 @@
       : isPast() ? [["state", "State"], ["leader", "Winner"], ["margin", "Margin"], ["votes", "Total votes"], ["status", "Result"]]
       : [["state", "State"], ["leader", "Leader"], ["margin", "Margin"], ["reporting", "% In"], ["status", "Status"]]
         .concat(PREV[office] ? [["prev", "Last result"]] : []);
+  }
+  function noFeedBadge(r) {   // no readable feed here: send people to the state's own results
+    return r.official_url ? "<a class='badge unc' href='" + r.official_url + "' target='_blank' rel='noopener' title='This state has no results feed we can read; its official results open in a new tab'>No live feed &#8599;</a>"
+      : "<span class='badge unc'>No live feed</span>";
   }
   function renderScore(data) {
     var thead = $("#score thead"), tbody = $("#score tbody");
@@ -281,7 +290,8 @@
         var pass = r.called === "Pass" || (r.yes_pct != null && r.yes_pct >= 50);
         var yesTxt = r.yes_pct == null ? "—" : "Yes " + r.yes_pct + "%";
         var mstat = r.called ? "<span class='badge " + (r.called === "Pass" ? "dem" : "rep") + "'>" + r.called + "</span>"
-          : decided ? "<span class='badge unc'>" + (pass ? "Passing" : "Failing") + "</span>" : "<span class='badge unc'>—</span>";
+          : decided ? "<span class='badge unc'>" + (pass ? "Passing" : "Failing") + "</span>"
+          : noFeed(r) ? noFeedBadge(r) : "<span class='badge unc'>—</span>";
         var mtds = ["<span class='lean' style='background:" + (decided ? (pass ? "#2f9e44" : "#adb5bd") : "#c9ced6") + "'></span>" + r.state_name,
           "<b>" + (r.title || "Measure") + "</b>" + (r.subject ? "<div class='dim' style='font-size:12px'>" + r.subject + "</div>" : ""),
           yesTxt, r.reporting_pct == null ? "—" : r.reporting_pct + "%", mstat];
@@ -292,7 +302,8 @@
       var status = (isPast() && r.called) ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>" +
           (r.year && year.indexOf("offcycle") === 0 ? r.year + " · " : "") + (r.first_round ? "Won runoff" : "Won") + "</span>"
         : r.called ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>Called " + r.called + "</span>"
-        : c.hasData ? "<span class='badge unc'>Leading</span>" : "<span class='badge unc'>" + (isPast() ? "—" : "On the ballot") + "</span>";
+        : c.hasData ? "<span class='badge unc'>Leading</span>"
+        : (!isPast() && noFeed(r)) ? noFeedBadge(r) : "<span class='badge unc'>" + (isPast() ? "—" : "On the ballot") + "</span>";
       var ovBadge = (whatif && (r.id in overrides)) ? " <span class='badge " + (overrides[r.id] === "D" ? "dem" : overrides[r.id] === "R" ? "rep" : "unc") + "'>" + (overrides[r.id] || "UND") + "?</span>" : "";
       var tds = ["<span class='lean' style='background:" + (c.hasData ? color(c.rd) : ON_BALLOT) + "'></span>" + r.state_name + (r.special ? " *" : "") + ovBadge];
       if (office === "house") tds.push(r.district);
@@ -302,6 +313,7 @@
       return "<tr data-id='" + r.id + "' style='cursor:pointer'>" + tds.map(function (x) { return "<td>" + x + "</td>"; }).join("") + "</tr>";
     }).join("");
     $("#score tbody").onclick = function (e) {
+      if (e.target.closest("a")) return;
       var tr = e.target.closest("tr[data-id]"); if (!tr) return;
       var id = tr.getAttribute("data-id");
       if (whatif && !isPast()) {
@@ -419,12 +431,14 @@
     $("#detail-title").textContent = r0.state_name + " · " + (list.length > 1 ? list.length + " ballot measures" : r0.title);
     var src = (cache["measures|" + year] || {}).list_source;
     body.innerHTML = list.map(function (r) {
-      var res = r.yes_pct != null ? "<b>Yes " + r.yes_pct + "%</b>" + (r.called ? " &middot; " + r.called : "") : "<span class='dim'>no results yet</span>";
+      var res = r.yes_pct != null ? "<b>Yes " + r.yes_pct + "%</b>" + (r.reporting_pct != null ? " &middot; " + r.reporting_pct + "% reporting" : "") + (r.called ? " &middot; " + r.called : "")
+        : "<span class='dim'>" + (noFeed(r) ? "no live feed here" : "no results yet") + "</span>";
       return "<div class='measure-item'><div><b>" + r.title + "</b> <span class='dim'>" + (r.type || "") + "</span></div>" +
         (measureName(r) ? "<div style='font-size:13px'>" + measureName(r) + "</div>" : "") +
         (r.description ? "<div class='dim' style='font-size:13px;margin-top:2px'>" + r.description + "</div>" : "") +
-        "<div style='font-size:12.5px;margin-top:4px'>" + res + (r.url ? " &middot; <a href='" + r.url + "' target='_blank' rel='noopener'>details</a>" : "") + "</div></div>";
-    }).join("") + (src ? "<p class='fineprint'>List: <a href='" + src.url + "' target='_blank' rel='noopener'>" + src.label + "</a>. Results come from official state sources on Election Night.</p>" : "");
+        "<div style='font-size:12.5px;margin-top:4px'>" + res + (r.url ? " &middot; <a href='" + r.url + "' target='_blank' rel='noopener'>details</a>" : "") +
+        (r.official_url ? " &middot; " + officialLink(r, "official results") : "") + "</div></div>";
+    }).join("") + (src ? "<p class='fineprint'>List: <a href='" + src.url + "' target='_blank' rel='noopener'>" + src.label + "</a>. Results come from official state feeds on Election Night, where one can be read.</p>" : "");
     d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
   function renderDetail(r, siblings) {
@@ -487,7 +501,7 @@
         var col = pc === "R" ? "#d62f2f" : pc === "D" ? "#2b6cb0" : pc === "Y" ? "#2f9e44" : pc === "N" ? "#adb5bd" : "#6b7280";
         return "<div style='margin:8px 0'><div style='display:flex;justify-content:space-between;font-size:13px'><span><b>" + (x.name || "—") + "</b> (" + (x.party || "?") + ")</span><span>" + fmt(x.votes || 0) + " · " + p.toFixed(1) + "%</span></div>" +
           "<div style='height:9px;border-radius:5px;background:var(--line);margin-top:3px'><div style='width:" + p.toFixed(1) + "%;height:100%;border-radius:5px;background:" + col + "'></div></div></div>";
-      }).join("");
+      }).join("") + (r.official_url ? "<p class='fineprint'>" + officialLink(r, "State's official results") + ". State feeds report votes, not race calls.</p>" : "");
     houseExtras(r);
     d.hidden = false; d.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
@@ -500,7 +514,7 @@
   function districtFill(r) {
     if (!r) return NO_RACE;
     var c = computeRace(r);
-    if (!c.hasData) return ON_BALLOT;
+    if (!c.hasData) return noFeed(r) ? NO_FEED : ON_BALLOT;
     return c.leader !== "D" && c.leader !== "R" ? "#9b84c4" : color(c.rd);
   }
   function renderHouseState(rs) {
@@ -515,7 +529,7 @@
       return "<tr data-id='" + r.id + "'><td><span class='lean' style='background:" + districtFill(r) + "'></span>" + (r.district === "AL" ? "AL" : districtNo(r)) +
         "</td><td>" + who + "</td><td>" + (c.reporting != null ? c.reporting + "%" : "—") + "</td></tr>";
     }).join("");
-    body.innerHTML = "<p class='dim'>" + (u === rs.length ? "On the ballot November 3, 2026 &mdash; no results yet. " : R + " R &middot; " + D + " D leading &middot; " + u + " not yet reported. ") +
+    body.innerHTML = "<p class='dim'>" + (noFeed(r0) ? "No live feed for this state: " + (officialLink(r0, "see its official results") || "see its official results") + ". " : u === rs.length ? "On the ballot November 3, 2026 &mdash; no results yet. " : R + " R &middot; " + D + " D leading &middot; " + u + " not yet reported. ") +
       "Hover a district for its candidates; click one for detail.</p>" +
       "<div class='house-grid'><div id='district-map' class='county-map'></div>" +
       "<div class='district-list'><table><thead><tr><th>District</th><th>" + (u === rs.length ? "Candidates" : "Leader") + "</th><th>% In</th></tr></thead><tbody>" + rows + "</tbody></table></div></div>" +
@@ -649,13 +663,13 @@
     if (mn) mn.textContent = isPast()
       ? "Red = Republican win, blue = Democratic win, shaded by the final margin; purple = independent. Gray = no race that year." +
         (data.missing_note ? " " + data.missing_note + "." : "") + " Sources: MIT Election Data + Science Lab (president, Senate, most governors), official state results; open a row for its source."
-      : "Red = Republican lead, blue = Democratic lead, by current margin. Tan = on the ballot, no results yet; gray = no " + officeName(office) + " race in 2026. " + (office === "house" ? "Click a state for its district map." : "Hover or click a state for the seat's last result.");
+      : "Red = Republican lead, blue = Democratic lead, by current margin. Tan = on the ballot, no results yet; pale = no live feed for that state (its row links to the official results); gray = no " + officeName(office) + " race in 2026. Leads are not race calls: state feeds report votes, not winners. " + (office === "house" ? "Click a state for its district map." : "Hover or click a state for the seat's last result.");
     if (isPast()) { $("#pre-note").hidden = true; $("#updated").innerHTML = "Final results"; return; }
     var upd = data.updated ? new Date(data.updated).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" }) : null;
     $("#updated").innerHTML = upd ? "Updated: <b>" + upd + "</b>" : "<b>Not yet reported</b>";
     var any = (data.races || []).some(function (r) { return computeRace(r).hasData || r.called; });
     var pn = $("#pre-note");
-    if (!any) { pn.hidden = false; pn.innerHTML = "🗳️ <b>Results will appear here live on Election Night</b> (Nov 3, 2026). Showing the full 2026 race slate; the map and scorecard fill in as official results are reported."; }
+    if (!any) { pn.hidden = false; pn.innerHTML = "🗳️ <b>Results will appear here live on Election Night</b> (Nov 3, 2026), as each state's polls close. They come from free official state feeds, so states without a feed we can read link to their official results instead. Showing the full 2026 race slate until then."; }
     else pn.hidden = true;
   }
 
@@ -678,14 +692,18 @@
     bar += "<div style='position:absolute;top:-3px;bottom:-3px;left:" + (100 * cx / T) + "%;width:2px;background:var(--ink)'></div>";
     $("#balance-bar").innerHTML = bar;
     var v = $("#balance-verdict");
-    if (b.dem_total >= cx) { v.textContent = "Democrats control"; v.style.color = "var(--dem)"; }
-    else if (b.rep_total >= cx) { v.textContent = "Republicans control"; v.style.color = "var(--rep)"; }
+    // a lead isn't a win: only called seats can say "control", and state feeds don't call races
+    if (b.dem_called >= cx) { v.textContent = "Democrats control"; v.style.color = "var(--dem)"; }
+    else if (b.rep_called >= cx) { v.textContent = "Republicans control"; v.style.color = "var(--rep)"; }
+    else if (b.dem_total >= cx) { v.textContent = "Democrats ahead"; v.style.color = "var(--dem)"; }
+    else if (b.rep_total >= cx) { v.textContent = "Republicans ahead"; v.style.color = "var(--rep)"; }
     else { v.textContent = "Undecided"; v.style.color = "var(--muted)"; }
     $("#balance-note").innerHTML = "<span class='sh-d'>Dem " + b.dem_total + "</span> · " +
       "<span class='sh-r'>Rep " + b.rep_total + "</span> · " + b.undecided + " undecided · " +
       cx + " for control · " + T + " seats" +
       (b.not_up && (b.not_up.D || b.not_up.R) ? " (incl. " + b.not_up.D + "D/" + b.not_up.R + "R not up in 2026)" : "") +
-      (b.dem_lead + b.rep_lead ? " · lighter shades = currently leading, not yet called" : "");
+      (b.dem_lead + b.rep_lead ? " · lighter shades = currently leading, not called" : "") +
+      ((data.summary || {}).no_feed ? " · " + data.summary.no_feed + " races have no live feed" : "");
   }
 
   function whatifBalance() {

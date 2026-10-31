@@ -1,26 +1,34 @@
 name: Election-Day live results (2-min)
 
-# On Election Day the results page must refresh every 2 minutes. GitHub's cron
-# can't reliably fire faster than ~5 min, so this workflow is triggered every
-# 10 min but, WHEN it is Election Day (UTC 2026-11-03 or 11-04, covering ET
-# morning through late western counting), runs an internal ~9.5-minute loop that
-# regenerates the live results (and Election-Day turnout) every 2 minutes and
-# commits changes. Off Election Day it exits immediately and does nothing.
-# The regular every-10-min workflow keeps running for everything else.
+# On Election Day the results page refreshes every 2 minutes. GitHub's cron can't
+# reliably fire faster than ~5 min, so this workflow is started every ~10 min (by
+# cron and tick.yml) and, on UTC 2026-11-03 or 11-04 (ET morning through late western
+# counting), runs an internal ~9.5-minute loop that regenerates the live results every
+# 2 minutes and commits real changes. Off Election Day it exits at once. The regular
+# 10-minute update keeps running for turnout, and for results if this loop stops.
+#
+# rehearse: runs the loop on any date to test committing, pushing and Pages at this
+# pace. Results stay empty (feeds wait for polls to close), so each cycle writes only
+# a timestamp to data/results/_rehearsal.json, which nothing reads.
 
 on:
   schedule:
-    # Nov 3-4 only (no more no-op runs the rest of the year). GitHub's cron is
-    # unreliable, so on those days tick.yml also starts this every ~10 minutes.
+    # Nov 3-4 only. GitHub's cron is unreliable, so on those days tick.yml also starts this every ~10 minutes.
     - cron: "*/10 * 3-4 11 *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      rehearse:
+        description: "Run the loop now, publishing only a timestamp file"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
+# one loop at a time; a start while one is running waits for it instead of interrupting a cycle
 concurrency:
   group: results-eday
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   live:
@@ -30,7 +38,7 @@ jobs:
         id: g
         run: |
           D=$(date -u +%Y-%m-%d)
-          if [ "$D" = "2026-11-03" ] || [ "$D" = "2026-11-04" ]; then
+          if [ "$D" = "2026-11-03" ] || [ "$D" = "2026-11-04" ] || [ "${{ inputs.rehearse }}" = "true" ]; then
             echo "go=1" >> "$GITHUB_OUTPUT"
           else
             echo "go=0" >> "$GITHUB_OUTPUT"
@@ -53,18 +61,22 @@ jobs:
           git config user.name  "turnout-bot"
           git config user.email "actions@users.noreply.github.com"
           pip install --quiet pypdf || true
-          end=$(( $(date +%s) + 570 ))   # ~9.5 minutes, then the next scheduled run continues
+          end=$(( $(date +%s) + 570 ))   # ~9.5 minutes, then the next run continues
           while [ "$(date +%s)" -lt "$end" ]; do
             python scripts/results_update.py || echo "results update failed (non-fatal)"
-            python scripts/eday_scrape.py   || echo "eday scrape failed (non-fatal)"
-            for s in nv nc ga tx; do
-              [ -f "data/$s/_frozen.json" ] || python "scripts/${s}_update.py" || echo "$s update failed (non-fatal)"
-            done
-            git add data
+            python scripts/results_county_update.py || echo "county results update failed (non-fatal)"
+            if [ "${{ inputs.rehearse }}" = "true" ]; then
+              echo "{\"rehearsal\":\"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\"}" > data/results/_rehearsal.json
+            fi
+            git add data/results data/*/results_county.json
             if ! git diff --cached --quiet; then
               git commit -m "Live results $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-              git pull --rebase --autostash origin "${GITHUB_REF_NAME}" || true
-              git push || true
+              # these figures are the newest, so they win any clash; the update's other files are untouched
+              if ! git pull --rebase -X theirs --autostash origin "${GITHUB_REF_NAME}"; then
+                git rebase --abort || true
+                git reset --hard "origin/${GITHUB_REF_NAME}"   # the next cycle regenerates them
+              fi
+              git push || echo "Push rejected; the next cycle retries."
             fi
             sleep 120
           done

@@ -1,64 +1,140 @@
 #!/usr/bin/env python3
-"""Update live 2026 election results (House / Senate / Governor).
+"""Update live 2026 election results (House / Senate / Governor / ballot measures).
 
 Reads the canonical race slate (config/results_races.json) and writes
-data/results/{senate,governor,house}.json for the results page. For each race
-whose state has a wired results source in SOURCES, it fills candidates/votes/
-reporting/called; races without a wired source stay "not yet reported".
+data/results/{senate,governor,house,measures}.json for the results page, filling
+candidates/votes/reporting from each state's official feed (scripts/results_feeds.py).
+It NEVER fabricates results, and it guards what it publishes:
+  - a state's feed isn't read until its polls close (feeds carry test data before that);
+  - a feed that fails or drops a race keeps the last figures we published;
+  - a race whose votes suddenly fall by over 20% keeps its last figures, for up to 3 hours;
+  - a race with no one from the 2026 ballot is rejected (a feed showing another election).
+A file is rewritten only when its figures change, so "updated" is when results last moved
+and the 2-minute Election-Day loop commits only real changes.
 
-Live results have no single free national API, so results are wired per state
-from official Secretary-of-State election-night feeds near Election Day (the
-rollout routine adds SOURCES entries). Until then this simply refreshes the
-slate (empty results) — it NEVER fabricates results.
+data/results/_sources.json says what each state's feed is doing (for the status page).
 
-A source function: parse_<usps>() -> { race_id: {candidates:[{name,party,votes}],
-reporting_pct, called} }. Register it in SOURCES[usps].
-
-Run:  python scripts/results_update.py [--force]
+Run:  python scripts/results_update.py
 """
-import io
 import os
-import re
 import sys
 import json
-import zipfile
+from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
-import common as C  # noqa: E402
+import results_feeds as F  # noqa: E402
 SLATE_PATH = os.path.join(ROOT, "config", "results_races.json")
 CHAMBERS_PATH = os.path.join(ROOT, "config", "chambers.json")
 MEASURES_PATH = os.path.join(ROOT, "config", "measures.json")
 CANDIDATES_PATH = os.path.join(ROOT, "config", "candidates_2026.json")   # who's on the ballot (build_ballot_2026.py)
+LINKS_PATH = os.path.join(ROOT, "config", "results_links.json")          # each state's official results page
 OUT_DIR = os.path.join(ROOT, "data", "results")
-
-# SOURCES_MEASURES[usps] -> {measure_id: {yes, no, reporting, called}} (wired near election)
-SOURCES_MEASURES = {}
+DROP_HOLD_HOURS = 3
 
 
-def write_measures():
+def load(p, default=None):
     try:
-        slate = load(MEASURES_PATH).get("measures", [])
+        with open(p, encoding="utf-8") as f:
+            return json.load(f)
     except (OSError, ValueError):
-        slate = []
-    passed = failed = und = 0
+        if default is not None:
+            return default
+        raise
+
+
+def utc_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def write_if_changed(name, doc):
+    """Write data/results/<name>.json unless only its timestamps differ. -> True if written."""
+    path = os.path.join(OUT_DIR, name + ".json")
+    stamps = ("generated_at", "updated")
+    old = load(path, {})
+    if old and {k: v for k, v in old.items() if k not in stamps} == {k: v for k, v in doc.items() if k not in stamps}:
+        return False
+    os.makedirs(OUT_DIR, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(doc, f, separators=(",", ":"))
+    return True
+
+
+def gather(registry, health, key):
+    """Run the feeds whose polls have closed, one bad state never sinking the rest. -> {usps: {id: result}}"""
     live = {}
-    for usps, fn in SOURCES_MEASURES.items():
+    for usps, fn in registry.items():
+        if not F.polls_closed(usps):
+            health.setdefault(usps, {})[key] = "waiting"
+            continue
         try:
             live[usps] = fn() or {}
-        except Exception:  # noqa: BLE001
-            live[usps] = {}
+            health.setdefault(usps, {})[key] = "ok"
+        except Exception as e:  # noqa: BLE001
+            print("  ! %s %s feed failed: %s" % (usps, key, str(e)[:100]), file=sys.stderr)
+            health.setdefault(usps, {})[key] = "failed: " + str(e)[:100]
+    return live
+
+
+def race_total(r):
+    return sum(c.get("votes", 0) for c in (r or {}).get("candidates") or [])
+
+
+def apply_feed(rc, src, old, ballot, held):
+    """Fill one race from its feed, or keep what we last published. -> True if it has results."""
+    if src and not F.names_match(src.get("candidates", []), ballot):
+        print("  ! %s: no one from the 2026 ballot in the feed; ignored" % rc["id"], file=sys.stderr)
+        held.append(rc["id"])
+        src = None
+    if src and old and race_total(old) >= 1000 and race_total(src) < 0.8 * race_total(old):
+        now = datetime.now(timezone.utc)
+        since = old.get("held_since") or utc_now()
+        t = datetime.strptime(since, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        if now - t < timedelta(hours=DROP_HOLD_HOURS):
+            print("  ! %s: votes fell from %s to %s; keeping the last figures"
+                  % (rc["id"], format(race_total(old), ","), format(race_total(src), ",")), file=sys.stderr)
+            held.append(rc["id"])
+            rc["held_since"] = since
+            src = None
+    use = src or (old if old and old.get("candidates") else None)
+    if not use:
+        return False
+    rc["candidates"] = use.get("candidates", [])
+    rc["reporting_pct"] = use.get("reporting_pct")
+    rc["called"] = use.get("called")
+    rc["leader_party"] = leader(rc["candidates"])
+    return True
+
+
+def write_measures(health, links):
+    slate = load(MEASURES_PATH, {}).get("measures", [])
+    live = gather(F.MEASURES, health, "measures")
+    held = []
+    old_doc = load(os.path.join(OUT_DIR, "measures.json"), {})
+    prev = {m.get("id"): m for m in old_doc.get("races", [])}
+    passed = failed = und = 0
     out = []
     for m in slate:
         r = dict(m); r["office"] = "Ballot Measure"
+        r["feed"] = m.get("state") in F.MEASURES
+        if links.get(m.get("state")):
+            r["official_url"] = links[m["state"]]
         src = live.get(m.get("state"), {}).get(m.get("id"))
+        old = prev.get(m.get("id")) or {}
+        was = sum(c.get("votes") or 0 for c in old.get("candidates") or [])
+        if src and was >= 1000 and src.get("yes", 0) + src.get("no", 0) < 0.8 * was:
+            held.append(m.get("id"))
+            src = None
         yes = no = None; reporting = called = None
         if src:
             yes = int(src.get("yes", 0)); no = int(src.get("no", 0))
             reporting = src.get("reporting"); called = src.get("called")
+        elif old.get("candidates"):   # a feed hiccup: keep the last figures
+            yes, no = (c.get("votes") for c in old["candidates"][:2])
+            reporting, called = old.get("reporting_pct"), old.get("called")
         tot = (yes or 0) + (no or 0)
-        r["candidates"] = ([{"name": "Yes", "party": "Y", "votes": yes}, {"name": "No", "party": "N", "votes": no}] if src else [])
+        r["candidates"] = ([{"name": "Yes", "party": "Y", "votes": yes}, {"name": "No", "party": "N", "votes": no}] if tot else [])
         r["reporting_pct"] = reporting
         r["called"] = called
         r["yes_pct"] = (round(100.0 * yes / tot, 1) if tot else None)
@@ -69,94 +145,15 @@ def write_measures():
         else:
             und += 1
         out.append(r)
+    now = utc_now()
     doc = {"office": "measures", "election": {"date": "2026-11-03", "name": "2026 General"},
-           "generated_at": utc_now(), "updated": (utc_now() if any(x.get("candidates") for x in out) else ""),
-           "note": "2026 statewide ballot measures; results wired near Election Day.",
+           "generated_at": now, "updated": (now if any(x.get("candidates") for x in out) else ""),
+           "note": "2026 statewide ballot measures; results from official state feeds where one can be read.",
            "list_source": {"label": "Ballotpedia: 2026 ballot measures", "url": "https://ballotpedia.org/2026_ballot_measures"},
            "summary": {"total": len(out), "passed": passed, "failed": failed, "undecided": und},
            "races": out}
-    os.makedirs(OUT_DIR, exist_ok=True)
-    with open(os.path.join(OUT_DIR, "measures.json"), "w", encoding="utf-8") as f:
-        json.dump(doc, f, separators=(",", ":"))
-    print("measures   count=%d  passed=%d failed=%d undecided=%d" % (len(out), passed, failed, und))
-
-
-def load(p):
-    with open(p, encoding="utf-8") as f:
-        return json.load(f)
-
-
-def parse_NC():
-    """NC SBE statewide precinct-by-contest results file, same ENRS S3 bucket as
-    the absentee feed (config/nc.json source.absentee_zip) and the same naming
-    convention confirmed against the 2024 general's archived file:
-    dl.ncsbe.gov/ENRS/<election>/results_pct_<election>.zip, a single tab-
-    separated .txt with one row per county/precinct/contest/choice: County,
-    Election Date, Precinct, Contest Group ID, Contest Type, Contest Name,
-    Choice, Choice Party, Vote For, Election Day, Early Voting, Absentee by
-    Mail, Provisional, Total Votes, Real Precinct. NCSBE preloads this with the
-    real ballot (every real candidate/party, already matching
-    config/candidates_2026.json) weeks before Election Day, every vote column
-    at 0 until polls start closing -- so a race is only emitted once it shows
-    real (nonzero) votes; before then this returns {} and the slate's existing
-    "not yet reported" / ballot-preview path is what shows. reporting_pct is
-    estimated as the share of real precincts with any nonzero vote in that
-    race (NCSBE doesn't publish a precinct-complete flag in this file)."""
-    url = "https://s3.amazonaws.com/dl.ncsbe.gov/ENRS/2026_11_03/results_pct_20261103.zip"
-    z = zipfile.ZipFile(io.BytesIO(C.http_get(url, binary=True, timeout=60)))
-    name = next(n for n in z.namelist() if n.endswith(".txt"))
-    lines = z.read(name).decode("utf-8", "replace").splitlines()
-    header = lines[0].split("\t")
-    idx = {h: i for i, h in enumerate(header)}
-    need = ["County", "Precinct", "Contest Name", "Choice", "Choice Party", "Total Votes", "Real Precinct"]
-    if any(h not in idx for h in need):
-        raise RuntimeError("NC results: expected column missing (%s)" % header)
-
-    def race_id_for(contest):
-        if contest == "US SENATE":
-            return "sen-NC"
-        m = re.match(r"US HOUSE OF REPRESENTATIVES DISTRICT (\d+)$", contest)
-        return "house-NC-%02d" % int(m.group(1)) if m else None
-
-    races = {}   # race_id -> {cands: {name: {party, votes}}, precincts: set, reported: set}
-    for ln in lines[1:]:
-        f = ln.split("\t")
-        if len(f) <= idx["Real Precinct"] or f[idx["Real Precinct"]] != "Y":
-            continue
-        rid = race_id_for(f[idx["Contest Name"]])
-        if not rid:
-            continue
-        votes = int(f[idx["Total Votes"]] or 0)
-        r = races.setdefault(rid, {"cands": {}, "precincts": set(), "reported": set()})
-        precinct = (f[idx["County"]], f[idx["Precinct"]])
-        r["precincts"].add(precinct)
-        c = r["cands"].setdefault(f[idx["Choice"]], {"party": f[idx["Choice Party"]], "votes": 0})
-        c["votes"] += votes
-        if votes:
-            r["reported"].add(precinct)
-
-    out = {}
-    for rid, r in races.items():
-        total_votes = sum(c["votes"] for c in r["cands"].values())
-        if not total_votes:   # unreported (pre-election or no precincts in yet) -- stay out of the slate
-            continue
-        total_p = len(r["precincts"])
-        out[rid] = {
-            "candidates": [{"name": n, "party": c["party"], "votes": c["votes"]} for n, c in r["cands"].items()],
-            "reporting_pct": round(100.0 * len(r["reported"]) / total_p, 1) if total_p else 0.0,
-            "called": None,
-        }
-    return out
-
-
-# --- wired per-state results sources (added near Election Day) -----------------
-# SOURCES[usps] -> function() -> {race_id: {candidates, reporting_pct, called}}
-SOURCES = {"NC": parse_NC}
-
-
-def utc_now():
-    from datetime import datetime, timezone
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    wrote = write_if_changed("measures", doc)
+    print("measures   count=%d  passed=%d failed=%d undecided=%d%s" % (len(out), passed, failed, und, "" if wrote else "  (no change)"))
 
 
 def leader(cands):
@@ -167,32 +164,40 @@ def leader(cands):
     return (s[0].get("party", "") or "").upper()[:1] if tot else None
 
 
+def write_sources(health):
+    """data/results/_sources.json: each wired state's feed status; "changed" is when that status last changed."""
+    path = os.path.join(OUT_DIR, "_sources.json")
+    old = load(path, {}).get("states", {})
+    states = {}
+    for usps in sorted(set(F.SOURCES) | set(F.MEASURES)):
+        h = health.get(usps, {})
+        e = {"polls_close": F.POLLS_CLOSE[usps], "races": h.get("races", "none"), "measures": h.get("measures", "none")}
+        was = old.get(usps) or {}
+        same = {k: was.get(k) for k in e} == e
+        e["changed"] = was.get("changed") if same and was.get("changed") else utc_now()
+        states[usps] = e
+    if states != old:
+        os.makedirs(OUT_DIR, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"states": states}, f, separators=(",", ":"))
+
+
 def main():
     slate = load(SLATE_PATH)
-    # gather live data per state (once per state), tolerant of failures
-    live = {}
-    for usps, fn in SOURCES.items():
-        try:
-            live[usps] = fn() or {}
-        except Exception as e:  # noqa: BLE001 - one bad state must not sink the rest
-            print("  ! results source %s failed: %s" % (usps, str(e)[:60]), file=sys.stderr)
-            live[usps] = {}
-
-    try:
-        chambers = load(CHAMBERS_PATH)
-    except (OSError, ValueError):
-        chambers = {}
-
-    try:
-        ballot = load(CANDIDATES_PATH)
-    except (OSError, ValueError):
-        ballot = {}
+    health = {}
+    live = gather(F.SOURCES, health, "races")
+    chambers = load(CHAMBERS_PATH, {})
+    ballot = load(CANDIDATES_PATH, {})
+    links = load(LINKS_PATH, {})
     ballot_races = ballot.get("races", {})
     ballot_src = {o: {"label": "Wikipedia: " + v.get("title", ""), "url": v.get("url")}
                   for o, v in (ballot.get("sources") or {}).items()}
 
     any_data = False
+    held = []
     for office, races in slate.items():
+        old_doc = load(os.path.join(OUT_DIR, office + ".json"), {})
+        prev = {r.get("id"): r for r in old_doc.get("races", [])}
         out_races = []
         tally = {"dem_called": 0, "rep_called": 0, "other_called": 0,
                  "dem_lead": 0, "rep_lead": 0, "other_lead": 0, "undecided": 0}
@@ -200,12 +205,10 @@ def main():
             rc = dict(race)
             if ballot_races.get(rc["id"]):   # names on the ballot, shown until results arrive (never as votes)
                 rc["ballot"] = ballot_races[rc["id"]]
-            src = live.get(rc["state"], {}).get(rc["id"])
-            if src:
-                rc["candidates"] = src.get("candidates", [])
-                rc["reporting_pct"] = src.get("reporting_pct")
-                rc["called"] = src.get("called")
-                rc["leader_party"] = leader(rc["candidates"])
+            rc["feed"] = rc["state"] in F.SOURCES
+            if links.get(rc["state"]):
+                rc["official_url"] = links[rc["state"]]
+            if apply_feed(rc, live.get(rc["state"], {}).get(rc["id"]), prev.get(rc["id"]), ballot_races.get(rc["id"]), held):
                 any_data = True
             called = rc.get("called")
             lead = rc.get("leader_party") or leader(rc.get("candidates") or [])
@@ -225,13 +228,15 @@ def main():
         d = tally["dem_called"] + tally["dem_lead"]
         r = tally["rep_called"] + tally["rep_lead"]
         other = tally["other_called"] + tally["other_lead"]
+        now = utc_now()
         out = {
             "office": office, "election": {"date": "2026-11-03", "name": "2026 General"},
-            "generated_at": utc_now(),
-            "updated": (utc_now() if any(rr.get("candidates") or rr.get("called") for rr in out_races) else ""),
-            "note": "Live results wired from official state sources near Election Day; empty until then.",
+            "generated_at": now,
+            "updated": (now if any(rr.get("candidates") or rr.get("called") for rr in out_races) else ""),
+            "note": "Live results from official state feeds where one can be read; other states link to their official results.",
             "summary": {"total": len(out_races), "called_dem": tally["dem_called"], "called_rep": tally["rep_called"],
-                        "called_other": tally["other_called"], "uncalled": tally["undecided"] + tally["dem_lead"] + tally["rep_lead"] + tally["other_lead"]},
+                        "called_other": tally["other_called"], "uncalled": tally["undecided"] + tally["dem_lead"] + tally["rep_lead"] + tally["other_lead"],
+                        "no_feed": sum(1 for x in out_races if not x["feed"])},
             "races": out_races,
         }
         if office in ballot_src:
@@ -248,13 +253,14 @@ def main():
                 "other_total": nu.get("other", 0) + tally["other_called"] + tally["other_lead"],
                 "undecided": tally["undecided"],
             }
-        os.makedirs(OUT_DIR, exist_ok=True)
-        with open(os.path.join(OUT_DIR, office + ".json"), "w", encoding="utf-8") as f:
-            json.dump(out, f, separators=(",", ":"))
-        print("%-9s races=%d  D=%d R=%d other=%d undecided=%d" % (office, len(out_races), d, r, other, tally["undecided"]))
+        wrote = write_if_changed(office, out)
+        print("%-9s races=%d  D=%d R=%d other=%d undecided=%d%s" % (office, len(out_races), d, r, other, tally["undecided"], "" if wrote else "  (no change)"))
     if not any_data:
-        print("no wired results sources yet (slate refreshed; empty results — expected off Election Day).")
-    write_measures()
+        print("no results yet (feeds wait for each state's polls to close).")
+    if held:
+        print("held back: " + ", ".join(held))
+    write_measures(health, links)
+    write_sources(health)
     return 0
 
 

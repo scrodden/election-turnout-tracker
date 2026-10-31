@@ -131,8 +131,9 @@ jobs:
           else
             ts=$(date -u '+%Y-%m-%d %H:%M UTC')
             git commit -m "Turnout update $ts"
-            # another run committed first: drop ours (the next run regenerates the data)
-            if ! git pull --rebase --autostash origin "${GITHUB_REF_NAME}"; then
+            # another run committed first: any file it also changed keeps its newer copy (on Election Day the
+            # 2-minute results loop rewrites the results files), and every other file here still goes out
+            if ! git pull --rebase -X ours --autostash origin "${GITHUB_REF_NAME}"; then
               git rebase --abort || true
               echo "Data conflicted with a newer commit; skipping this push (the next run regenerates it)."
             else
