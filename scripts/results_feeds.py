@@ -1047,6 +1047,19 @@ def measures_CO(): return _local("CO", "measures")
 def measures_WV(): return _local("WV", "measures")
 
 
+def measures_NM():
+    ids = {m["title"]: m["id"] for m in _measures_for("NM")}
+    out = {}
+    for title, _extra, rep_pct, rows in _nm_sections("SW"):
+        mid = ids.get(title.split(":")[0].strip())
+        if mid:
+            yes = sum(v for n, _p, v in rows if n.strip().lower().startswith(("yes", "for")))
+            no = sum(v for n, _p, v in rows if n.strip().lower().startswith(("no", "against")))
+            if yes + no or KEEP_ZERO:
+                out[mid] = {"yes": yes, "no": no, "reporting": rep_pct}
+    return out
+
+
 # ---- registries -------------------------------------------------------------
 SOURCES = {"NC": parse_NC, "MN": parse_MN, "CA": parse_CA, "GA": parse_GA, "WA": parse_WA, "VA": parse_VA, "UT": parse_UT,
            "PA": parse_PA, "TX": parse_TX, "FL": parse_FL, "LA": parse_LA, "IN": parse_IN, "CT": parse_CT, "DE": parse_DE,
@@ -1054,5 +1067,5 @@ SOURCES = {"NC": parse_NC, "MN": parse_MN, "CA": parse_CA, "GA": parse_GA, "WA":
            "AK": parse_AK, "RI": parse_RI, "IA": parse_IA, "CO": parse_CO, "SC": parse_SC, "WV": parse_WV}
 MEASURES = {"NC": measures_NC, "CA": measures_CA, "MN": measures_MN, "GA": measures_GA, "WA": measures_WA, "VA": measures_VA,
             "UT": measures_UT, "FL": measures_FL, "LA": measures_LA, "MD": measures_MD, "ID": measures_ID, "NE": measures_NE, "SD": measures_SD,
-            "ND": measures_ND, "AK": measures_AK, "RI": measures_RI, "IA": measures_IA, "CO": measures_CO, "WV": measures_WV}
+            "ND": measures_ND, "AK": measures_AK, "RI": measures_RI, "IA": measures_IA, "CO": measures_CO, "WV": measures_WV, "NM": measures_NM}
 COUNTIES = {"MN": county_MN, "PA": county_PA}
