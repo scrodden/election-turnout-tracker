@@ -3,9 +3,11 @@
 
 Reads the canonical race slate (config/results_races.json) and writes
 data/results/{senate,governor,house,measures}.json for the results page, filling
-candidates/votes/reporting from each state's official feed (scripts/results_feeds.py).
+candidates/votes/reporting from each state's official feed (scripts/results_feeds.py), or
+for a race no official feed covers, from civicAPI, a free third party, labeled as such.
 It NEVER fabricates results, and it guards what it publishes:
-  - a state's feed isn't read until its polls close (feeds carry test data before that);
+  - a state's feed isn't read until its polls close (feeds carry test data before that),
+    and civicAPI's counts aren't used while it flags them as test data;
   - a feed that fails or drops a race keeps the last figures we published;
   - a race whose votes suddenly fall by over 20% keeps its last figures, for up to 3 hours;
   - a race with no one from the 2026 ballot is rejected (a feed showing another election).
@@ -111,10 +113,24 @@ def apply_feed(rc, src, old, ballot, held):
     rc["reporting_pct"] = use.get("reporting_pct")
     rc["called"] = use.get("called")
     rc["leader_party"] = leader(rc["candidates"])
+    if use.get("via"):
+        rc["via"] = use["via"]
     return True
 
 
-def write_measures(health, links):
+def read_civic(health):
+    """civicAPI's roster and any live counts. If it's down, races it would fill keep their last figures."""
+    try:
+        civic = F.civic_fetch()
+        health["_civic"] = "ok: %d races and measures listed, live in %d states" % (len(civic["roster"]), len(civic["live"]))
+        return civic
+    except Exception as e:  # noqa: BLE001
+        print("  ! civicAPI failed: %s" % str(e)[:100], file=sys.stderr)
+        health["_civic"] = "failed: " + str(e)[:100]
+        return {"roster": set(), "races": {}, "measures": {}, "live": set()}
+
+
+def write_measures(health, links, civic):
     slate = load(MEASURES_PATH, {}).get("measures", [])
     live = gather(F.MEASURES, health, "measures")
     held = []
@@ -124,10 +140,11 @@ def write_measures(health, links):
     out = []
     for m in slate:
         r = dict(m); r["office"] = "Ballot Measure"
-        r["feed"] = m.get("state") in F.MEASURES and not str(health.get(m.get("state"), {}).get("measures", "")).startswith("failed")
+        r["official_feed"] = m.get("state") in F.MEASURES and not str(health.get(m.get("state"), {}).get("measures", "")).startswith("failed")
+        r["feed"] = r["official_feed"] or m.get("id") in civic["roster"]
         if links.get(m.get("state")):
             r["official_url"] = links[m["state"]]
-        src = live.get(m.get("state"), {}).get(m.get("id"))
+        src = live.get(m.get("state"), {}).get(m.get("id")) or civic["measures"].get(m.get("id"))
         old = prev.get(m.get("id")) or {}
         was = sum(c.get("votes") or 0 for c in old.get("candidates") or [])
         if src and was >= 1000 and src.get("yes", 0) + src.get("no", 0) < 0.8 * was:
@@ -137,9 +154,13 @@ def write_measures(health, links):
         if src:
             yes = int(src.get("yes", 0)); no = int(src.get("no", 0))
             reporting = src.get("reporting"); called = src.get("called")
+            if src.get("via"):
+                r["via"] = src["via"]
         elif old.get("candidates"):   # a feed hiccup: keep the last figures
             yes, no = (c.get("votes") for c in old["candidates"][:2])
             reporting, called = old.get("reporting_pct"), old.get("called")
+            if old.get("via"):
+                r["via"] = old["via"]
         tot = (yes or 0) + (no or 0)
         r["candidates"] = ([{"name": "Yes", "party": "Y", "votes": yes}, {"name": "No", "party": "N", "votes": no}] if tot else [])
         r["reporting_pct"] = reporting
@@ -183,16 +204,18 @@ def write_sources(health):
         same = {k: was.get(k) for k in e} == e
         e["changed"] = was.get("changed") if same and was.get("changed") else utc_now()
         states[usps] = e
-    if states != old:
+    civic_state = str(health.get("_civic", ""))
+    if states != old or civic_state != load(path, {}).get("civicapi"):
         os.makedirs(OUT_DIR, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"states": states}, f, separators=(",", ":"))
+            json.dump({"states": states, "civicapi": civic_state}, f, separators=(",", ":"))
 
 
 def main():
     slate = load(SLATE_PATH)
     health = {}
     live = gather(F.SOURCES, health, "races")
+    civic = read_civic(health)
     chambers = load(CHAMBERS_PATH, {})
     ballot = load(CANDIDATES_PATH, {})
     links = load(LINKS_PATH, {})
@@ -212,12 +235,15 @@ def main():
             rc = dict(race)
             if ballot_races.get(rc["id"]):   # names on the ballot, shown until results arrive (never as votes)
                 rc["ballot"] = ballot_races[rc["id"]]
-            # a wired feed that can't be read once polls have closed reads as "No live feed", with the official link
-            rc["feed"] = rc["state"] in F.SOURCES and not str(health.get(rc["state"], {}).get("races", "")).startswith("failed")
+            # a wired feed that can't be read once polls have closed reads as "No live feed", with the official link,
+            # unless civicAPI carries the race
+            rc["official_feed"] = rc["state"] in F.SOURCES and not str(health.get(rc["state"], {}).get("races", "")).startswith("failed")
+            rc["feed"] = rc["official_feed"] or rc["id"] in civic["roster"]
             if links.get(rc["state"]):
                 rc["official_url"] = links[rc["state"]]
             rc["polls_close"] = F.POLLS_CLOSE.get(rc["state"])
-            if apply_feed(rc, live.get(rc["state"], {}).get(rc["id"]), prev.get(rc["id"]), ballot_races.get(rc["id"]), held):
+            src = live.get(rc["state"], {}).get(rc["id"]) or civic["races"].get(rc["id"])   # official first
+            if apply_feed(rc, src, prev.get(rc["id"]), ballot_races.get(rc["id"]), held):
                 any_data = True
             called = rc.get("called")
             lead = rc.get("leader_party") or leader(rc.get("candidates") or [])
@@ -268,7 +294,7 @@ def main():
         print("no results yet (feeds wait for each state's polls to close).")
     if held:
         print("held back: " + ", ".join(held))
-    write_measures(health, links)
+    write_measures(health, links, civic)
     write_sources(health)
     return 0
 

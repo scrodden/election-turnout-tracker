@@ -17,6 +17,7 @@ Race ids: sen-<ST>, sen-<ST>-special, gov-<ST>, house-<ST>-<NN or AL>.
 """
 import base64
 import gzip
+import urllib.parse
 import html
 import json
 import os
@@ -1058,6 +1059,116 @@ def measures_NM():
             if yes + no or KEEP_ZERO:
                 out[mid] = {"yes": yes, "no": no, "reporting": rep_pct}
     return out
+
+
+# ---- civicAPI: a third party, for races with no official feed we can read -----------
+# civicapi.org publishes live results compiled from state and county election offices, and its policy allows "publishing
+# live results" with attribution (a link or its name). Official feeds always win; this fills what they can't, and every
+# race from it is labeled. Checked 10/31: it flags test data per race (test_data: true on every race then, with fake
+# votes in Ohio), so a state's numbers are used only once a sampled race says test_data: false. Its figures tracked
+# official ones but can stop short of final (GA-13 primary 0.3% low) and some state legislative rows sat at zero.
+# Its own "winner" calls aren't used. CNN, NBC, AP, NYT and others bar Claude in robots.txt, and Fox's terms bar
+# scraping, so none of those are read.
+CIVIC_URL = "https://civicapi.org/api/v2/"
+CIVIC_RACE_TYPES = ("US Senate", "Governor", "House of Representatives")
+CIVIC_MEASURE_TYPES = ("Referendum", "Proposition", "Ballot Measure")
+CIVIC_LABEL = "civicAPI"
+
+
+def _civic_rows(kind):
+    """Every Nov 3 row of one type, nationwide."""
+    rows, offset = [], 0
+    while True:
+        q = urllib.parse.urlencode({"country": "US", "type": kind, "limit": 500, "offset": offset})
+        got = json.loads(C.http_get(CIVIC_URL + "race/search?" + q, timeout=60))["races"]
+        rows += [r for r in got if str(r.get("election_date", "")).startswith("2026-11-03")]
+        if len(got) < 500 or offset > 6000:
+            return rows
+        offset += 500
+
+
+def _civic_race_id(row):
+    usps = row.get("province") or ""
+    if len(usps) != 2:
+        return None
+    kind = row.get("type")
+    if kind == "US Senate":
+        return "sen-%s%s" % (usps, "-special" if usps in SPECIAL_SENATE else "")
+    if kind == "Governor":
+        return "gov-" + usps
+    m = re.search(r"US House\s+(\d+)", row.get("election_name", ""))
+    if usps in AT_LARGE:
+        return "house-%s-AL" % usps
+    return house_id(usps, m.group(1)) if m else None
+
+
+def _civic_measure_ids():
+    """[(state, compiled title pattern, id)]: 'Amendment 1' must not match 'Amendment 10'."""
+    with open(os.path.join(ROOT, "config", "measures.json"), encoding="utf-8") as f:
+        return [(m["state"], re.compile(r"\b%s\b" % r"\s+".join(re.findall(r"[a-z0-9]+", m["title"].lower()))), m["id"]) for m in json.load(f).get("measures", [])]
+
+
+def _civic_is_live(row):
+    """A real count? Only when the race itself says test_data: false; a missing flag counts as test data."""
+    d = json.loads(C.http_get(CIVIC_URL + "race/%s" % row["id"], no_cache=True, timeout=45))
+    return d.get("test_data") is False
+
+
+def civic_fetch(closed=None):
+    """-> {"roster": set of race/measure ids it carries, "races": {id: race}, "measures": {id: result}, "live": {states}}.
+    Numbers appear only for states whose polls have closed and whose counts aren't flagged as test data."""
+    closed = closed or polls_closed
+    rows = [r for kind in CIVIC_RACE_TYPES for r in _civic_rows(kind)]
+    mrows = [r for kind in CIVIC_MEASURE_TYPES for r in _civic_rows(kind) if r.get("election_type") == "Statewide"]
+    roster, per_state = set(), {}
+    for r in rows:
+        rid = _civic_race_id(r)
+        if rid:
+            roster.add(rid)
+            per_state.setdefault(r["province"], []).append((rid, r))
+    patterns = _civic_measure_ids()
+    by_state = {}
+    for st, pat, mid in patterns:
+        by_state.setdefault(st, []).append((pat, mid))
+    mstate = {}
+    for r in mrows:
+        name = " ".join(re.findall(r"[a-z0-9]+", r.get("election_name", "").lower()))
+        for st, wanted in by_state.items():
+            if name.startswith(" ".join(re.findall(r"[a-z]+", STATE_NAMES.get(st, "?").lower()))):
+                for pat, mid in wanted:
+                    if pat.search(name):
+                        roster.add(mid)
+                        mstate.setdefault(st, []).append((mid, r))
+                        break
+    live = set()
+    for st in set(per_state) | set(mstate):
+        if st not in POLLS_CLOSE or not closed(st):
+            continue
+        sample = [r for _i, r in per_state.get(st, []) + mstate.get(st, []) if sum(c.get("votes") or 0 for c in r.get("candidates") or [])]
+        if sample and (KEEP_ZERO or _civic_is_live(max(sample, key=lambda r: sum(c.get("votes") or 0 for c in r["candidates"])))):
+            live.add(st)
+    races, measures = {}, {}
+    for st in live:
+        for rid, r in per_state.get(st, []):
+            got = race([(nice(c.get("name")), party(c.get("party")), num(c.get("votes"))) for c in r.get("candidates") or []], r.get("percent_reporting"))
+            if got and (rid not in races or sum(c["votes"] for c in got["candidates"]) > sum(c["votes"] for c in races[rid]["candidates"])):
+                got["via"] = CIVIC_LABEL
+                races[rid] = got
+        for mid, r in mstate.get(st, []):
+            v = {str(c.get("name", "")).strip().lower(): num(c.get("votes")) for c in r.get("candidates") or []}
+            yes = next((n for k, n in v.items() if k.startswith(("yes", "for"))), 0)
+            no = next((n for k, n in v.items() if k.startswith(("no", "against"))), 0)
+            if yes + no or KEEP_ZERO:
+                measures[mid] = {"yes": yes, "no": no, "reporting": r.get("percent_reporting"), "via": CIVIC_LABEL}
+    return {"roster": roster, "races": races, "measures": measures, "live": live}
+
+
+STATE_NAMES = {"AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
+               "FL": "Florida", "GA": "Georgia", "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas", "KY": "Kentucky",
+               "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts", "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri",
+               "MT": "Montana", "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico", "NY": "New York", "NC": "North Carolina",
+               "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma", "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota",
+               "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington", "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming"}
 
 
 # ---- registries -------------------------------------------------------------

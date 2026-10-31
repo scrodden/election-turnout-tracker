@@ -75,6 +75,14 @@ def main():
                 notes.append(str(e)[:110])
         print("%-6s %-12s %-10s %s" % (st, rtxt, mtxt, "; ".join(notes)))
     print("%d states need a look" % bad)
+    civic = F.civic_fetch(closed=lambda _st: True)
+    all_ids = {r["id"]: r for rs in slate.values() for r in rs}
+    mismatch = [i for i, v in civic["races"].items() if i in all_ids and not F.names_match(v["candidates"], ballot.get(i))]
+    no_official = [i for i, r in all_ids.items() if r["state"] not in F.SOURCES]
+    print("civicAPI: %d of %d races listed; of the %d races in states with no official feed, %d listed; %d of %d measures; names off: %s"
+          % (len(set(all_ids) & civic["roster"]), len(all_ids), len(no_official), len(set(no_official) & civic["roster"]),
+             len({m["id"] for m in measures} & civic["roster"]), len(measures), ",".join(sorted(mismatch)[:8])))
+    print("  not listed, no official feed:", ",".join(sorted(set(no_official) - civic["roster"])[:30]))
     return 0
 
 

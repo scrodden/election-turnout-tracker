@@ -62,7 +62,8 @@
           var wait = keys.filter(function (k) { return sts[k].races === "waiting"; });
           $("#results-status").innerHTML += "<div style='margin-top:6px'>Live feeds for <b>" + keys.length + "</b> of 50 states" +
             (wait.length ? " · " + wait.length + " waiting for polls to close" : "") +
-            (bad.length ? " · <span style='color:#e03131'>failing: " + bad.join(", ") + "</span>" : "") + "</div>";
+            (bad.length ? " · <span style='color:#e03131'>failing: " + bad.join(", ") + "</span>" : "") +
+            (src.civicapi ? " · civicAPI fallback: " + src.civicapi : "") + "</div>";
         }).catch(function () {});
         $("#src").textContent = "Auto-generated from each state's latest feed every cycle. Times are your local time.";
         $("#filter").addEventListener("input", function (e) { filter = e.target.value.trim().toLowerCase(); render(); });
