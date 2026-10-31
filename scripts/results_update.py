@@ -10,7 +10,8 @@ It NEVER fabricates results, and it guards what it publishes:
     and civicAPI's counts aren't used while it flags them as test data;
   - a feed that fails or drops a race keeps the last figures we published;
   - a race whose votes suddenly fall by over 20% keeps its last figures, for up to 3 hours;
-  - a race with no one from the 2026 ballot is rejected (a feed showing another election).
+  - a race with no one from the 2026 ballot is rejected (a feed showing another election);
+  - civicAPI's race calls stay apart from "called": labeled, and never counted toward control.
 A file is rewritten only when its figures change, so "updated" is when results last moved
 and the 2-minute Election-Day loop commits only real changes.
 
@@ -118,16 +119,31 @@ def apply_feed(rc, src, old, ballot, held):
     return True
 
 
+def apply_call(rc, civic, old):
+    """civicAPI's call for a race, kept apart from rc["called"] so it never counts toward control. Shown only while the
+    called candidate leads the figures on the page; a contradiction is logged and left off. If civicAPI is down, the
+    last call stays; if it withdraws a call, the call goes."""
+    call = civic["calls"].get(rc["id"]) if civic.get("ok") else (old or {}).get("civic_call")
+    if not call or not rc.get("candidates"):
+        return
+    lead = max(rc["candidates"], key=lambda c: c.get("votes", 0))
+    if F.same_person(call.get("name"), lead.get("name")):
+        rc["civic_call"] = {"name": lead.get("name"), "party": lead.get("party")}
+    else:
+        print("  ! %s: civicAPI calls %s but %s leads here; call left off" % (rc["id"], call.get("name"), lead.get("name")), file=sys.stderr)
+
+
 def read_civic(health):
     """civicAPI's roster and any live counts. If it's down, races it would fill keep their last figures."""
     try:
         civic = F.civic_fetch()
         health["_civic"] = "ok: %d races and measures listed, live in %d states" % (len(civic["roster"]), len(civic["live"]))
+        civic["ok"] = True
         return civic
     except Exception as e:  # noqa: BLE001
         print("  ! civicAPI failed: %s" % str(e)[:100], file=sys.stderr)
         health["_civic"] = "failed: " + str(e)[:100]
-        return {"roster": set(), "races": {}, "measures": {}, "live": set()}
+        return {"roster": set(), "races": {}, "measures": {}, "calls": {}, "live": set(), "ok": False}
 
 
 def write_measures(health, links, civic):
@@ -245,6 +261,7 @@ def main():
             src = live.get(rc["state"], {}).get(rc["id"]) or civic["races"].get(rc["id"])   # official first
             if apply_feed(rc, src, prev.get(rc["id"]), ballot_races.get(rc["id"]), held):
                 any_data = True
+            apply_call(rc, civic, prev.get(rc["id"]))
             called = rc.get("called")
             lead = rc.get("leader_party") or leader(rc.get("candidates") or [])
             if called in ("D", "R"):

@@ -167,6 +167,10 @@ def names_match(feed_cands, ballot):
     return bool(want & have)
 
 
+def same_person(a, b):
+    return bool(_surname(a)) and _surname(a) == _surname(b)
+
+
 def ballot_names(cands, ballot):
     """Prefer the ballot list's name where a feed gives only a surname ('Begich') or all capitals."""
     by_surname = {_surname(b.get("name", "")): b.get("name") for b in ballot or []}
@@ -1067,8 +1071,9 @@ def measures_NM():
 # race from it is labeled. Checked 10/31: it flags test data per race (test_data: true on every race then, with fake
 # votes in Ohio), so a state's numbers are used only once a sampled race says test_data: false. Its figures tracked
 # official ones but can stop short of final (GA-13 primary 0.3% low) and some state legislative rows sat at zero.
-# Its own "winner" calls aren't used. CNN, NBC, AP, NYT and others bar Claude in robots.txt, and Fox's terms bar
-# scraping, so none of those are read.
+# Its "winner" flags come from its own decision desk: shown only as "civicAPI call" on a race whose leader matches, and
+# never counted in the control bars (results_update.apply_call). CNN, NBC, AP, NYT and others bar Claude in robots.txt,
+# and Fox's terms bar scraping, so none of those are read.
 CIVIC_URL = "https://civicapi.org/api/v2/"
 CIVIC_RACE_TYPES = ("US Senate", "Governor", "House of Representatives")
 CIVIC_MEASURE_TYPES = ("Referendum", "Proposition", "Ballot Measure")
@@ -1115,8 +1120,9 @@ def _civic_is_live(row):
 
 
 def civic_fetch(closed=None):
-    """-> {"roster": set of race/measure ids it carries, "races": {id: race}, "measures": {id: result}, "live": {states}}.
-    Numbers appear only for states whose polls have closed and whose counts aren't flagged as test data."""
+    """-> {"roster": set of race/measure ids it carries, "races": {id: race}, "measures": {id: result}, "calls": {id: call},
+    "live": {states}}. Numbers and calls appear only for states whose polls have closed and whose counts aren't flagged
+    as test data."""
     closed = closed or polls_closed
     rows = [r for kind in CIVIC_RACE_TYPES for r in _civic_rows(kind)]
     mrows = [r for kind in CIVIC_MEASURE_TYPES for r in _civic_rows(kind) if r.get("election_type") == "Statewide"]
@@ -1147,9 +1153,12 @@ def civic_fetch(closed=None):
         sample = [r for _i, r in per_state.get(st, []) + mstate.get(st, []) if sum(c.get("votes") or 0 for c in r.get("candidates") or [])]
         if sample and (KEEP_ZERO or _civic_is_live(max(sample, key=lambda r: sum(c.get("votes") or 0 for c in r["candidates"])))):
             live.add(st)
-    races, measures = {}, {}
+    races, measures, calls = {}, {}, {}
     for st in live:
         for rid, r in per_state.get(st, []):
+            winners = [c for c in r.get("candidates") or [] if c.get("winner") is True]
+            if len(winners) == 1:
+                calls[rid] = {"name": nice(winners[0].get("name")), "party": party(winners[0].get("party"))}
             got = race([(nice(c.get("name")), party(c.get("party")), num(c.get("votes"))) for c in r.get("candidates") or []], r.get("percent_reporting"))
             if got and (rid not in races or sum(c["votes"] for c in got["candidates"]) > sum(c["votes"] for c in races[rid]["candidates"])):
                 got["via"] = CIVIC_LABEL
@@ -1160,7 +1169,7 @@ def civic_fetch(closed=None):
             no = next((n for k, n in v.items() if k.startswith(("no", "against"))), 0)
             if yes + no or KEEP_ZERO:
                 measures[mid] = {"yes": yes, "no": no, "reporting": r.get("percent_reporting"), "via": CIVIC_LABEL}
-    return {"roster": roster, "races": races, "measures": measures, "live": live}
+    return {"roster": roster, "races": races, "measures": measures, "calls": calls, "live": live}
 
 
 STATE_NAMES = {"AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",

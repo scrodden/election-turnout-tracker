@@ -272,6 +272,11 @@
     return (r.via ? " <span class='dim' style='font-size:12px' title='From civicAPI (civicapi.org), which compiles results from state and county election offices'>via " + r.via + "</span>" : "") +
       (r.official_feed === false && !isPast() ? tallyLinks(r) : "");
   }
+  function callBadge(r) {   // civicAPI's call: its own decision desk, not the state's; never counted toward control
+    var p = (r.civic_call.party || "").toUpperCase()[0];
+    return "<span class='badge " + (p === "D" ? "dem" : p === "R" ? "rep" : "unc") + "' title='Called for " + String(r.civic_call.name || "").replace(/'/g, "&#39;") +
+      " by civicAPI&#39;s own decision desk. Not an official result, and not counted in the balance of power.'>civicAPI call: " + p + "</span>";
+  }
   function tallyLinks(r) {   // no official feed of ours here: the state's own page and a live news tally, one click away
     return " <span class='dim' style='font-size:12px'>" + (r.official_url ? "<a href='" + r.official_url + "' target='_blank' rel='noopener' title='The state&#39;s official results'>official &#8599;</a> " : "") +
       "<a href='" + nbcUrl(r) + "' target='_blank' rel='noopener' title='NBC News&#39;s live results for this state'>NBC &#8599;</a></span>";
@@ -279,7 +284,8 @@
   function sourceLinks(r) {   // official results, a live news tally, and credit where the figures came from
     return "<p class='fineprint'>" + (r.via ? "Figures via <a href='https://civicapi.org' target='_blank' rel='noopener'>civicAPI</a>, which compiles them from state and county election offices. " : "") +
       (r.official_url ? officialLink(r, "State's official results") + " &middot; " : "") +
-      "<a href='" + nbcUrl(r) + "' target='_blank' rel='noopener'>NBC News &#8599;</a>. Leads are not race calls.</p>";
+      "<a href='" + nbcUrl(r) + "' target='_blank' rel='noopener'>NBC News &#8599;</a>. Leads are not race calls." +
+      (r.civic_call ? " The call comes from <a href='https://civicapi.org' target='_blank' rel='noopener'>civicAPI</a>&#39;s own decision desk, not the state, and isn&#39;t counted in the balance of power." : "") + "</p>";
   }
   function renderScore(data) {
     var thead = $("#score thead"), tbody = $("#score tbody");
@@ -297,7 +303,7 @@
       else if (sort.key === "title") { A = a.title || ""; B = b.title || ""; }
       else if (sort.key === "prev") { var pa = prevOf(a), pb = prevOf(b), qa = pa && computeRace(pa.race), qb = pb && computeRace(pb.race);
         A = qa && qa.rd != null ? qa.rd : 999; B = qb && qb.rd != null ? qb.rd : 999; }
-      else if (sort.key === "status") { A = (a.called ? 0 : ca.hasData ? 1 : 2); B = (b.called ? 0 : cb.hasData ? 1 : 2); }
+      else if (sort.key === "status") { A = (a.called || a.civic_call ? 0 : ca.hasData ? 1 : 2); B = (b.called || b.civic_call ? 0 : cb.hasData ? 1 : 2); }
       else { A = a.state_name; B = b.state_name; }
       return A < B ? -sort.dir : A > B ? sort.dir : 0;
     });
@@ -319,6 +325,7 @@
       var status = (isPast() && r.called) ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>" +
           (r.year && year.indexOf("offcycle") === 0 ? r.year + " · " : "") + (r.first_round ? "Won runoff" : "Won") + "</span>"
         : r.called ? "<span class='badge " + (r.called === "D" ? "dem" : r.called === "R" ? "rep" : "unc") + "'>Called " + r.called + "</span>"
+        : r.civic_call ? callBadge(r) + viaNote(r)
         : c.hasData ? "<span class='badge unc'>Leading</span>" + viaNote(r)
         : (!isPast() && noFeed(r)) ? noFeedBadge(r)
         : "<span class='badge unc'>" + (isPast() ? "—" : (r.polls_close && Date.now() >= Date.parse(r.polls_close)) ? "Not yet reported" : "On the ballot") + "</span>" + viaNote(r);
@@ -513,7 +520,7 @@
       loadCountyMap(r, $("#county-map"));
       return;
     }
-    body.innerHTML = "<p class='dim'>" + (c.reporting != null ? c.reporting + "% reporting" : "reporting —") + (r.called ? (" · Called " + r.called) : "") + "</p>" +
+    body.innerHTML = "<p class='dim'>" + (c.reporting != null ? c.reporting + "% reporting" : "reporting —") + (r.called ? (" · Called " + r.called) : "") + (r.civic_call ? " · civicAPI call: " + r.civic_call.name : "") + "</p>" +
       sorted.map(function (x) {
         var p = tot ? 100 * (x.votes || 0) / tot : 0, pc = (x.party || "").toUpperCase()[0];
         var col = pc === "R" ? "#d62f2f" : pc === "D" ? "#2b6cb0" : pc === "Y" ? "#2f9e44" : pc === "N" ? "#adb5bd" : "#6b7280";
@@ -543,7 +550,7 @@
     $("#detail-title").textContent = r0.state_name + " · U.S. House — " + rs.length + " districts";
     var rows = rs.map(function (r) {
       var c = computeRace(r);
-      var who = c.hasData ? leanLabel(c.leader) + (c.leaderName ? " " + c.leaderName : "") + " +" + c.margin : (r.ballot ? ballotShort(r, 3) : "—");
+      var who = c.hasData ? leanLabel(c.leader) + (c.leaderName ? " " + c.leaderName : "") + " +" + c.margin + (r.civic_call ? " <span class='dim' style='font-size:12px'>civicAPI call</span>" : "") : (r.ballot ? ballotShort(r, 3) : "—");
       return "<tr data-id='" + r.id + "'><td><span class='lean' style='background:" + districtFill(r) + "'></span>" + (r.district === "AL" ? "AL" : districtNo(r)) +
         "</td><td>" + who + "</td><td>" + (c.reporting != null ? c.reporting + "%" : "—") + "</td></tr>";
     }).join("");
@@ -681,7 +688,7 @@
     if (mn) mn.innerHTML = isPast()
       ? "Red = Republican win, blue = Democratic win, shaded by the final margin; purple = independent. Gray = no race that year." +
         (data.missing_note ? " " + data.missing_note + "." : "") + " Sources: MIT Election Data + Science Lab (president, Senate, most governors), official state results; open a row for its source."
-      : "Red = Republican lead, blue = Democratic lead, by current margin. Tan = on the ballot, no results yet; pale = no live feed (its row links to the official results and NBC News); gray = no " + officeName(office) + " race in 2026. Leads are not race calls. Sources: official state feeds, or <a href='https://civicapi.org' target='_blank' rel='noopener'>civicAPI</a> where marked. " + (office === "house" ? "Click a state for its district map." : "Hover or click a state for the seat's last result.");
+      : "Red = Republican lead, blue = Democratic lead, by current margin. Tan = on the ballot, no results yet; pale = no live feed (its row links to the official results and NBC News); gray = no " + officeName(office) + " race in 2026. Leads are not race calls; a &quot;civicAPI call&quot; comes from civicAPI&#39;s own decision desk and doesn&#39;t change the balance of power. Sources: official state feeds, or <a href='https://civicapi.org' target='_blank' rel='noopener'>civicAPI</a> where marked. " + (office === "house" ? "Click a state for its district map." : "Hover or click a state for the seat's last result.");
     if (isPast()) { $("#pre-note").hidden = true; $("#updated").innerHTML = "Final results"; return; }
     var upd = data.updated ? new Date(data.updated).toLocaleString("en-US", { hour: "numeric", minute: "2-digit", month: "short", day: "numeric" }) : null;
     $("#updated").innerHTML = upd ? "Updated: <b>" + upd + "</b>" : "<b>Not yet reported</b>";
@@ -721,7 +728,8 @@
       cx + " for control · " + T + " seats" +
       (b.not_up && (b.not_up.D || b.not_up.R) ? " (incl. " + b.not_up.D + "D/" + b.not_up.R + "R not up in 2026)" : "") +
       (b.dem_lead + b.rep_lead ? " · lighter shades = currently leading, not called" : "") +
-      ((data.summary || {}).no_feed ? " · " + data.summary.no_feed + " races have no live feed" : "");
+      ((data.summary || {}).no_feed ? " · " + data.summary.no_feed + " races have no live feed" : "") +
+      ((data.races || []).some(function (r) { return r.civic_call; }) ? " · civicAPI&#39;s calls aren&#39;t counted here" : "");
   }
 
   function whatifBalance() {
