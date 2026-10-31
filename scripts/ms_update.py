@@ -4,11 +4,11 @@
 Mississippi has no no-excuse early voting: ballots cast before Election Day are
 absentee, by mail or in person at the circuit clerk's office. The Secretary of
 State (sos.ms.gov, which blocks scripted requests) publishes no absentee
-statistics page, so this shows the UF Election Lab's statewide Mississippi
-figures (the Lab gets them from the Secretary of State): absentee ballots
-requested and returned. Used unaltered, attributed, CC BY-NC-ND 4.0. The Lab
-has no Mississippi county file yet; lab_standin picks one up automatically if
-it appears (and it reconciles with the statewide row).
+statistics page, so this shows the UF Election Lab's Mississippi figures (the
+Lab gets them from the Secretary of State): absentee ballots requested and
+returned, statewide and by county. Used unaltered, attributed, CC BY-NC-ND 4.0.
+lab_standin uses the county file only while it reconciles with the statewide
+row; its "Jeff Davis" is Jefferson Davis County (lab_standin.ALIASES).
 
 If an official county-level feed turns up, parse it here first and keep the
 Lab as the fallback (see ky_update.py / il_update.py for the pattern).

@@ -9,7 +9,7 @@
   },
   "general_start": "2026-10-15",
   "source": {
-    "_comment": "No official absentee statistics page on sos.ms.gov (checked 2026-09-29; the site also 403s scripted requests). ms_update.py shows the UF Election Lab's statewide Mississippi row (source: MS Secretary of State) as a stand-in; CC BY-NC-ND 4.0, unaltered, attributed.",
+    "_comment": "No official absentee statistics page on sos.ms.gov (checked 2026-09-29; the site also 403s scripted requests). ms_update.py shows the UF Election Lab's Mississippi rows (US.csv + MS_county.csv, source: MS Secretary of State) as a stand-in; CC BY-NC-ND 4.0, unaltered, attributed. The county file's 'Jeff Davis' is Jefferson Davis County (lab_standin.ALIASES); checked 2026-10-30, its 82 rows sum exactly to the statewide row.",
     "portal": "https://www.sos.ms.gov/elections-voting",
     "lab_page": "https://election.lab.ufl.edu/early-vote/2026-early-voting/2026-general-election-early-vote-mississippi/"
   },

@@ -36,7 +36,8 @@ RACE = [("White", "nh_white"), ("Black", "nh_black"), ("Hispanic", "hispanic"), 
 KINDS = ("request", "accept", "inperson")
 # current county names -> the (older) names in our map files
 ALIASES = {"oglalalakota": "shannon",   # SD: Shannon County renamed Oglala Lakota in 2015
-           "stlouiscounty": "stlouis"}   # MO: the map has "St. Louis" (the county) and "St. Louis City"
+           "stlouiscounty": "stlouis",   # MO: the map has "St. Louis" (the county) and "St. Louis City"
+           "jeffdavis": "jeffersondavis"}   # MS: the Lab's "Jeff Davis" (GA's and TX's real Jeff Davis still match: both sides are normalized)
 
 
 def _norm(s):
