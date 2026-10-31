@@ -12,7 +12,7 @@ It NEVER fabricates results, and it guards what it publishes:
 A file is rewritten only when its figures change, so "updated" is when results last moved
 and the 2-minute Election-Day loop commits only real changes.
 
-data/results/_sources.json says what each state's feed is doing (for the status page).
+data/results/sources.json says what each state's feed is doing (for the status page).
 
 Run:  python scripts/results_update.py
 """
@@ -165,8 +165,8 @@ def leader(cands):
 
 
 def write_sources(health):
-    """data/results/_sources.json: each wired state's feed status; "changed" is when that status last changed."""
-    path = os.path.join(OUT_DIR, "_sources.json")
+    """data/results/sources.json: each wired state's feed status; "changed" is when that status last changed."""
+    path = os.path.join(OUT_DIR, "sources.json")
     old = load(path, {}).get("states", {})
     states = {}
     for usps in sorted(set(F.SOURCES) | set(F.MEASURES)):

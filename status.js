@@ -56,7 +56,7 @@
           return "<b>" + o.charAt(0).toUpperCase() + o.slice(1) + "</b>: " + live +
             (s.total ? " · " + s.total + " races" + (s.uncalled != null ? " · " + s.uncalled + " uncalled" : "") : "");
         }).join(" &nbsp;·&nbsp; ");
-        getJSON("data/results/_sources.json").then(function (src) {
+        getJSON("data/results/sources.json").then(function (src) {
           var sts = src.states || {}, keys = Object.keys(sts);
           var bad = keys.filter(function (k) { return /^failed/.test(sts[k].races) || /^failed/.test(sts[k].measures); });
           var wait = keys.filter(function (k) { return sts[k].races === "waiting"; });

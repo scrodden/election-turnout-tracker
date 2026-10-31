@@ -8,8 +8,9 @@ name: Election-Day live results (2-min)
 # 10-minute update keeps running for turnout, and for results if this loop stops.
 #
 # rehearse: runs the loop on any date to test committing, pushing and Pages at this
-# pace. Results stay empty (feeds wait for polls to close), so each cycle writes only
-# a timestamp to data/results/_rehearsal.json, which nothing reads.
+# pace, and checks that every feed can be read from GitHub's servers. Results stay empty
+# (feeds wait for polls to close), so each cycle writes only a timestamp to
+# data/results/rehearsal.json, which nothing reads.
 
 on:
   schedule:
@@ -55,6 +56,10 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Can every feed be read from here?
+        if: inputs.rehearse == true
+        run: python scripts/results_feeds_check.py || true
+
       - name: Live 2-minute results loop
         if: steps.g.outputs.go == '1'
         run: |
@@ -66,7 +71,7 @@ jobs:
             python scripts/results_update.py || echo "results update failed (non-fatal)"
             python scripts/results_county_update.py || echo "county results update failed (non-fatal)"
             if [ "${{ inputs.rehearse }}" = "true" ]; then
-              echo "{\"rehearsal\":\"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\"}" > data/results/_rehearsal.json
+              echo "{\"rehearsal\":\"$(date -u '+%Y-%m-%dT%H:%M:%SZ')\"}" > data/results/rehearsal.json
             fi
             git add data/results data/*/results_county.json
             if ! git diff --cached --quiet; then
