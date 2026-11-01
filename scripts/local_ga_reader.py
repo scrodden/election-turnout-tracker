@@ -84,6 +84,7 @@ def chain_watchdog():
 
 
 TX_FILES = ["data/tx/roster_party.json", "data/tx/districts.json", "data/tx/party_share.json"]
+GA_ROSTER_FILES = ["data/ga/roster_party.json", "data/ga/party_share.json"]
 
 
 def commit_push(files, message, summary):
@@ -130,6 +131,19 @@ def ga_read():
     except Exception as e:  # noqa: BLE001
         log("history not enriched: %s" % str(e)[:200])
     return commit_push(GA_FILES, "Georgia hub (local reader)", summary)
+
+
+def ga_rosters():
+    """Georgia early voters by last party primary (scripts/ga_rosters.py): folds in any new voter files a person has
+    downloaded (Georgia's download page has a reCAPTCHA). The files stay on this PC; only the totals are pushed."""
+    run = subprocess.run([sys.executable, os.path.join(CLONE, "scripts", "ga_rosters.py")], cwd=CLONE,
+                         capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
+    out = (run.stdout + run.stderr).strip().splitlines()
+    summary = " | ".join(l for l in out if l.startswith("ga_rosters:"))[-300:] or (out[-1] if out else "")
+    if run.returncode:
+        log("ga rosters failed (rc %s): %s" % (run.returncode, " | ".join(out[-3:])[:400]))
+        return 1
+    return commit_push(GA_ROSTER_FILES, "Georgia voter-file match (local reader)", summary)
 
 
 def tx_rosters():
@@ -180,7 +194,7 @@ def main():
             log("clone failed: %s" % r.stderr.strip()[:300])
             return 1
     rc = 0
-    for job in (ga_read, tx_rosters):
+    for job in (ga_rosters, ga_read, tx_rosters):
         try:
             git("fetch", "--quiet", "origin", "main")
             git("reset", "--quiet", "--hard", "origin/main")   # dedicated clone: always start from the published state

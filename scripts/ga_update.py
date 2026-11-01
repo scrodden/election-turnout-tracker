@@ -45,6 +45,7 @@ HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 CD_GEO_PATH = os.path.join(ROOT, "assets", "ga-cd.geojson")
 DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
 RACE_SHARE_PATH = os.path.join(DATA_DIR, "race_share.json")
+ROSTER_PATH = os.path.join(DATA_DIR, "roster_party.json")   # scripts/ga_rosters.py: totals by last party primary
 
 MAIL_STYLES = ["Absentee by mail", "Electronic Ballot Delivery"]
 EIP_STYLES = ["Early In-Person"]
@@ -304,9 +305,83 @@ def build(cfg, elec, snap_date, rows):
     return statewide, counties, methods_present, unmatched
 
 
-def write_districts(cfg, elec, drows, now):
+def _party(p, unk):
+    b = C.party_block(p["rep"], p["dem"], 0, p["none"], unk=unk)
+    b.pop("compiled", None)
+    b.pop("compiled_iso", None)
+    return b
+
+
+def _party_unit(ent, p):
+    """Party on one county or district from the voter-file match (ga_rosters.py). Ballots beyond the file, such as those
+    counted since it was downloaded and Election Day's, have no party. Where the file counts more than our figure
+    for a method, its count is used, so a voter is never counted twice."""
+    ip1 = max(ent["early_voted"]["total"], p["inp"]["voters"])
+    mail1 = max(ent["mail_voted"]["total"], p["mail"]["voters"])
+    tot = ip1 + mail1 + (ent.get("election_day") or {}).get("total", 0)
+    ent["cast"] = _party(p, tot - p["voters"])
+    ent["early_voted"] = _party(p["inp"], ip1 - p["inp"]["voters"])
+    ent["mail_voted"] = _party(p["mail"], mail1 - p["mail"]["voters"])
+    return tot
+
+
+def _party_total(statewide, units):
+    """Statewide blocks from the units' party blocks."""
+    for key in ("cast", "early_voted", "mail_voted"):
+        b = C.add_blocks(*[u.get(key) for u in units.values()])
+        b.pop("compiled", None)
+        b.pop("compiled_iso", None)
+        statewide[key] = b
+
+
+def apply_roster_party(statewide, counties, rp):
+    """Fold the voter-file match into the county and statewide blocks. -> True if it was used."""
+    own = (rp or {}).get("counties") or {}
+    if not own or not counties:
+        return False
+    empty = {"voters": 0, "dem": 0, "rep": 0, "none": 0}
+    for name, ent in counties.items():
+        p = own.get(name) or dict(empty, mail=empty, inp=empty)
+        tot = _party_unit(ent, p)
+        if ent.get("registered"):
+            ent["turnout_pct"] = round(100.0 * tot / ent["registered"], 2)
+        ent["party_history"] = {"voters": p["voters"], "as_of": rp.get("through"), "source": "state voter files"}
+    _party_total(statewide, counties)
+    if statewide.get("registered"):
+        statewide["turnout_pct"] = round(100.0 * statewide["cast"]["total"] / statewide["registered"], 2)
+    return True
+
+
+def party_fields(rp):
+    """The page's wording for party by last primary."""
+    span = rp.get("span") or "recent primaries"
+    return {
+        "party_methods": ["cast", "mail_voted", "early_voted"],
+        "party_basis": "the last party primary each voter voted in (%s)" % span,
+        "party_hints": {k: "%s by the last party primary they voted in (%s), from the Secretary of State's voter files. No recent "
+                           "primary = none in that span, including new voters." % (w, span)
+                        for k, w in (("cast", "Everyone who has voted so far"), ("mail_voted", "Mail ballots received"),
+                                     ("early_voted", "In-person early voters"))},
+        "party_methods_note": "Party comes from early and mail voters matched to their primary history, so this category is turnout only.",
+        "unk_label": "counted, but not in the voter file matched to primaries",
+        "party_labels": {"rep": "Republican primary voters", "dem": "Democratic primary voters", "npa": "No recent primary"},
+    }
+
+
+def party_note(rp):
+    try:
+        thr = datetime.strptime(rp.get("through") or "", "%Y-%m-%d").strftime("%b %d").replace(" 0", " ")
+    except ValueError:
+        thr = "?"
+    return ("Georgia has no party registration and its primaries are open, so a primary ballot isn't a party registration. Party is "
+            "matched voter by voter from the Secretary of State's Voter History Files and Voter Absentee File (through %s). The "
+            "absentee file is downloaded by hand, so ballots counted after it and Election Day ballots show as party not reported." % thr)
+
+
+def write_districts(cfg, elec, drows, now, rp=None, unassigned=0):
     """data/ga/districts.json (the map's Districts view) from the hub's
-    by-district counts, in the same shape the Election Lab stand-in used."""
+    by-district counts, in the same shape the Election Lab stand-in used, with party
+    from the voter-file match (rp) when there is one."""
     geo = load(CD_GEO_PATH, {"features": []})
     names = {f["properties"]["name"] for f in geo["features"]}
     units, t = {}, {k: 0 for k in ("eip", "mail", "mail_out", "eday")}
@@ -337,6 +412,18 @@ def write_districts(cfg, elec, drows, now):
             "method_labels": cfg.get("method_labels", {}),
             "coverage": {"ok": len(units), "total": len(names), "unmatched": sorted(set(drows) - names)},
             "statewide": statewide, "counties": units}
+    if (rp or {}).get("districts"):
+        for name, ent in units.items():
+            p = rp["districts"].get(re.sub(r"\D", "", name))
+            if p:
+                _party_unit(ent, p)
+        _party_total(statewide, units)
+        body["partisan"] = True
+        body.update(party_fields(rp))
+        body["map_note"] = party_note(rp)
+    if unassigned >= 50:   # ballots whose voter record has no district yet
+        body["map_note"] = ((body.get("map_note") or "") + " %s ballots aren't tied to a district yet, so districts add up to slightly less "
+                            "than the state's total." % format(unassigned, ",")).strip()
     h = C.data_hash(dict(body, hub_election=elec))
     prev = load(DISTRICTS_PATH, {}) or {}
     changed = h != prev.get("data_hash")
@@ -447,9 +534,11 @@ def lab_fallback(cfg, src, now, status, row=None):
     except Exception as e:  # noqa: BLE001
         print("GA: Lab county file unavailable: %s" % str(e)[:100], file=sys.stderr)
         counties, gap = {}, 0
+    rp = load(ROSTER_PATH, {}) or {}
+    used = apply_roster_party(statewide, counties, rp)
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Georgia"), "election": cfg.get("election", {}),
-        "partisan": False, "statewide_only": not counties,
+        "partisan": used, "statewide_only": not counties,
         "methods_present": [k for k in ("mail_voted", "early_voted", "mail_provided") if statewide[k]["total"]],
         "method_labels": cfg.get("method_labels", {}), "statewide": statewide, "counties": counties,
         "demographics": lab_demo(n),
@@ -457,6 +546,9 @@ def lab_fallback(cfg, src, now, status, row=None):
     note = unassigned_note(gap, n("request_all"))
     if note:
         body["map_note"] = note
+    if used:
+        body.update(party_fields(rp))
+        body["map_note"] = ((body.get("map_note") or "") + " " + party_note(rp)).strip()
     if cfg.get("mail_base_label"):   # the Lab counts absentee applications, not ballots mailed
         body["mail_base_label"] = cfg["mail_base_label"]
     snap = dict(body)
@@ -613,13 +705,24 @@ def main():
         return 0
 
     statewide, counties, methods_present, unmatched = build(cfg, elec, snap_date, rows)
-    if drows and sum(r["eip"] + r["mail"] + r["eday"] for r in drows.values()) == statewide["cast"]["total"]:
-        write_districts(cfg, elec, drows, reload_at if len(reload_at) > 10 else now)   # only when they add up to the county total
+    rp = load(ROSTER_PATH, {}) or {}
+    # districts come from each ballot's voter record, and a few ballots have none yet (an exact-match rule here froze the
+    # district map at 10/19's 968,509 ballots): write them while they're within 1% of the county total, and say so
+    cast_all = statewide["cast"]["total"]
+    d_total = sum(r["eip"] + r["mail"] + r["eday"] for r in drows.values()) if drows else 0
+    if drows and abs(cast_all - d_total) <= 0.01 * cast_all:
+        write_districts(cfg, elec, drows, reload_at if len(reload_at) > 10 else now, rp, max(0, cast_all - d_total))
+    elif drows:
+        print("ga: districts add up to %d, not %d -- district file not updated" % (d_total, cast_all), file=sys.stderr)
+    used = apply_roster_party(statewide, counties, rp)
     body = {
         "state": STATE, "state_name": cfg.get("state_name", "Georgia"), "election": cfg.get("election", {}),
-        "partisan": False, "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
+        "partisan": used, "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties,
     }
+    if used:
+        body.update(party_fields(rp))
+        body["map_note"] = party_note(rp)
     if demo.get("statewide", {}).get("age"):
         dm = dict(demo["statewide"])
         dm["note"] = ("Ballots cast so far by the age group, gender and race on each voter's registration record, "
@@ -632,7 +735,7 @@ def main():
     h = C.data_hash(dict(body, hub_election=elec, reg_snapshot=snap_date))
     changed = force or h != prev.get("data_hash")
     snap = dict(body)
-    snap["source"] = {"primary": "GA SoS Election Data Hub (Qlik): accepted ballots by county & method; turnout-only",
+    snap["source"] = {"primary": "GA SoS Election Data Hub (Qlik): accepted ballots by county & method" + ("; party by last primary from the SoS voter files" if used else "; turnout-only"),
                       "hub_election": elec, "registration_snapshot": snap_date, "fetched_at": now,
                       "hub_checked_at": now, "hub_reloaded_at": reload_at, "status": status}
     as_of = reload_at if len(reload_at) > 10 else now   # the hub's own refresh time

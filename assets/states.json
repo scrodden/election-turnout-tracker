@@ -122,12 +122,13 @@
     {
       "code": "ga",
       "name": "Georgia",
-      "partisan": false,
+      "partisan": true,
+      "party_share": "data/ga/party_share.json",
       "hidden": true,
       "data": "data/ga/latest.json",
       "geojson": "assets/ga-counties.geojson",
       "history": "data/ga/history.jsonl",
-      "source_note": "Source: <a href='https://sos.ga.gov/page/election-data-hub-unofficial-turnout' target='_blank' rel='noopener'>Georgia Secretary of State Election Data Hub</a> (unofficial turnout by county, U.S. House district and voter demographics), read about every 10 minutes while voting is under way. District boundaries: U.S. Census Bureau (districts for the 2026 elections). Georgia has no party registration, so this is turnout only. In-person early voting runs October 13 &ndash; 30.",
+      "source_note": "Source: <a href='https://sos.ga.gov/page/election-data-hub-unofficial-turnout' target='_blank' rel='noopener'>Georgia Secretary of State Election Data Hub</a> (unofficial turnout by county, U.S. House district and voter demographics), read about every 10 minutes while voting is under way. District boundaries: U.S. Census Bureau (districts for the 2026 elections). Georgia has no party registration, so party here is the last party primary each voter took part in (2024 and 2026), matched voter by voter from the Secretary of State's <a href='https://mvp.sos.ga.gov/s/voter-history-files' target='_blank' rel='noopener'>Voter History Files</a> and <a href='https://mvp.sos.ga.gov/s/voter-absentee-files' target='_blank' rel='noopener'>Voter Absentee File</a>. In-person early voting runs October 13 &ndash; 30.",
       "locality_data": "data/ga/districts.json",
       "locality_geojson": "assets/ga-cd.geojson",
       "race_share": "data/ga/race_share.json"
