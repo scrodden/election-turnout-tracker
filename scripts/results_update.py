@@ -15,6 +15,9 @@ It NEVER fabricates results, and it guards what it publishes:
 A file is rewritten only when its figures change, so "updated" is when results last moved
 and the 2-minute Election-Day loop commits only real changes.
 
+house.json also carries "national_vote", every Democrat's and Republican's votes added up, and
+data/results/house_vote_series.json keeps one point each time that total moves.
+
 data/results/sources.json says what each state's feed is doing (for the status page).
 
 Run:  python scripts/results_update.py
@@ -34,6 +37,7 @@ CHAMBERS_PATH = os.path.join(ROOT, "config", "chambers.json")
 MEASURES_PATH = os.path.join(ROOT, "config", "measures.json")
 CANDIDATES_PATH = os.path.join(ROOT, "config", "candidates_2026.json")   # who's on the ballot (build_ballot_2026.py)
 LINKS_PATH = os.path.join(ROOT, "config", "results_links.json")          # each state's official results page
+HOUSE_PAST_PATH = os.path.join(ROOT, "config", "house_vote_past.json")   # official past House votes (build_house_vote_past.py)
 OUT_DIR = os.path.join(ROOT, "data", "results")
 DROP_HOLD_HOURS = 3
 
@@ -208,6 +212,80 @@ def leader(cands):
     return (s[0].get("party", "") or "").upper()[:1] if tot else None
 
 
+def two_party_margin(rep, dem):
+    """R minus D in points of their combined vote; + = Republican. Only R + D, because the Clerk's past state totals include
+    blank ballots in some states (Massachusetts) and the live feeds don't."""
+    return round(100.0 * (rep - dem) / (rep + dem), 2) if rep + dem else None
+
+
+def house_vote(races, past):
+    """The national House vote so far, from the figures published for each race. A feed's unreadable party label falls
+    back to the ballot list's party for that candidate.
+
+    "same_states" answers "is this good or bad for this hour?": each state's past margin, weighted by the votes it has
+    counted so far, for the states counted so far. A state where one party had no votes that year is left out of that year."""
+    rep = dem = other = via_civic = districts = no_rep = no_dem = 0
+    by_state = {}
+    for r in races:
+        on_ballot = {F.party(b.get("party")) for b in r.get("ballot") or []}
+        if on_ballot and "REP" not in on_ballot:
+            no_rep += 1
+        if on_ballot and "DEM" not in on_ballot:
+            no_dem += 1
+        cands = r.get("candidates") or []
+        if not race_total(r):
+            continue
+        districts += 1
+        ballot_party = {F._surname(b.get("name", "")): F.party(b.get("party")) for b in r.get("ballot") or []}
+        st = by_state.setdefault(r["state"], [0, 0])
+        for c in cands:
+            p, v = F.party(c.get("party")), c.get("votes", 0)
+            if p == "OTH":
+                p = ballot_party.get(F._surname(c.get("name", "")), p)
+            if p == "REP":
+                rep += v
+                st[0] += v
+            elif p == "DEM":
+                dem += v
+                st[1] += v
+            else:
+                other += v
+        if r.get("via"):
+            via_civic += race_total(r)
+    two = rep + dem
+    same = {}
+    for year, y in past.items():
+        weight = total = 0.0
+        for usps, (r_now, d_now) in by_state.items():
+            s = y["states"].get(usps) or {}
+            if s.get("rep") and s.get("dem"):
+                weight += r_now + d_now
+                total += (r_now + d_now) * two_party_margin(s["rep"], s["dem"])
+        if weight:
+            same[year] = round(total / weight, 2)
+    return {"rep": rep, "dem": dem, "other": other, "margin": two_party_margin(rep, dem),
+            "rep_pct": round(100.0 * rep / two, 1) if two else None, "dem_pct": round(100.0 * dem / two, 1) if two else None,
+            "other_pct": round(100.0 * other / (two + other), 1) if two + other else None,
+            "districts": districts, "of": len(races), "states": len(by_state), "via_civicapi": via_civic,
+            "no_republican": no_rep, "no_democrat": no_dem, "same_states": same,
+            "past": {year: {"margin": two_party_margin(y["national"]["rep"], y["national"]["dem"]), "rep": y["national"]["rep"],
+                            "dem": y["national"]["dem"], "source": y["source"], "url": y["url"]} for year, y in past.items()}}
+
+
+def add_house_vote_point(nv, now):
+    """data/results/house_vote_series.json: one point each time the national House vote moves, for the page's chart."""
+    if not nv["rep"] + nv["dem"]:
+        return
+    path = os.path.join(OUT_DIR, "house_vote_series.json")
+    doc = load(path, {"fields": ["t", "dem", "rep", "other", "districts", "same_states_2024"], "points": []})
+    point = [now, nv["dem"], nv["rep"], nv["other"], nv["districts"], nv["same_states"].get("2024")]
+    if doc["points"] and doc["points"][-1][1:] == point[1:]:
+        return
+    doc["points"].append(point)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(doc, f, separators=(",", ":"))
+
+
 def write_sources(health):
     """data/results/sources.json: each wired state's feed status; "changed" is when that status last changed."""
     path = os.path.join(OUT_DIR, "sources.json")
@@ -305,6 +383,9 @@ def main():
                 "other_total": nu.get("other", 0) + tally["other_called"] + tally["other_lead"],
                 "undecided": tally["undecided"],
             }
+        if office == "house":
+            out["national_vote"] = house_vote(out_races, load(HOUSE_PAST_PATH, {}).get("years", {}))
+            add_house_vote_point(out["national_vote"], now)
         wrote = write_if_changed(office, out)
         print("%-9s races=%d  D=%d R=%d other=%d undecided=%d%s" % (office, len(out_races), d, r, other, tally["undecided"], "" if wrote else "  (no change)"))
     if not any_data:

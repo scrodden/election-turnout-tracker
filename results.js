@@ -732,6 +732,125 @@
       ((data.races || []).some(function (r) { return r.civic_call; }) ? " · civicAPI&#39;s calls aren&#39;t counted here" : "");
   }
 
+  // ---- national House vote (results_update.house_vote): every Democrat's and Republican's votes added up; margins + = R ----
+  var NAT_MIN = 250000, natSeries = null;   // the first few votes swing wildly, so the chart starts here
+  function marginText(m) {
+    if (m == null) return "—";
+    var a = Math.abs(m).toFixed(1);
+    return +a === 0 ? "Even" : (m > 0 ? "R+" : "D+") + a;
+  }
+  function etTime(ms) {
+    return new Date(ms).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", hour: "numeric", minute: "2-digit" }) + " ET";
+  }
+  function renderNatVote(data) {
+    var host = $("#natvote"), n = data && data.national_vote;
+    if (office !== "house" || isPast() || !n) { host.hidden = true; return; }
+    host.hidden = false;
+    var has = n.rep + n.dem > 0, v = $("#natvote-verdict"), years = Object.keys(n.past || {}).sort().reverse();
+    v.textContent = has ? marginText(n.margin) + " so far" : "No votes yet";
+    v.style.color = !has || !n.margin ? "var(--muted)" : n.margin > 0 ? "var(--rep)" : "var(--dem)";
+    function seg(share, c, name) {
+      return "<div style='width:" + share + "%;background:" + c + ";color:#fff;font-size:12px;font-weight:700;line-height:28px;padding:0 8px;white-space:nowrap'>" +
+        (share >= 22 ? name + " " + share + "%" : "") + "</div>";
+    }
+    $("#natvote-bar").innerHTML = (has ? seg(n.dem_pct, "var(--dem)", "Democrats") + "<div style='flex:1;background:var(--rep);color:#fff;font-size:12px;font-weight:700;line-height:28px;padding:0 8px;text-align:right;white-space:nowrap'>" +
+      (n.rep_pct >= 22 ? "Republicans " + n.rep_pct + "%" : "") + "</div>" : "") +
+      "<div style='position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--ink)'></div>";
+    function fig(cls, k, val, d) { return "<div class='" + cls + "'><div class='k'>" + k + "</div><div class='v'>" + val + "</div><div class='d'>" + d + "</div></div>"; }
+    $("#natvote-figs").innerHTML = has
+      ? fig("dem", "Democrats", n.dem_pct + "%", fmt(n.dem) + " votes") + fig("rep", "Republicans", n.rep_pct + "%", fmt(n.rep) + " votes") +
+        fig("", "Other candidates", fmt(n.other), n.other_pct + "% of all votes") +
+        fig("", "Districts with votes", n.districts + " of " + n.of, fmt(n.rep + n.dem + n.other) + " votes in " + n.states + (n.states === 1 ? " state" : " states"))
+      : "";
+    var head = "<tr><th></th>" + (has ? "<th>2026 so far</th>" : "") + years.map(function (y) { return "<th>" + y + "</th>"; }).join("") + "</tr>";
+    var rows = (has ? "<tr><td>States counted so far</td><td><b>" + marginText(n.margin) + "</b></td>" +
+      years.map(function (y) { return "<td>" + marginText((n.same_states || {})[y]) + "</td>"; }).join("") + "</tr>" : "") +
+      "<tr><td>All 50 states, final</td>" + (has ? "<td>—</td>" : "") +
+      years.map(function (y) { return "<td><a href='" + n.past[y].url + "' target='_blank' rel='noopener'>" + marginText(n.past[y].margin) + "</a></td>"; }).join("") + "</tr>";
+    var base = (n.same_states || {})["2024"], shift = "";
+    if (has && base != null && n.margin != null) {
+      var d = n.margin - base, a = Math.abs(d).toFixed(1);
+      shift = "<p class='nv-shift'>" + (+a === 0 ? "About the same as these states in 2024." :
+        "<b>" + a + " points toward " + (d < 0 ? "Democrats" : "Republicans") + "</b> compared with these states in 2024.") + "</p>";
+    }
+    var first = (data.races || []).map(function (r) { return r.polls_close; }).filter(Boolean).sort()[0];
+    var wait = !has && first ? "<p class='nv-shift'>No votes counted yet. The first polls close at " +
+      new Date(first).toLocaleString("en-US", { timeZone: "America/New_York", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " ET.</p>" : "";
+    $("#natvote-compare").innerHTML = wait + "<table class='nv-table'><thead>" + head + "</thead><tbody>" + rows + "</tbody></table>" + shift;
+    $("#natvote-note").innerHTML = "Percentages and margins are of the combined Democratic and Republican vote, from the same figures as the scorecard" +
+      (n.via_civicapi ? " (" + fmt(n.via_civicapi) + " of these votes come through <a href='https://civicapi.org' target='_blank' rel='noopener'>civicAPI</a>)" : "") +
+      ". Which states have counted drives this number, especially early in the night, so the &ldquo;States counted so far&rdquo; row weights each state&rsquo;s past margin by the votes it has counted. Western states keep counting for days. " +
+      "Not adjusted for uncontested seats: on our ballot list, " + n.no_republican + " districts have no Republican and " + n.no_democrat + (n.no_democrat === 1 ? " has" : " have") + " no Democrat. Past figures: the Clerk of the House.";
+    if (has) getJSON("data/results/house_vote_series.json").then(function (d) { natSeries = d; drawNatChart(); }).catch(function () { natSeries = null; drawNatChart(); });
+    else { natSeries = null; drawNatChart(); }
+  }
+  function drawNatChart() {
+    var host = $("#natvote-chart");
+    var all = (natSeries || {}).points || [];
+    var pts = all.map(function (p) { return { t: Date.parse(p[0]), dem: p[1], rep: p[2], other: p[3], districts: p[4], past: p[5] == null ? null : p[5] }; })
+      .filter(function (p) { return p.dem + p.rep >= NAT_MIN; });
+    pts.forEach(function (p) { p.m = 100 * (p.rep - p.dem) / (p.rep + p.dem); });
+    if (pts.length < 2) { host.innerHTML = all.length ? "<p class='fineprint'>The chart over time appears once " + fmt(NAT_MIN) + " votes are in and the count has moved.</p>" : ""; return; }
+    var W = Math.max(300, host.clientWidth || 640), H = 230, L = 42, R = 56, T = 10, B = 24;
+    var vals = [0]; pts.forEach(function (p) { vals.push(p.m); if (p.past != null) vals.push(p.past); });
+    var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), step = [1, 2, 5, 10, 20, 50].filter(function (s) { return (hi - lo) / s <= 5; })[0] || 100;
+    lo = Math.floor(lo / step - 0.001) * step; hi = Math.ceil(hi / step + 0.001) * step;
+    var t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+    function x(t) { return L + (W - L - R) * (t - t0) / ((t1 - t0) || 1); }
+    function y(m) { return T + (H - T - B) * (hi - m) / (hi - lo); }
+    function line(key) {
+      return pts.filter(function (p) { return p[key] != null; }).map(function (p, i) { return (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p[key]).toFixed(1); }).join("");
+    }
+    var svg = "<rect x='" + L + "' y='" + T + "' width='" + (W - L - R) + "' height='" + (y(0) - T) + "' fill='var(--rep)' opacity='.07'/>" +
+      "<rect x='" + L + "' y='" + y(0) + "' width='" + (W - L - R) + "' height='" + (H - B - y(0)) + "' fill='var(--dem)' opacity='.07'/>";
+    for (var m = lo; m <= hi + 1e-9; m += step) {
+      svg += "<line x1='" + L + "' x2='" + (W - R) + "' y1='" + y(m) + "' y2='" + y(m) + "' stroke='" + (m === 0 ? "var(--muted)" : "var(--line)") + "' stroke-width='1'/>" +
+        "<text x='" + (L - 6) + "' y='" + (y(m) + 4) + "' text-anchor='end' font-size='11' fill='var(--muted)'>" + (m === 0 ? "Even" : marginText(m).replace(".0", "")) + "</text>";
+    }
+    // hour marks on the Eastern clock: the smallest step that leaves room for the labels
+    var span = (t1 - t0) / 3600000, every = [1, 2, 3, 6, 12, 24, 48, 96, 192].filter(function (h) { return span / h <= Math.max(3, (W - L - R) / 90); })[0] || 384;
+    for (var h = Math.ceil(t0 / 3600000) * 3600000; h <= t1; h += 3600000) {
+      var hr = +new Date(h).toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hourCycle: "h23" });
+      var day = Math.floor((h - Date.UTC(2026, 10, 3, 5)) / 3600000 / 24);   // days since midnight ET on Nov 3
+      if (every <= 24 ? hr % every : (hr || day % (every / 24))) continue;
+      svg += "<text x='" + x(h) + "' y='" + (H - 7) + "' text-anchor='middle' font-size='11' fill='var(--muted)'>" +
+        new Date(h).toLocaleString("en-US", hr === 0 || every >= 24 ? { timeZone: "America/New_York", month: "short", day: "numeric" } : { timeZone: "America/New_York", hour: "numeric" }) + "</text>";
+    }
+    var last = pts[pts.length - 1], lastPast = pts.filter(function (p) { return p.past != null; }).pop();
+    svg += lastPast ? "<path d='" + line("past") + "' fill='none' stroke='var(--series-ref)' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/>" : "";
+    svg += "<path d='" + line("m") + "' fill='none' stroke='var(--ink)' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'/>";
+    function endDot(p, v, c) { return "<circle cx='" + x(p.t) + "' cy='" + y(v) + "' r='4' fill='" + c + "' stroke='var(--card)' stroke-width='2'/>"; }
+    function endText(p, v, weight) { return "<text x='" + (x(p.t) + 8) + "' y='" + (y(v) + 4) + "' font-size='12' font-weight='" + weight + "' fill='var(--ink)'>" + marginText(v) + "</text>"; }
+    if (lastPast) {
+      svg += endDot(lastPast, lastPast.past, "var(--series-ref)");
+      if (Math.abs(y(lastPast.past) - y(last.m)) >= 15) svg += endText(lastPast, lastPast.past, 400);   // too close: the tooltip and table carry it
+    }
+    svg += endDot(last, last.m, "var(--ink)") + endText(last, last.m, 700);
+    svg += "<line class='nv-cross' y1='" + T + "' y2='" + (H - B) + "' stroke='var(--muted)' stroke-width='1' visibility='hidden'/>";
+    var rows = pts.slice().reverse().map(function (p) {
+      return "<tr><td>" + etTime(p.t) + "</td><td>" + marginText(p.m) + "</td><td>" + marginText(p.past) + "</td><td>" + fmt(p.dem) + "</td><td>" + fmt(p.rep) + "</td><td>" + p.districts + "</td></tr>";
+    }).join("");
+    host.innerHTML = "<div class='cm-legend' style='margin-top:14px'><b style='font-size:13px'>Margin through the count</b>" +
+      "<span class='cm-key'><i style='background:var(--ink)'></i>2026 so far</span>" +
+      "<span class='cm-key'><i style='background:var(--series-ref)'></i>These states in 2024, same mix of votes</span></div>" +
+      "<div class='nv-wrap'><svg height='" + H + "' viewBox='0 0 " + W + " " + H + "' role='img' aria-label='National House vote margin over the count; the table below has the figures'>" + svg + "</svg>" +
+      "<div class='cm-tip' hidden></div></div>" +
+      "<details><summary>Show the figures</summary><div class='nv-scroll'><table class='nv-table'><thead><tr><th>When</th><th>2026</th><th>These states, 2024</th><th>Democrats</th><th>Republicans</th><th>Districts</th></tr></thead><tbody>" + rows + "</tbody></table></div></details>";
+    var wrap = host.querySelector(".nv-wrap"), tip = wrap.querySelector(".cm-tip"), cross = wrap.querySelector(".nv-cross");
+    wrap.addEventListener("pointermove", function (e) {
+      var box = wrap.getBoundingClientRect(), px = (e.clientX - box.left) * W / box.width, near = pts[0];
+      pts.forEach(function (p) { if (Math.abs(x(p.t) - px) < Math.abs(x(near.t) - px)) near = p; });
+      cross.setAttribute("x1", x(near.t)); cross.setAttribute("x2", x(near.t)); cross.setAttribute("visibility", "visible");
+      tip.innerHTML = "<b>" + etTime(near.t) + "</b><br>2026 so far: <b>" + marginText(near.m) + "</b><br>These states in 2024: " + marginText(near.past) +
+        "<br>Democrats: " + fmt(near.dem) + "<br>Republicans: " + fmt(near.rep) + "<br>Districts with votes: " + near.districts;
+      tip.hidden = false;
+      var left = x(near.t) * box.width / W + 12;
+      tip.style.left = (left + tip.offsetWidth > box.width ? Math.max(0, left - tip.offsetWidth - 24) : left) + "px";
+      tip.style.top = "8px";
+    });
+    wrap.addEventListener("pointerleave", function () { tip.hidden = true; cross.setAttribute("visibility", "hidden"); });
+  }
+
   function whatifBalance() {
     var data = cache[office], b = data.balance; if (!b) return null;
     var nu = b.not_up || { D: 0, R: 0, other: 0 };
@@ -760,7 +879,7 @@
     var data = cache[office + "|" + year];
     if (!isPast()) ensurePrev(office);
     if (isPast()) { $("#balance").hidden = true; }
-    renderMeta(data); renderBalance(data); renderSummary(data); renderMap(data); renderScore(data); renderWhatif();
+    renderMeta(data); renderBalance(data); renderNatVote(data); renderSummary(data); renderMap(data); renderScore(data); renderWhatif();
   }
   function fillYears() {
     var sel = $("#year"); if (!sel) return;
@@ -806,6 +925,8 @@
         loadOffice(YEARS[ho] ? ho : "senate");
       }
       window.addEventListener("hashchange", fromHash);
+      var redraw = null;
+      window.addEventListener("resize", function () { clearTimeout(redraw); redraw = setTimeout(function () { if (office === "house" && natSeries) drawNatChart(); }, 150); });
       fromHash();
     }).catch(function (e) { $("#summary").innerHTML = "<span class='pill'>Could not load map: " + e.message + "</span>"; });
   }

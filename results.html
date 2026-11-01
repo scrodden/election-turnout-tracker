@@ -62,6 +62,24 @@
   .badge.dem { background: rgba(43,108,176,.15); color: var(--dem); } .badge.rep { background: rgba(214,47,47,.14); color: var(--rep); }
   .badge.unc { background: rgba(127,127,127,.14); color: var(--muted); }
   .navrow { display:flex; justify-content: space-between; align-items:center; gap: 12px; flex-wrap: wrap; }
+  #whatif-bar[hidden] { display: none !important; }   /* its inline display:flex would otherwise show an empty bar */
+  .nv-figs:empty { display: none; }
+  .map-card .card-head { flex-wrap: wrap; }
+  .nv-figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 16px; margin: 10px 0 14px; }
+  .nv-figs .k { font-size: 12px; color: var(--muted); }
+  .nv-figs .v { font-size: 20px; font-weight: 700; }
+  .nv-figs .d { font-size: 12px; color: var(--muted); }
+  .nv-figs .dem .v { color: var(--dem); } .nv-figs .rep .v { color: var(--rep); }
+  .nv-table { border-collapse: collapse; font-size: 13px; width: 100%; max-width: 560px; }
+  .nv-table th, .nv-table td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .nv-table th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--card); }
+  .nv-table th:first-child, .nv-table td:first-child { text-align: left; white-space: normal; padding-left: 0; }
+  .nv-shift { font-size: 13px; margin: 8px 0 0; }
+  .nv-wrap { position: relative; margin-top: 8px; }
+  .nv-wrap svg { display: block; width: 100%; touch-action: pan-y; }
+  .nv-scroll { max-height: 260px; overflow: auto; margin-top: 6px; }
+  .nv-scroll .nv-table { max-width: none; } .nv-scroll th { position: sticky; top: 0; }
+  #natvote details { margin-top: 8px; font-size: 12.5px; } #natvote summary { cursor: pointer; color: var(--accent); }
 </style>
 </head>
 <body>
@@ -105,6 +123,15 @@
     <div id="whatif-bar" hidden style="position:relative;height:22px;border-radius:6px;overflow:hidden;display:flex;background:var(--line);margin:8px 0 2px;"></div>
   </section>
 
+  <section id="natvote" class="card" hidden aria-label="National House vote" style="margin:14px 0;padding:14px 16px;">
+    <div class="card-head"><h2>National House vote</h2><span id="natvote-verdict" style="font-weight:700"></span></div>
+    <div id="natvote-bar" style="position:relative;height:28px;border-radius:6px;overflow:hidden;display:flex;gap:2px;background:var(--line);margin:10px 0;"></div>
+    <div id="natvote-figs" class="nv-figs"></div>
+    <div id="natvote-compare"></div>
+    <div id="natvote-chart"></div>
+    <p class="fineprint" id="natvote-note"></p>
+  </section>
+
   <section class="rsum" id="summary" aria-label="Summary"></section>
 
   <section class="rgrid">
@@ -146,6 +173,6 @@
   </footer>
 </main>
 
-<script src="results.js?v=2026101305"></script>
+<script src="results.js?v=2026110101"></script>
 </body>
 </html>
