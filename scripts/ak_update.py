@@ -267,8 +267,21 @@ def main():
         "no_party_text": ("The Division of Elections doesn't report these ballots by party, so this is turnout only; "
                           "the L2 card below has a modeled party profile for each district."),
     }
+    # more ballots received than sent for a type is a mistake in the Division's table (11/1: Online Delivery 24,332 received
+    # of 7,469 sent, the same number as its By Mail row). Its figures are published as they are, with a warning on the page.
+    odd = [(k, v) for k, v in r["rows"].items() if v[1] > v[0]]
+    if odd:
+        acc = sum(u.get("acc", 0) for u in (saved.get("lab") or {}).values()) + (saved.get("lab_rest") or {}).get("acc", 0)
+        body["source_warning"] = (
+            "The Division of Elections' table (%s) lists more ballots received than sent for %s, so its %s ballots received, shown "
+            "here, look overstated until it corrects the table.%s"
+            % (r["updated"], "; ".join("%s (%s received, %s sent)" % (k.title(), format(v[1], ","), format(v[0], ",")) for k, v in odd),
+               format(r["received"], ","),
+               " Its district report (as of %s) counts %s mail ballots accepted, against %s here." % (saved.get("lab_as_of"), format(acc, ","), format(mail, ","))
+               if acc else ""))
     import lab_standin as LAB
-    bad = LAB.suspicious_drop(prev, r["received"])
+    # a corrected table can fall a long way below the overstated one: don't hold the correction back
+    bad = None if prev.get("source_warning") else LAB.suspicious_drop(prev, r["received"])
     if bad:
         print("ak: %s" % bad, file=sys.stderr)
         return 0

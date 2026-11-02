@@ -287,7 +287,9 @@
       fb.hidden = false;
       if (rn) rn.textContent = "Final — updates stopped";
     } else if (fb) {
-      fb.hidden = true;
+      // a connector's own warning about its source (e.g. Alaska's table listing more ballots received than sent)
+      fb.textContent = data.source_warning ? "⚠ " + data.source_warning : "";
+      fb.hidden = !data.source_warning;
       if (rn) rn.textContent = "Auto-refreshes every 10 min";
     }
   }
