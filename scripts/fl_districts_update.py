@@ -66,6 +66,43 @@ def close_of_day(mdy):
     return (d + timedelta(hours=23 + offset, minutes=59)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def through_date(idx):
+    """Their 'dataThrough' -> a date close_of_day reads: '09/30/2026', 'October 29, 2026', or since 11/02 a phrase
+    ('November 1 activity except explicitly retained October 30 county methods'), whose leading date takes the
+    year from their snapshotDate."""
+    import re
+    raw = idx.get("dataThrough", "")
+    m = re.match(r"\s*(\d{1,2}/\d{1,2}/\d{4}|[A-Z][a-z]+ \d{1,2}, \d{4})", raw)
+    if m:
+        return m.group(1)
+    m, yr = re.match(r"\s*([A-Z][a-z]+ \d{1,2})\b", raw), re.search(r"\d{4}", idx.get("snapshotDate") or idx.get("electionDate") or "")
+    return "%s, %s" % (m.group(1), yr.group(0)) if m and yr else raw
+
+
+def carried_over(cov):
+    """Counties whose newest upload is older than the rest, which their tables carry forward (11/02: Levy mail, Leon
+    and Levy early voting, from October 30) -> ' Leon (early in person) and Levy (mail and early in person) are
+    carried over from October 30: those counties posted no newer file.'"""
+    from datetime import datetime
+    names = {c["code"]: c["name"] for c in (load(os.path.join(ROOT, "config", "fl_counties.json"), {}) or {}).get("counties", [])}
+    how = {"VBM": "mail", "EVL": "early in person"}
+    by = {}
+    for m in cov.get("carriedForward") or cov.get("missing") or []:
+        by.setdefault(m.get("sourceDate", ""), {}).setdefault(names.get(m.get("county"), m.get("county")), []).append(
+            how.get(m.get("method"), m.get("method")))
+    out = ""
+    for day, cs in sorted(by.items()):
+        try:
+            day = datetime.strptime(day, "%Y-%m-%d").strftime("%B %d").replace(" 0", " ")
+        except ValueError:
+            pass
+        each = ["%s (%s)" % (c, " and ".join(ms)) for c, ms in sorted(cs.items())]
+        out += " %s %s carried over from %s: %s posted no newer file." % (
+            " and ".join([", ".join(each[:-1]), each[-1]] if len(each) > 1 else each), "are" if len(each) > 1 else "is",
+            day, "those counties" if len(each) > 1 else "the county")
+    return out
+
+
 def unit(rec):
     """One district (or the statewide row): vote-by-mail returned and, since early voting opened, early
     in-person votes, each by party ('<party>Returned' / '<party>Early'); cast = their '<party>Cast', the two
@@ -118,10 +155,16 @@ def main():
         print("FL districts: tracker is on election %s, not %s — skipping."
               % (idx.get("electionNumber"), cfg["tqv"]["fvrs_election_number"]), file=sys.stderr)
         return 0
-    through = idx.get("dataThrough", "")
+    through = through_date(idx)
     prev_cd = load(probe, {}) or {}
     if not force and idx.get("generatedAt") and idx.get("generatedAt") == prev_cd.get("source_generated"):
         print("fl districts: NOCHANGE (their tables generated %s, through %s)" % (idx["generatedAt"], through))
+        return 0
+    # 11/02: a CI run was served their October 30 index 12 minutes after the November 2 one went up (home fetch
+    # got the new one); an older copy than ours is a stale cache, not a correction -- don't roll the maps back
+    if not force and (idx.get("generatedAt") or "") < (prev_cd.get("source_generated") or ""):
+        print("fl districts: their index (generated %s) is older than ours (%s) -- a stale cached copy; skipping."
+              % (idx.get("generatedAt"), prev_cd["source_generated"]))
         return 0
     cov = idx.get("coverage") or {}
     statewide = unit(idx.get("statewide") or {})
@@ -161,6 +204,7 @@ def main():
                 "District totals from 305 Data Girl's Florida tracker, built from the state's county voter-level "
                 "vote-by-mail and early-voting files%s." % ("Vote-by-mail ballots returned and early in-person votes" if has_early
                                                           else "Vote-by-mail ballots returned", through, short))
+        note += carried_over(cov)
         if in_both:
             note += (" %s voter%s found in both the mail and early-voting files %s counted once in the combined totals."
                      % (format(in_both, ","), "" if in_both == 1 else "s", "is" if in_both == 1 else "are"))
