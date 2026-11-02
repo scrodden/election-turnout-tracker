@@ -18,7 +18,8 @@
     { key: "election_day", label: "Election day" },
     { key: "provisional", label: "Provisional" },
     { key: "mail_requested", label: "Mail requested", optional: true },   // shown only where a state reports requests (OH)
-    { key: "mail_provided", label: "Mail outstanding" }
+    { key: "mail_provided", label: "Mail outstanding" },
+    { key: "not_voted", label: "Not yet voted", optional: true }   // FL: registered minus cast, by party
   ];
   var HINTS = {
     cast: "Party registration of everyone who has already cast a ballot (mail + early in person + election day).",
@@ -27,6 +28,7 @@
     election_day: "Party registration of voters who cast a ballot on election day.",
     provisional: "Party registration of voters who cast a provisional ballot.",
     mail_provided: "Party registration of voters SENT a mail ballot who have not yet returned it (outstanding). From the state file; TQV does not report this.",
+    not_voted: "Registered voters who haven't cast a ballot yet, by party: each county's registration by party minus its ballots cast so far.",
     mail_requested: "Party of voters who have requested an absentee (mail) ballot - applications, not ballots cast."
   };
 
@@ -345,7 +347,7 @@
       });
       return;
     }
-    host.appendChild(statCard("", (method === "mail_provided" ? "Ballots outstanding" : "Ballots (statewide)"),
+    host.appendChild(statCard("", (method === "mail_provided" ? "Ballots outstanding" : method === "not_voted" ? "Not yet voted (statewide)" : "Ballots (statewide)"),
       fmt(total), METHODS.filter(function (m) { return m.key === method; })[0].label,
       total ? [
         { w: b.rep_pct, c: "var(--rep)", t: "Republican" },
@@ -360,7 +362,7 @@
     // e.g. OH: a county's own daily report ahead of the state's party data -> ballots without a party yet
     if (b.unk) host.appendChild(statCard("", "Party not reported", fmt(b.unk), data.unk_label || "counted, but no party in the source yet"));
     var mc = statCard("", "Partisan lean", marginText(b.margin),
-      total ? (b.unk ? "of ballots with a known party" : "of ballots in this category") : "no ballots yet");
+      total ? (b.unk ? "of ballots with a known party" : method === "not_voted" ? "of registered voters left" : "of ballots in this category") : "no ballots yet");
     mc.querySelector(".v").style.color = b.margin == null ? "var(--muted)" : (b.margin > 0 ? "var(--rep)" : b.margin < 0 ? "var(--dem)" : "var(--ink)");
     host.appendChild(mc);
 
@@ -516,8 +518,11 @@
     $("#map-title").textContent = mapMode === "precinct" ? "Turnout by precinct" + (outlined ? " · " + unitLabelPlural.toLowerCase() : "")
       : (unitPartisan ? "Partisan lean by " + unitLc : (hasT ? "Early turnout by " : "Early ballots by ") + unitLc);
     $("#map-note").textContent = mapMode === "precinct"
-      ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
-      : (unitPartisan
+      ? "Shaded by turnout (share of eligible voters who have cast a ballot in the selected category" + (PFIELD[method] ? "" : "; for this one, all ballots cast") +
+        "). Precinct-level party is not published live, so lean stays on the county map. Counties fill in as their boundaries are added and voting begins."
+      : (unitPartisan && method === "not_voted"
+        ? "Red = Republican lean, blue = Democratic lean, by party registration of the registered voters in each " + unitLc + " who haven't voted yet."
+        : unitPartisan
         ? "Red = Republican lean, blue = Democratic lean, by " + ((data && data.party_basis) || "party registration") + " of ballots in the selected category. Gray = no ballots" +
           (data && data.party_basis ? " with a known party" : "") + " yet."
         : hasT
@@ -621,8 +626,9 @@
     if (arr) {
       var val = arr[idx] || 0, elig = arr[0] || 0, cast = arr[1] || 0;
       var to = elig ? (100 * val / elig).toFixed(2) + "%" : "—";
-      lines += "<br>" + METHODS.filter(function (m) { return m.key === method; })[0].label +
-        ": " + fmt(val) + "<br>Cast: " + fmt(cast) + " of " + fmt(elig) + " eligible" +
+      // categories precincts don't carry (mail outstanding, not yet voted) are shaded by all ballots cast
+      lines += (method === "not_voted" ? "<br>Not yet voted: " + fmt(Math.max(0, elig - cast)) : PFIELD[method] ? "<br>" + methodLabel(method) + ": " + fmt(val) : "") +
+        "<br>Cast: " + fmt(cast) + " of " + fmt(elig) + " eligible" +
         "<br>Turnout: <span class='tt-margin'>" + to + "</span>";
     } else {
       lines += "<br>No ballots cast yet";

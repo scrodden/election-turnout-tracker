@@ -60,7 +60,8 @@
     "early_voted": "Voted early in person",
     "election_day": "Voted on election day",
     "provisional": "Provisional ballots",
-    "mail_provided": "Mail ballots outstanding"
+    "mail_provided": "Mail ballots outstanding",
+    "not_voted": "Registered, not yet voted"
   },
   "races": [
     {
@@ -113,5 +114,9 @@
       "No Party Affiliation": "npa",
       "Other": "oth"
     }
+  },
+  "registration_county": {
+    "_comment": "Registered voters by county and party for the 'Not yet voted' map (registered minus ballots cast, by party). Sam's link, 2026-11-02; monthly, Sept 30 for the general (the Oct 5 book-closing report wasn't posted as of 11/02).",
+    "url": "https://dos.fl.gov/elections/data-statistics/voter-registration-statistics/voter-registration-reports/voter-registration-by-county-and-party/"
   }
 }

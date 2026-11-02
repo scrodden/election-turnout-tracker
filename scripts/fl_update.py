@@ -528,6 +528,61 @@ def append_history(snap):
 COUNTY_LINKS = {}
 
 
+REG_CACHE_PATH = os.path.join(DATA_DIR, "registration_county.json")
+
+
+def _cname(s):
+    return re.sub(r"[^a-z]", "", s.lower())   # 'ST. JOHNS' / 'St. Johns', 'DESOTO' / 'DeSoto'
+
+
+def county_registration(cfg):
+    """Registered voters by county and party from the Division of Elections' 'Voter Registration - By County and
+    Party' table (config registration_county; monthly, Sept 30 for the general) -> {"as_of", "url", "counties":
+    {normalized name: {rep, dem, oth, npa}}}. Minor parties -> oth, No Party Affiliation -> npa, as in the TQV party
+    map. Re-read about every 6 hours; the last full read (all 67 counties) is kept."""
+    src = cfg.get("registration_county") or {}
+    cache = load_json(REG_CACHE_PATH) if os.path.exists(REG_CACHE_PATH) else {}
+    if not src or (cache.get("counties") and C.checked_recently(DATA_DIR, "registration_county", minutes=360)):
+        return cache
+    try:
+        page = C.http_get(src["url"], no_cache=True, retries=2)
+        rows = re.findall(r"<td>([A-Z][^<]*)</td>\s*<td>([\d,]+)</td>\s*<td>([\d,]+)</td>\s*"
+                          r"<td>([\d,]+)</td>\s*<td>([\d,]+)</td>\s*<td>([\d,]+)</td>", page)
+        out = {_cname(n): {"rep": C.parse_number(r), "dem": C.parse_number(d), "oth": C.parse_number(m), "npa": C.parse_number(p)}
+               for n, r, d, m, p, _t in rows}
+        if len(out) != 67:
+            raise ValueError("%d county rows" % len(out))
+        m = re.search(r"[Aa]s of\s*(?:<[^>]+>\s*)*([A-Z][a-z]+ \d{1,2}, \d{4})", page)
+        cache = {"as_of": m.group(1) if m else "", "url": src["url"], "counties": out}
+        with open(REG_CACHE_PATH, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(cache, f, separators=(",", ":"))
+    except Exception as e:  # noqa: BLE001
+        print("  county registration unavailable (%s) -- keeping the last copy" % str(e)[:100])
+    return cache
+
+
+def add_not_voted(counties_out, statewide, reg):
+    """Each county's registered voters by party minus its ballots cast by party: who could still vote (Sam,
+    11/02: the not-yet-voted map going into Election Day). All 67 counties or none. A party whose ballots
+    exceed its Sept 30 registration (new registrants through book closing on Oct 5, party changes) counts
+    0 and is listed in the note."""
+    rc = reg.get("counties") or {}
+    if len(rc) != 67 or any(_cname(n) not in rc for n in counties_out):
+        return None
+    over = []
+    for name, ent in counties_out.items():
+        r, c = rc[_cname(name)], ent.get("cast") or {}
+        left = {p: r[p] - c.get(p, 0) for p in ("rep", "dem", "oth", "npa")}
+        over += ["%s (%s)" % (name, p) for p in left if left[p] < 0]
+        ent["not_voted"] = C.party_block(*(max(0, left[p]) for p in ("rep", "dem", "oth", "npa")))
+        for k in ("compiled", "compiled_iso"):
+            ent["not_voted"].pop(k, None)
+    statewide["not_voted"] = C.add_blocks(*(e["not_voted"] for e in counties_out.values()))
+    for k in ("compiled", "compiled_iso"):
+        statewide["not_voted"].pop(k, None)
+    return {"as_of": reg.get("as_of", ""), "url": reg.get("url", ""), "over": over}
+
+
 def county_drop(old, new):
     """A county feed that suddenly loses most of its ballots (Pinellas's TQV file at 10/29 20:50 UTC: 211,735 -> 197
     ballots, back to normal at 21:00) -> the reason, or None if the new figures look fine. Counts are cumulative, so
@@ -728,6 +783,9 @@ def main():
     statewide["mail"] = compute_mail(statewide)
 
     methods_present = sorted({m for c in counties_out.values() for m in ALL_METHODS if c.get(m)})
+    not_voted = add_not_voted(counties_out, statewide, county_registration(cfg))
+    if not_voted:
+        methods_present.append("not_voted")
 
     snap = {
         "state": STATE, "state_name": cfg["state_name"], "election": cfg["election"],
@@ -739,6 +797,13 @@ def main():
         "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
+    if not_voted:
+        snap["not_voted_source"] = not_voted
+        snap["party_hints"] = {"not_voted": (
+            "Registered voters who haven't cast a ballot yet, by party: each county's registration by party (Florida Division of "
+            "Elections, as of %s) minus its ballots cast so far, updated as ballots come in. Registration is a monthly snapshot, so "
+            "people who registered between then and the Oct. 5 deadline aren't in it. This is the pool left, not a forecast: many "
+            "of them won't vote." % (not_voted["as_of"] or "its latest report"))}
     snap["data_hash"] = C.data_hash(snap)
     snap["generated_at"] = C.utc_now_iso()
 
