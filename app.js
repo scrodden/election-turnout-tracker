@@ -1088,31 +1088,61 @@
     if (hasLean) drawLineChart($("#chart-lean"), lean, { symmetric: true, zero: true, fmt: marginText, color: "var(--accent)",
       tip: function (p) { return marginText(p.y) + (p.n ? " of " + fmt(p.n) + " ballots" : ""); } });
     var note = $("#trend-note");
-    note.hidden = !(m !== "cast" && since);
+    note.hidden = !(m !== "cast" && m !== "election_day" && since);   // Election Day votes only ever start on the day
     note.textContent = note.hidden ? "" : "This state's updates recorded " + label.toLowerCase() + " separately from " + since +
       " on; earlier updates kept only the total.";
     renderTrendTable(recs, label, hasLean);
   }
+  var ET_HOUR = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "numeric", hourCycle: "h23" });
+  function etParts(t) {
+    var o = {}; ET_HOUR.formatToParts(t).forEach(function (x) { o[x.type] = x.value; });
+    return { date: o.year + "-" + o.month + "-" + o.day, hour: +o.hour % 24 };
+  }
+  function hourSpan(h) {   // 7 -> "7–8 AM", 11 -> "11 AM–12 PM"
+    function f(x) { return x % 12 || 12; }
+    function ap(x) { return x % 24 < 12 ? "AM" : "PM"; }
+    return ap(h) === ap(h + 1) ? f(h) + "–" + f(h + 1) + " " + ap(h) : f(h) + " " + ap(h) + "–" + f(h + 1) + " " + ap(h + 1);
+  }
   // one row per day (the day's last update): the total so far, what that day added and, where party is
-  // reported, the composition so far and of that day's added ballots
+  // reported, the composition so far and of that day's added ballots. On the Election Day tab, Election Day
+  // itself is one row per hour (Eastern), as of the hour's last update, counting up from 0 at the polls' opening.
   function renderTrendTable(recs, label, hasLean) {
-    var host = $("#trend-table"), title = $("#trend-day-title");
-    var days = [], byKey = {};
+    var host = $("#trend-table"), title = $("#trend-day-title"), tnote = $("#trend-table-note");
+    var eday = method === "election_day" && data && data.election && data.election.date;
+    var days = [], byKey = {}, hourly = false;
     recs.forEach(function (p) {
-      var k = p.t.getFullYear() + "-" + (p.t.getMonth() + 1) + "-" + p.t.getDate();
+      var et = eday ? etParts(p.t) : null, k;
+      if (et && et.date === eday) { k = "h" + et.hour; p = { t: p.t, a: p.a, hour: et.hour }; hourly = true; }
+      else k = p.t.getFullYear() + "-" + (p.t.getMonth() + 1) + "-" + p.t.getDate();
       if (!(k in byKey)) { byKey[k] = days.length; days.push(p); } else days[byKey[k]] = p;
     });
+    // the hours start the table: a few stray Election Day ballots recorded before the day (FL: 2 in October,
+    // 1 on Nov 1) are only the first hour's starting point
+    var base = null;
+    if (hourly) {
+      var fi = 0;
+      while (days[fi].hour == null) fi++;
+      base = fi ? days[fi - 1].a : [0, 0, 0, 0, 0];
+      days = days.slice(fi);
+    }
     title.hidden = host.hidden = !days.length;
+    if (tnote) tnote.hidden = !hourly;   // (a page cached from before 11/02 lacks it)
+    if (tnote) tnote.textContent = hourly ? "Each hour shows Election Day ballots as of our last update in that hour, Eastern time. Counties post " +
+      "to their turnout feeds on their own schedules, most about hourly, so an hour's ballots are those posted during it, which can " +
+      "trail when they were cast." : "";
     if (!days.length) { host.innerHTML = ""; return; }
-    title.textContent = "By day · " + label.toLowerCase();
+    title.textContent = (hourly ? "By hour · " : "By day · ") + label.toLowerCase();
+    var per = hourly ? "hour" : "day";
     function pc(n, d) { return d ? (100 * n / d).toFixed(1) + "%" : "—"; }
     var partial = hasLean && days.some(function (p) { var a = p.a; return a[0] + a[1] + a[2] + a[3] && a[0] + a[1] + a[2] + a[3] < a[4]; });
-    var head = "<tr><th>Date</th><th>So far</th><th>Added that day</th>" + (hasLean ?
+    var head = "<tr><th>" + (hourly ? "Hour (ET)" : "Date") + "</th><th>So far" + (hourly ? " today" : "") + "</th><th>Added that " + per + "</th>" + (hasLean ?
       "<th>Rep</th><th>Dem</th><th>No party / other</th><th>Lean so far" + (partial ? "<small>of ballots with a known party</small>" : "") +
-      "</th><th>That day&rsquo;s ballots<small>R · D · other, lean</small></th>" : "") + "</tr>";
+      "</th><th>That " + per + "&rsquo;s ballots<small>R · D · other, lean</small></th>" : "") + "</tr>";
     var rows = days.map(function (p, i) {
-      var a = p.a, prev = i ? days[i - 1].a : null, add = prev ? a[4] - prev[4] : null;
-      var cells = "<td>" + p.t.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + "</td><td>" + fmt(a[4]) + "</td><td>" +
+      var a = p.a, prev = i ? days[i - 1].a : base, add = prev ? a[4] - prev[4] : null;
+      var when = p.hour != null ? hourSpan(p.hour) : p.t.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      var cells = "<td>" + when + "</td><td>" + fmt(a[4]) + "</td><td>" +
         (add == null ? "—" : (add < 0 ? "−" : "") + fmt(Math.abs(add))) + "</td>";
       if (hasLean) {
         var k = a[0] + a[1] + a[2] + a[3];
@@ -1122,7 +1152,7 @@
           "<td><b>" + (k ? marginText(Math.round((a[0] - a[1]) / k * 1000) / 10) : "—") + "</b></td>";
         var dr = prev ? a[0] - prev[0] : null, dd = prev ? a[1] - prev[1] : null, dn = prev ? a[2] + a[3] - prev[2] - prev[3] : null;
         var dk = prev ? dr + dd + dn : 0;
-        cells += "<td>" + (prev && dk > 0 && dr >= 0 && dd >= 0 && dn >= 0 && prev[0] + prev[1] + prev[2] + prev[3] ?
+        cells += "<td>" + (prev && dk > 0 && dr >= 0 && dd >= 0 && dn >= 0 && (p.hour != null || prev[0] + prev[1] + prev[2] + prev[3]) ?
           pc(dr, dk) + " · " + pc(dd, dk) + " · " + pc(dn, dk) + "<span class='sub'>" + marginText(Math.round((dr - dd) / dk * 1000) / 10) +
           " of " + fmt(dk) + "</span>" : "—") + "</td>";
       }
