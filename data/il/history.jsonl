@@ -68,3 +68,4 @@
 {"generated_at":"2026-11-02T09:27:57Z","statewide":{"cast":[0,0,0,0,1382486],"mail_voted":[0,0,0,0,617562],"mail_provided":[0,0,0,0,563760],"early_voted":[0,0,0,0,764924]}}
 {"generated_at":"2026-11-02T09:39:24Z","cast":1382486,"data_hash":"b66aec6f2db459441017128e4629526eb8bd9ca552445b91ac94bfad7ade72ee","statewide":{"mail_voted":[0,0,0,0,617562],"early_voted":[0,0,0,0,764924],"mail_provided":[0,0,0,0,563760],"cast":[0,0,0,0,1382486]}}
 {"generated_at":"2026-11-02T16:58:56Z","statewide":{"cast":[0,0,0,0,1579728],"mail_voted":[0,0,0,0,675585],"mail_provided":[0,0,0,0,513089],"early_voted":[0,0,0,0,904143]}}
+{"generated_at":"2026-11-02T17:13:27Z","cast":1579728,"data_hash":"e0b9fc5f8e049af7b9b60131aecd1475bf9a742281beaa6f1531a5f981abc134","statewide":{"mail_voted":[0,0,0,0,675585],"early_voted":[0,0,0,0,904143],"mail_provided":[0,0,0,0,513089],"cast":[0,0,0,0,1579728]}}
