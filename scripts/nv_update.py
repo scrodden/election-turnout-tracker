@@ -26,7 +26,7 @@ Run:  python scripts/nv_update.py [--force] [--all]
 import os
 import sys
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -42,6 +42,7 @@ HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 GEO_PATH = os.path.join(ROOT, "assets", "nv-counties.geojson")
 CD_GEO_PATH = os.path.join(ROOT, "assets", "nv-cd.geojson")
 DISTRICTS_PATH = os.path.join(DATA_DIR, "districts.json")
+EV_DAYS_PATH = os.path.join(DATA_DIR, "_ev_days.json")
 VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]
 
 
@@ -104,15 +105,33 @@ def main():
     # 1) in-person voting (sum days within the general window); VIVID tags Election
     # Day (Nov 3) in the same per-day/county/party rows -- split it into its own
     # method rather than folding it into early_voted.
+    in_person_report = ""
     try:
         t = json.loads(C.http_get(cfg["source"]["turnout_seed"], referer=ref, no_cache=True))
+        in_person_report = t.get("sourceName") or t.get("report") or ""
+        days = {day.get("date", ""): day.get("rows", []) for day in t.get("days", [])}
+        # the feed is VIVID's 'in-person-early-voting-turnout' report: should Election Day replace it with a
+        # Nov 3-only report, keep the early-voting days as last read rather than drop ~250k early votes
+        if not ignore_gate:
+            try:
+                kept = load(EV_DAYS_PATH).get("days", {})
+            except (OSError, ValueError):
+                kept = {}
+            early = {d: r for d, r in days.items() if gstart <= d < eday and r}
+            gone = sorted(set(kept) - set(early))
+            if gone:
+                print("nv: in-person feed (%s) no longer lists %d early-voting days (%s..%s) -- kept from the last read"
+                      % (in_person_report, len(gone), gone[0], gone[-1]))
+                days.update({d: kept[d] for d in gone})
+            if early and {**kept, **early} != kept:
+                with open(EV_DAYS_PATH, "w", encoding="utf-8", newline="\n") as f:
+                    json.dump({"source": in_person_report, "days": {**kept, **early}}, f, separators=(",", ":"))
         used_ev = False
-        for day in t.get("days", []):
-            d = day.get("date", "")
+        for d, rows in sorted(days.items()):
             if not ignore_gate and d < gstart:
                 continue
             method = "election_day" if d >= eday else "early_voted"
-            for r in day.get("rows", []):
+            for r in rows:
                 add(r.get("county"), method, "dem", r.get("dem"))
                 add(r.get("county"), method, "rep", r.get("rep"))
                 add(r.get("county"), method, "oth", r.get("other"))
@@ -204,6 +223,14 @@ def main():
         "methods_present": methods_present, "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
+    if in_person_report:
+        snap["source"]["in_person_report"] = in_person_report
+    # VIVID is said to show Election Day turnout by county and party, but whether it lands in this feed (which so
+    # far is early voting only) is unproven: from 10 am Pacific on Election Day, say so on the page while it doesn't
+    pt = datetime.now(timezone.utc) - timedelta(hours=8)
+    if not statewide.get("election_day") and (pt.date().isoformat() > eday or (pt.date().isoformat() == eday and pt.hour >= 10)):
+        snap["source_warning"] = ("Nevada's Election Day in-person votes aren't in the Secretary of State's VIVID feed yet, "
+                                  "so the figures here are mail and early in-person ballots only.")
     snap["data_hash"] = C.data_hash({k: v for k, v in snap.items() if k != "source_compiled_iso"})
     snap["generated_at"] = C.utc_now_iso()
 

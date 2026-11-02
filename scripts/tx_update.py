@@ -164,7 +164,8 @@ def read_live(name, eday):
 def read_arcgis(name, src):
     """A county vote-center map's feature layer (Dallas): each site's running total of
     in-person early votes -> {"early", "eday", "provisional", "as_of", "url", "source"} or None.
-    Election Day rows aren't read yet (their fields' meaning on Nov 3 is unverified)."""
+    Election Day sites are their own rows (Dallas, 11/02: 444 'ED' rows, 82 of them at early sites'
+    addresses under new ids, all 0), so from Election Day their votes are read as `eday`."""
     lay = src["layer"].rstrip("/")
     tf, df = src["total_field"], src.get("daily_field", src["total_field"])
     try:
@@ -186,7 +187,12 @@ def read_arcgis(name, src):
         return None
     edit = ((meta.get("editingInfo") or {}).get("dataLastEditDate") or 0) / 1000
     when = datetime.fromtimestamp(edit, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if edit else ""
-    return {"early": sum(r[tf] for r in ev), "eday": 0, "provisional": 0, "as_of": when,
+    # Election Day rows: only from the day itself (Central time), so test entries before it can't count
+    eday = 0
+    if src.get("ed") and (datetime.now(timezone.utc) - timedelta(hours=6)).date().isoformat() >= src["election_date"]:
+        ed = [r for r in rows if r.get(src["type_field"]) == src["ed"]]
+        eday = sum(max(r.get(tf) or 0, r.get(df) or 0) for r in ed if isinstance(r.get(tf) or 0, int))
+    return {"early": sum(r[tf] for r in ev), "eday": eday, "provisional": 0, "as_of": when,
             "url": src.get("page", lay), "source": src.get("label", "county vote-center map"), "sites": len(ev)}
 
 
@@ -492,7 +498,7 @@ def main():
                for n in live_counties(sorted(counties), eday, force="--rediscover" in sys.argv)}
     for n, src in (cfg.get("live_arcgis") or {}).items():
         if not n.startswith("_"):
-            readers[n] = (lambda n=n, src=src: read_arcgis(n, src))
+            readers[n] = (lambda n=n, src=src: read_arcgis(n, dict(src, election_date=eday)))
     for n, src in (cfg.get("live_pdf") or {}).items():
         if not n.startswith("_"):
             readers[n] = (lambda n=n, src=src: read_pdf_report(n, src, force=force))
@@ -505,7 +511,7 @@ def main():
         if lv["early"] <= sos_ip and not lv["eday"]:
             continue   # the SoS figure is as current
         mail = (ent.get("mail_voted") or {}).get("total", 0)
-        t["ip"] += lv["early"] - sos_ip
+        t["ip"] += max(lv["early"], sos_ip) - sos_ip   # reached with eday > 0 even when the page's early count is behind
         ent["early_voted"] = blk(max(lv["early"], sos_ip))
         if lv["eday"]:
             ent["election_day"] = blk(lv["eday"])

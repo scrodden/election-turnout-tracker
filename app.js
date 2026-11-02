@@ -2072,8 +2072,10 @@
     if (!cast) { host.hidden = true; return; }
     var reg = data.statewide.registered || 0;
     var e = data.election || {};
-    var elec = e.date ? new Date(e.date + "T20:00:00") : null, now = new Date();
-    var daysLeft = elec ? Math.max(0, Math.ceil((elec - now) / 86400000)) : null;
+    // whole days from today (Eastern) to Election Day: 0 on the day itself, when early-voting pace no longer projects anything
+    var todayET = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+    var daysLeft = e.date ? Math.round((Date.parse(e.date) - Date.parse(todayET)) / 86400000) : null;
+    if (daysLeft != null && daysLeft < 0) daysLeft = null;
     function histTotal(r) {
       if (typeof r.cast === "number") return r.cast;
       var sc = r.statewide && r.statewide.cast;
@@ -2086,11 +2088,13 @@
     var perDay = null, proj = null;
     if (pts.length >= 2) {
       var a = pts[0], b = pts[pts.length - 1], days = (b.t - a.t) / 86400000;
-      if (days > 0.4 && b.y >= a.y) { perDay = (b.y - a.y) / days; if (daysLeft != null) proj = Math.max(cast, Math.round(cast + perDay * daysLeft)); }
+      if (days > 0.4 && b.y >= a.y) { perDay = (b.y - a.y) / days; if (daysLeft) proj = Math.max(cast, Math.round(cast + perDay * daysLeft)); }
     }
+    if (daysLeft === 0) perDay = null;
     function pc(k, v, d) { return "<div class='stat'><div class='k'>" + k + "</div><div class='v'>" + v + "</div><div class='d'>" + (d || "") + "</div></div>"; }
     var parts = [pc("Ballots cast so far", fmt(cast), reg ? (pctText(data.statewide.turnout_pct) + " of registered") : "")];
-    if (daysLeft != null) parts.push(pc("Days to Election Day", daysLeft, e.date ? new Date(e.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""));
+    if (daysLeft === 0) parts.push(pc("Election Day", "Today", new Date(e.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })));
+    else if (daysLeft != null) parts.push(pc("Days to Election Day", daysLeft, e.date ? new Date(e.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : ""));
     if (perDay != null && perDay > 0) parts.push(pc("Recent pace", "~" + fmt(Math.round(perDay)) + "/day", "from reported history"));
     if (proj != null && perDay > 0) parts.push(pc("Projected by Election Day", "~" + fmt(proj), "simple pace estimate"));
     var b22 = baseline && baseline.statewide && baseline.statewide.cast && baseline.statewide.cast.total;

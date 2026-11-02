@@ -23,13 +23,14 @@
     "mail_voted": "Mail ballots received"
   },
   "live_arcgis": {
-    "_comment": "Counties whose own vote-center map carries each site's votes (read like the ElectionLink widgets: in-person early votes through the day, used where ahead of the SoS). Dallas: the 'Vote Center Finder 3.0' ArcGIS Experience linked from dallascountyvotes.org (owner dallascountygis); layer Vote_Centers_20261103, one row per site, L_Poll_Typ EV/ED, C_Daily_Tot = today's votes, C_Tot_Vts = running total (equal on day 1, 10/19: 84 EV sites, 50,435 at 3:21 PM CT). Election Day rows are not read yet.",
+    "_comment": "Counties whose own vote-center map carries each site's votes (read like the ElectionLink widgets: in-person early votes through the day, used where ahead of the SoS). Dallas: the 'Vote Center Finder 3.0' ArcGIS Experience linked from dallascountyvotes.org (owner dallascountygis); layer Vote_Centers_20261103, one row per site, L_Poll_Typ EV/ED, C_Daily_Tot = today's votes, C_Tot_Vts = running total (equal on day 1, 10/19: 84 EV sites, 50,435 at 3:21 PM CT). Election Day rows ('ed': 'ED', separate rows from the early sites) are read from Nov 3 as Election Day votes.",
     "Dallas": {
       "label": "Dallas County Elections vote-center map",
       "page": "https://experience.arcgis.com/experience/8204fc2e36cd4fac8729efcedd4fda7f/page/Page?views=Early-Voting",
       "layer": "https://services3.arcgis.com/zqe2kwz79KUqUvxC/arcgis/rest/services/Vote_Center_Finder_view/FeatureServer/4",
       "type_field": "L_Poll_Typ",
       "ev": "EV",
+      "ed": "ED",
       "total_field": "C_Tot_Vts",
       "daily_field": "C_Daily_Tot",
       "min_sites": 40
