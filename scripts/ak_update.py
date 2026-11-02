@@ -2,7 +2,7 @@
 """Alaska early/absentee ballots: statewide by ballot type, and by house district.
 
 Source: the Alaska Division of Elections' statistics page
-(elections.alaska.gov/statistics/, "Absentee, Early, and Questioned Ballot
+(elections.alaska.gov/research/statistics/, "Absentee, Early, and Questioned Ballot
 Statistics"): for each election, ballots issued and received by type (By Mail,
 By Fax, Online Delivery, Federal Write-In, Early Vote, In-Person absentee,
 Special Needs, Questioned) with totals and a "Table last updated" stamp.
@@ -50,7 +50,7 @@ DATA_DIR = os.path.join(ROOT, "data", STATE)
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
 HISTORY_PATH = os.path.join(DATA_DIR, "history.jsonl")
 REG_PATH = os.path.join(ROOT, "data", "registration.json")
-STATS_PAGE = "https://www.elections.alaska.gov/statistics/"
+STATS_PAGE = "https://www.elections.alaska.gov/research/statistics/"   # moved from /statistics/ on 2026-11-02
 GEO_PATH = os.path.join(ROOT, "assets", "ak-sh.geojson")
 DISTRICTS_PATH = os.path.join(DATA_DIR, "_districts.json")   # the Lab's district figures + district registration
 LAB_BASE = "https://election.lab.ufl.edu/data-downloads/earlyvote/2026/"
