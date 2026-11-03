@@ -40,6 +40,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
 import common as C  # noqa: E402
+import fl_cd_eday  # noqa: E402
 
 STATE = "fl"
 CONFIG_PATH = os.path.join(ROOT, "config", "fl.json")
@@ -158,6 +159,11 @@ def parse_tqv(cfg, county, data):
         "last_updated": iso_ts,
         "methods": methods,
         "precincts": precincts,
+        # Election Day check-ins by party per polling place, and each precinct split's polling place (fl_cd_eday.py)
+        "eday_loc": {str(k): {p: int(n or 0) for p, n in (v or {}).items()}
+                     for k, v in ((turnout.get("LocationParty") or {}).get("ElectionDay") or {}).items()},
+        "split_loc": [(str(k).strip(), str(v.get("Precinct", "")), str(v.get("Location", "")))
+                      for k, v in (data.get("PrecinctSplit") or {}).items()],
     }
 
 
@@ -931,6 +937,10 @@ def main():
     else:
         print("NOCHANGE  updated=%s (hash %s)  precincts changed=%d"
               % (snap["source_compiled"], (prev or "")[:12], pchanged))
+    try:   # Election Day by congressional district (never sinks the county update)
+        fl_cd_eday.build(results, counties, counties_out)
+    except Exception as e:  # noqa: BLE001
+        print("  ! fl CD Election Day failed: %s" % str(e)[:160], file=sys.stderr)
     return 0
 
 
