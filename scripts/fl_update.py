@@ -31,6 +31,8 @@ import html
 import re
 import sys
 import json
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +54,10 @@ PRECINCTS_ALL_PATH = os.path.join(DATA_DIR, "precincts_all.json")
 VOTED_METHODS = ["mail_voted", "early_voted", "election_day"]  # count toward "cast"
 ALL_METHODS = ["mail_voted", "early_voted", "election_day", "provisional", "mail_provided"]
 MAX_WORKERS = 10
+# Broward's dashboards (my.browardvotes.gov) can stall from GitHub's servers (7:50 am 11/3: two 45-second timeouts
+# and a 36-second read), so they load in the background while DOS and TQV are read; whatever isn't back this many
+# seconds into the run is skipped, and Broward keeps its last figures instead of holding up the other 66 counties.
+BROWARD_WAIT = 20
 
 
 def load_json(path):
@@ -303,7 +309,21 @@ def fetch_broward_ted(cfg):
     return {"issued": issued, "returned": returned, "asof": m.group(1) if m else ""}
 
 
-def fetch_broward_turnout(cfg, want_precincts=True):
+def in_background(fn, *args):
+    """Start fn(*args) on a daemon thread (a stalled request never holds up the process exiting).
+    -> get(deadline): its result, or None if it isn't back by then (get.late() says which)."""
+    box = {}
+    th = threading.Thread(target=lambda: box.update(v=fn(*args)), daemon=True)
+    th.start()
+
+    def get(deadline):
+        th.join(max(0.0, deadline - time.time()))
+        return box.get("v")
+    get.late = th.is_alive
+    return get
+
+
+def fetch_broward_turnout(cfg):
     """Broward's TED 'Unofficial Voter Turnout' dashboard (TurnOutWidget), added
     10/19: ballots cast by party x method (Vote By Mail / Early Vote / Election
     Day) with eligible voters by party ('turnout-party'), and the same by
@@ -353,29 +373,41 @@ def fetch_broward_turnout(cfg, want_precincts=True):
         print("  Broward turnout: party rows don't add up to the dashboard totals")
         return None
     m = re.search(r'data-ted-dashboard-asof-src="([^"]+)"', page)
-    out = {"methods": methods, "eligible": elig, "eligible_total": sum(elig.values()), "cast": total,
-           "asof": m.group(1) if m else "", "precincts": None}
-    if want_precincts:
-        try:
-            pt = _flat(C.http_get(b["precinct_html"], no_cache=True, retries=2, timeout=120))
-            prs = {}
-            for pid, _loc, e, vbm, ev, ed, tot in re.findall(
-                    r"\|([A-Z]\d{3})\|([^|]*)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|[\d.]+%", pt):
-                if pid in prs:
-                    continue   # the page repeats each row in a card layout
-                e, vbm, ev, ed, tot = (C.parse_number(x) for x in (e, vbm, ev, ed, tot))
-                prs[pid] = {"precinct": pid, "eligible": e, "mail_voted": vbm, "early_voted": ev, "election_day": ed,
-                            "cast": tot, "turnout_pct": C.pct(tot, e)}
-            psum = sum(r["cast"] for r in prs.values())
-            if prs and 0 <= total - psum <= max(10, total // 200):   # a few ballots have no precinct (overseas etc.)
-                out["precincts"] = [prs[k] for k in sorted(prs)]
-                out["precinct_gap"] = total - psum
-            else:
-                print("  Broward turnout: precinct rows (%d, cast %d) don't add up to %d -- not used"
-                      % (len(prs), sum(r["cast"] for r in prs.values()), total))
-        except Exception as e:  # noqa: BLE001
-            print("  Broward precincts unavailable: %s" % str(e)[:100])
-    return out
+    return {"methods": methods, "eligible": elig, "eligible_total": sum(elig.values()), "cast": total,
+            "asof": m.group(1) if m else "", "precincts": None}
+
+
+def fetch_broward_precinct_page(cfg):
+    """The turnout dashboard's precinct table page (~2.6 MB), or None."""
+    try:
+        return C.http_get(cfg["broward_turnout"]["precinct_html"], no_cache=True, retries=2, timeout=120)
+    except Exception as e:  # noqa: BLE001
+        print("  Broward precincts unavailable: %s" % str(e)[:100])
+        return None
+
+
+def broward_precincts(page, out):
+    """Parse the precinct table into out["precincts"] when its rows add up to the party table's ballots cast."""
+    total = out["cast"]
+    try:
+        pt = _flat(page)
+        prs = {}
+        for pid, _loc, e, vbm, ev, ed, tot in re.findall(
+                r"\|([A-Z]\d{3})\|([^|]*)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|[\d.]+%", pt):
+            if pid in prs:
+                continue   # the page repeats each row in a card layout
+            e, vbm, ev, ed, tot = (C.parse_number(x) for x in (e, vbm, ev, ed, tot))
+            prs[pid] = {"precinct": pid, "eligible": e, "mail_voted": vbm, "early_voted": ev, "election_day": ed,
+                        "cast": tot, "turnout_pct": C.pct(tot, e)}
+        psum = sum(r["cast"] for r in prs.values())
+        if prs and 0 <= total - psum <= max(10, total // 200):   # a few ballots have no precinct (overseas etc.)
+            out["precincts"] = [prs[k] for k in sorted(prs)]
+            out["precinct_gap"] = total - psum
+        else:
+            print("  Broward turnout: precinct rows (%d, cast %d) don't add up to %d -- not used"
+                  % (len(prs), sum(r["cast"] for r in prs.values()), total))
+    except Exception as e:  # noqa: BLE001
+        print("  Broward precincts unreadable: %s" % str(e)[:100])
 
 
 # --------------------------------------------------------------------------
@@ -618,6 +650,15 @@ def main():
         except (ValueError, OSError):
             id_cache = {}
 
+    # 0) Broward's own dashboards, in the background (see BROWARD_WAIT)
+    t_start = time.time()
+    bro = {}
+    if cfg["tqv"].get("not_on_tqv", {}).get("BRO") and cfg.get("broward_turnout"):
+        bro["ted"] = in_background(fetch_broward_ted, cfg)
+        bro["bt"] = in_background(fetch_broward_turnout, cfg)
+        if force or not C.checked_recently(DATA_DIR, "broward_precincts", minutes=30):
+            bro["bp"] = in_background(fetch_broward_precinct_page, cfg)
+
     # 1) DOS (single, cheap) for mail-outstanding + fallback
     print("Fetching DOS statewide files (mail outstanding + fallback)...")
     dos = fetch_dos(cfg)
@@ -700,16 +741,34 @@ def main():
     # the county's own dashboard, used whenever it's at least as current as the
     # DOS file (early voting / Election Day stay on DOS until Broward publishes them).
     bw = counties_out.get("Broward")
-    ted = fetch_broward_ted(cfg) if bw and bw.get("source") != "tqv" else None
+    deadline = t_start + BROWARD_WAIT
+    for get in bro.values():
+        get(deadline)
+    late = [k for k, get in bro.items() if get.late()]
+    if late:
+        print("  Broward: %s not back in %ds; skipped this run" % (", ".join(late), BROWARD_WAIT))
+    ted = bro["ted"](deadline) if bw and bw.get("source") != "tqv" and "ted" in bro else None
     # Broward's turnout dashboard (10/19): mail, early and Election Day ballots by
     # party, eligible voters, and the same by precinct -- replaces the DOS / mail-
     # dashboard figures for Broward whenever it checks out.
     bt = None
     if bw and bw.get("source") != "tqv":
         prev_all = load_json(PRECINCTS_ALL_PATH) if os.path.exists(PRECINCTS_ALL_PATH) else {}
-        want_p = force or not C.checked_recently(DATA_DIR, "broward_precincts", minutes=30)
-        bt = fetch_broward_turnout(cfg, want_precincts=want_p)
-        if bt and bt["cast"] >= (bw.get("cast") or {}).get("total", 0) * 0.98:
+        bt = bro["bt"](deadline) if "bt" in bro else None
+        page = bro["bp"](deadline) if bt and "bp" in bro else None
+        if page:
+            broward_precincts(page, bt)
+        old_bw = (prev_snap.get("counties") or {}).get("Broward") or {}
+        if not bt and old_bw.get("source") == "county-dashboard":
+            # dashboard late or down: Broward keeps its last dashboard figures (DOS has no Election Day ballots)
+            print("  Broward dashboard %s; keeping its figures from %s"
+                  % ("not back in %ds" % BROWARD_WAIT if "bt" in late else "unavailable", old_bw.get("last_updated")))
+            bw = counties_out["Broward"] = dict(old_bw)
+            if (prev_all.get("counties") or {}).get("BRO"):
+                precincts_all["BRO"] = prev_all["counties"]["BRO"]
+            if bw.get("last_updated", "") > max_iso:
+                max_iso = bw["last_updated"]
+        elif bt and bt["cast"] >= (bw.get("cast") or {}).get("total", 0) * 0.98:
             iso = bt["asof"]
             for mk, counts in bt["methods"].items():
                 if sum(counts.values()) or bw.get(mk):
@@ -740,7 +799,7 @@ def main():
                      len(bt["precincts"]) if bt["precincts"] else "kept", iso))
         else:
             bt = None
-    if bw and bw.get("source") != "tqv" and not bt:
+    if bw and bw.get("source") not in ("tqv", "county-dashboard") and not bt:
         if ted and sum(ted["returned"].values()) >= (bw.get("mail_voted") or {}).get("total", 0):
             iso = ted["asof"]
             bw["mail_voted"] = block_from_counts(ted["returned"], iso, iso)
