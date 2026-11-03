@@ -44,6 +44,7 @@ import common as C  # noqa: E402
 STATE = "fl"
 CONFIG_PATH = os.path.join(ROOT, "config", "fl.json")
 COUNTIES_PATH = os.path.join(ROOT, "config", "fl_counties.json")
+MANUAL_ED_PATH = os.path.join(ROOT, "config", "fl_manual_ed.json")
 DATA_DIR = os.path.join(ROOT, "data", STATE)
 PRECINCT_DIR = os.path.join(DATA_DIR, "precincts")
 LATEST_PATH = os.path.join(DATA_DIR, "latest.json")
@@ -500,6 +501,29 @@ def build_county_entity(county, tqv, dos_methods):
     return ent
 
 
+def apply_manual_ed(counties_out):
+    """Election Day ballots a county posts on its own site but not to TQV (Lake, 11/3: an hourly chart on
+    lakevotes.gov, whose site turns away scripted requests), transcribed by hand into config/fl_manual_ed.json.
+    Used only while the county's TQV feed shows fewer. -> notes for the Election Day hint."""
+    try:
+        manual = load_json(MANUAL_ED_PATH).get("counties", {})
+    except (OSError, ValueError):
+        return []
+    notes = []
+    for name, m in manual.items():
+        ent = counties_out.get(name)
+        counts = {p: int(m.get(p, 0)) for p in ("rep", "dem", "oth", "npa")}
+        if not ent or sum(counts.values()) <= (ent.get("election_day") or {}).get("total", 0):
+            continue   # TQV has caught up
+        ent["election_day"] = block_from_counts(counts, m["as_of"], m["as_of"])
+        ent["cast"] = C.add_blocks(*[ent[k] for k in VOTED_METHODS if ent.get(k)])
+        ent["turnout_pct"] = C.pct(ent["cast"]["total"], ent.get("registered", 0))
+        ent["election_day_source"] = {"label": m["label"], "url": m["url"], "as_of": m["as_of"]}
+        notes.append("%s County's Election Day figures are copied by hand from %s (%s), not its TQV feed." % (name, m["label"], m["as_of_label"]))
+        print("  %s: Election Day %d from %s (as of %s)" % (name, sum(counts.values()), m["label"], m["as_of_label"]))
+    return notes
+
+
 def write_if_changed(path, obj):
     """Write compact JSON only when content differs. Returns True if written."""
     blob = json.dumps(obj, separators=(",", ":"))
@@ -836,6 +860,7 @@ def main():
         for ent in counties_out.values():
             if not ent.get("election_day"):
                 ent["election_day"] = C.party_block(0, 0, 0, 0)
+    manual_notes = apply_manual_ed(counties_out)
 
     # statewide = sum of counties
     statewide = {}
@@ -867,7 +892,7 @@ def main():
     snap["party_hints"] = {"election_day": (
         "Party registration of voters who cast a ballot on Election Day. Polls are open 7 am to 7 pm local time (the Panhandle's "
         "Central-time counties close at 8 pm Eastern); counties post check-ins to their turnout feeds through the day, most about "
-        "hourly, and this updates about every 10 minutes.")}
+        "hourly, and this updates about every 10 minutes." + "".join(" " + n for n in manual_notes))}
     if not_voted:
         snap["not_voted_source"] = not_voted
         snap["party_hints"]["not_voted"] = (

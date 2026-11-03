@@ -1,0 +1,15 @@
+{
+  "_comment": "Election Day ballots by party that a county posts on its own site but not to its TQV feed, transcribed by hand from the county's page. fl_update.py uses an entry only while the county's TQV feed shows fewer Election Day ballots. as_of is UTC; as_of_label is shown on the page.",
+  "counties": {
+    "Lake": {
+      "label": "the Lake County Supervisor of Elections' Current Elections page",
+      "url": "https://www.lakevotes.gov/180/Current-Elections",
+      "as_of": "2026-11-03T13:00:00Z",
+      "as_of_label": "8 am",
+      "rep": 3262,
+      "dem": 1219,
+      "npa": 1111,
+      "oth": 171
+    }
+  }
+}
