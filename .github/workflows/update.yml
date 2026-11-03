@@ -87,12 +87,27 @@ jobs:
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/build_ballot_2026.py || echo "ballot list refresh failed (non-fatal; previous lists kept)"
 
-      - name: Update election results (House / Senate / Governor)
+      - name: Is the Election-Day results loop running?
+        id: rl
         if: steps.gate.outputs.frozen != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # results_update.py takes ~6 minutes (civicAPI paging). While results_eday.yml's 2-minute loop is running it
+          # covers results, so skip them here: otherwise this run commits turnout ~6 minutes late and the 10-minute
+          # cycle stretches to ~16 (Election Day morning, 11/3). If the loop has stopped, this run updates results.
+          n=$(gh run list --repo "${{ github.repository }}" --workflow results_eday.yml --limit 5 --json status --jq '[.[] | select(.status != "completed")] | length' || echo 0)
+          if [ "$n" != "0" ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "The results loop is running ($n run(s)); it handles results."
+          fi
+
+      - name: Update election results (House / Senate / Governor)
+        if: steps.gate.outputs.frozen != '1' && steps.rl.outputs.skip != '1'
         run: python scripts/results_update.py || echo "results update failed (non-fatal)"
 
       - name: Update county-level result margins (turnout-vs-result)
-        if: steps.gate.outputs.frozen != '1'
+        if: steps.gate.outputs.frozen != '1' && steps.rl.outputs.skip != '1'
         run: python scripts/results_county_update.py || echo "county results update failed (non-fatal)"
 
       - name: Build status manifest
