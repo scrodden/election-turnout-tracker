@@ -770,6 +770,14 @@ def main():
             print("  Broward ENR: registered=%d (election %s, general=%s)"
                   % (enr["registered"], enr["id"], enr["is_general"]))
 
+    # Election Day (Eastern date) on: every county carries election_day, 0 until its feed posts check-ins, so the
+    # page's Election Day tab is open from the morning instead of waiting for the first county (Sam, 11/03)
+    from datetime import datetime, timedelta, timezone
+    if (datetime.now(timezone.utc) - timedelta(hours=5)).date().isoformat() >= cfg["election"]["date"]:
+        for ent in counties_out.values():
+            if not ent.get("election_day"):
+                ent["election_day"] = C.party_block(0, 0, 0, 0)
+
     # statewide = sum of counties
     statewide = {}
     for mkey in ALL_METHODS:
@@ -797,13 +805,17 @@ def main():
         "method_labels": cfg.get("method_labels", {}),
         "statewide": statewide, "counties": counties_out,
     }
+    snap["party_hints"] = {"election_day": (
+        "Party registration of voters who cast a ballot on Election Day. Polls are open 7 am to 7 pm local time (the Panhandle's "
+        "Central-time counties close at 8 pm Eastern); counties post check-ins to their turnout feeds through the day, most about "
+        "hourly, and this updates about every 10 minutes.")}
     if not_voted:
         snap["not_voted_source"] = not_voted
-        snap["party_hints"] = {"not_voted": (
+        snap["party_hints"]["not_voted"] = (
             "Registered voters who haven't cast a ballot yet, by party: each county's registration by party (Florida Division of "
             "Elections, as of %s) minus its ballots cast so far, updated as ballots come in. Registration is a monthly snapshot, so "
             "people who registered between then and the Oct. 5 deadline aren't in it. This is the pool left, not a forecast: many "
-            "of them won't vote." % (not_voted["as_of"] or "its latest report"))}
+            "of them won't vote." % (not_voted["as_of"] or "its latest report"))
     snap["data_hash"] = C.data_hash(snap)
     snap["generated_at"] = C.utc_now_iso()
 
