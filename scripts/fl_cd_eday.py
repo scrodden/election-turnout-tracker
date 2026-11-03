@@ -58,9 +58,13 @@ class Crosswalk:
                 k = _keys(pid)
                 m.setdefault(k[0], sh); m.setdefault(k[1], sh)
                 loose[k[2]].add(pid)
-            for k, pids in loose.items():   # '101' -> '101A' only when no other '101x' precinct exists
-                if len(pids) == 1 and k not in m:
-                    m[k] = precs[next(iter(pids))]
+            for k, pids in loose.items():   # TQV '103' -> boundary '103A' (Volusia); '103A'..'103C' -> their average
+                if k not in m:
+                    avg = defaultdict(float)
+                    for pid in pids:
+                        for d, f in precs[pid].items():
+                            avg[d] += f / len(pids)
+                    m[k] = dict(avg)
             self.idx[code] = (m, precs.get("_county") or {})
 
     def shares(self, code, prec):
@@ -114,7 +118,7 @@ def build(results, counties, counties_out, log=print):
     seed = early_mix(dg)
     cd = defaultdict(lambda: defaultdict(float))   # district -> party -> ballots
     est = defaultdict(float)                        # district -> ballots that were estimated
-    stamp, n_exact, n_split, n_est = "", 0.0, 0.0, 0.0
+    stamp, n_exact, n_split, n_loose, n_est = "", 0.0, 0.0, 0.0, 0.0
     rake_jobs = []
 
     for county in counties:
@@ -174,7 +178,7 @@ def build(results, counties, counties_out, log=print):
             elif matched:
                 n_split += n
             else:
-                n_est += n
+                n_loose += n
 
     # estimated counties: countywide party totals spread over districts by each district's early in-person mix
     for code, name, tqv, ed_party in rake_jobs:
@@ -203,13 +207,14 @@ def build(results, counties, counties_out, log=print):
         n_est += tot
         log("  fl CD Election Day: %s estimated over CD %s" % (name, ", ".join(sorted(rows, key=int))))
 
-    total = n_exact + n_split + n_est
+    total = n_exact + n_split + n_loose + n_est
     if not total:
         return None
     blocks = {d: C.party_block(*(int(round(cd[d][p])) for p in PARTIES), compiled=stamp, compiled_iso=stamp) for d in cd}
-    write_live(dg, blocks, est, stamp, {"exact": n_exact, "split": n_split, "estimated": n_est})
-    log("  fl CD Election Day: %d ballots in %d districts (%.0f%% at polling places in one district, %.0f%% split, %.0f%% estimated)"
-        % (total, len(blocks), 100 * n_exact / total, 100 * n_split / total, 100 * n_est / total))
+    write_live(dg, blocks, est, stamp, {"exact": n_exact, "split": n_split, "unmatched": n_loose, "estimated": n_est})
+    log("  fl CD Election Day: %d ballots in %d districts (%.0f%% at polling places in one district, %.0f%% split, "
+        "%.0f%% unmatched, %.0f%% estimated counties)" % (total, len(blocks), 100 * n_exact / total, 100 * n_split / total,
+                                                          100 * n_loose / total, 100 * n_est / total))
     return blocks
 
 
@@ -236,10 +241,12 @@ def write_live(dg, blocks, est, stamp, mix):
         "Party registration of Election Day voters by district. Counties report Election Day check-ins by party for each "
         "polling place, not each precinct, so each polling place's count goes to the district of the precincts it serves "
         "(%.0f%% of ballots); where its precincts straddle a district line it's split by their Election Day totals, assuming "
-        "the same party mix (%.0f%%). Broward (no polling-place party data) and Lake (Election Day posted only countywide) "
-        "are estimated: their party totals are spread over their districts in line with each district's early-vote party "
-        "mix (%.0f%%). Updated every 10 minutes from the county TQV feeds." % (
-            100 * mix["exact"] / total, 100 * mix["split"] / total, 100 * mix["estimated"] / total)))
+        "the same party mix (%.0f%%). Polling places serving only precincts newer than the boundary file are spread over "
+        "their county's districts (%.0f%%). Broward (no polling-place party data) and Lake (Election Day posted only "
+        "countywide) are estimated: their party totals are spread over their districts in line with each district's "
+        "early-vote party mix (%.0f%%). Updated every 10 minutes from the county TQV feeds." % (
+            100 * mix["exact"] / total, 100 * mix["split"] / total, 100 * mix["unmatched"] / total,
+            100 * mix["estimated"] / total)))
     doc["map_note"] = ((dg.get("map_note") or "") + " Election Day: county TQV check-ins by polling place, assigned to "
                        "districts by precinct; Broward and Lake estimated (see the Election Day tab's note).").strip()
     doc["source"] = (dg.get("source") or "") + "; Election Day from the county Turnout Quick View feeds (by polling place)"
