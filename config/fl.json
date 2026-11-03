@@ -107,6 +107,8 @@
     "view": "https://my.browardvotes.gov/TEDElectionLink/TurnOutWidget/dashboard/view/turnout-party",
     "party_html": "https://my.browardvotes.gov/TEDElectionLink/api/v1/dashboards/html/turnout-party",
     "precinct_html": "https://my.browardvotes.gov/TEDElectionLink/api/v1/dashboards/html/precinct-turnout",
+    "location_view": "https://my.browardvotes.gov/TEDElectionLink/TurnOutWidget/dashboard/view/turnout-location",
+    "location_html": "https://my.browardvotes.gov/TEDElectionLink/api/v1/dashboards/html/turnout-location",
     "election_label": "11/03/2026 - 2026 November General Election",
     "party_map": {
       "Florida Democratic Party": "dem",

@@ -393,6 +393,50 @@ def fetch_broward_precinct_page(cfg):
         return None
 
 
+def fetch_broward_location_page(cfg):
+    """The turnout dashboard's by-location page (~2 MB): early voting sites, and Election Day polling places with the
+    precincts each serves, by party. -> html or None"""
+    b = cfg["broward_turnout"]
+    if not b.get("location_html"):
+        return None
+    try:   # the html endpoint answers "No dashboard loaded" unless the dashboard's view page is opened first
+        view = C.http_get(b["location_view"], no_cache=True, retries=2, timeout=60)
+        if b["election_label"] not in html.unescape(view):
+            print("  Broward polling places: dashboard isn't showing %r" % b["election_label"])
+            return None
+        return C.http_get(b["location_html"], no_cache=True, retries=2, timeout=60)
+    except Exception as e:  # noqa: BLE001
+        print("  Broward polling places unavailable: %s" % str(e)[:100])
+        return None
+
+
+def broward_eday_locations(page):
+    """Election Day ballots by party per polling place, with its precincts (fl_cd_eday.py puts them in districts).
+    Every row's parties must add up to its total and no precinct may appear twice. -> {asof, rows} or None"""
+    t = _flat(page)
+    i = t.find("|Election Day|Voting Location|Precincts|")
+    if i < 0:
+        return None
+    seg = t[i:]
+    j = seg.find("|Location|")   # the same figures again in a card layout
+    seg = seg[:j] if j > 0 else seg
+    rows = []
+    for name, precs, d, r, n, o, tot in re.findall(
+            r"\|([^|]+)\|([A-Z]\d{3}(?:\s*,\s*[A-Z]\d{3})*)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|([\d,]+)\|([\d,]+)(?=\|)", seg):
+        d, r, n, o, tot = (C.parse_number(x) for x in (d, r, n, o, tot))
+        if d + r + n + o != tot:
+            print("  Broward polling places: %s doesn't add up" % name.strip())
+            return None
+        rows.append({"location": name.strip(), "precincts": [p.strip() for p in precs.split(",")],
+                     "dem": d, "rep": r, "npa": n, "oth": o, "total": tot})
+    precincts = [p for row in rows for p in row["precincts"]]
+    if len(rows) < 50 or len(precincts) != len(set(precincts)):
+        print("  Broward polling places: table not as expected (%d rows)" % len(rows))
+        return None
+    m = re.search(r'data-ted-dashboard-asof-src="([^"]+)"', page)
+    return {"asof": m.group(1) if m else "", "rows": rows}
+
+
 def broward_precincts(page, out):
     """Parse the precinct table into out["precincts"] when its rows add up to the party table's ballots cast."""
     total = out["cast"]
@@ -688,6 +732,7 @@ def main():
         bro["bt"] = in_background(fetch_broward_turnout, cfg)
         if force or not C.checked_recently(DATA_DIR, "broward_precincts", minutes=30):
             bro["bp"] = in_background(fetch_broward_precinct_page, cfg)
+        bro["bl"] = in_background(fetch_broward_location_page, cfg)
 
     # 1) DOS (single, cheap) for mail-outstanding + fallback
     print("Fetching DOS statewide files (mail outstanding + fallback)...")
@@ -788,6 +833,10 @@ def main():
         page = bro["bp"](deadline) if bt and "bp" in bro else None
         if page:
             broward_precincts(page, bt)
+        page = bro["bl"](deadline) if "bl" in bro else None
+        locs = broward_eday_locations(page) if page else None
+        if locs and sum(r["total"] for r in locs["rows"]):
+            write_if_changed(fl_cd_eday.BRO_LOC_PATH, locs)
         old_bw = (prev_snap.get("counties") or {}).get("Broward") or {}
         if not bt and old_bw.get("source") == "county-dashboard":
             # dashboard late or down: Broward keeps its last dashboard figures (DOS has no Election Day ballots)

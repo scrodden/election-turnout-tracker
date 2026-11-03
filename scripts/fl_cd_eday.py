@@ -28,6 +28,7 @@ DATA_DIR = os.path.join(ROOT, "data", "fl")
 XWALK_PATH = os.path.join(ROOT, "assets", "crosswalks", "fl-precinct-cd.json")
 DG_PATH = os.path.join(DATA_DIR, "districts_cd.json")
 OUT_PATH = os.path.join(DATA_DIR, "districts_cd_live.json")
+BRO_LOC_PATH = os.path.join(DATA_DIR, "broward_eday_locations.json")   # fl_update.py, from Broward's dashboard
 PARTIES = ("rep", "dem", "oth", "npa")
 PARTY_MAP = {"REP": "rep", "DEM": "dem", "NPA": "npa"}
 
@@ -107,6 +108,20 @@ def early_mix(dg):
     return out
 
 
+def broward_as_tqv():
+    """Broward's dashboard (Election Day by party per polling place, with its precincts; precinct Election Day totals)
+    in the shape fl_update gives TQV counties, so it takes the same polling-place path. -> dict or None"""
+    locs = load(BRO_LOC_PATH)
+    prec = (load(os.path.join(DATA_DIR, "precincts", "BRO.json"), {}) or {}).get("precincts") or []
+    if not locs or not locs.get("rows"):
+        return None
+    return {"last_updated": locs.get("asof", ""),
+            "eday_loc": {r["location"]: {"DEM": r["dem"], "REP": r["rep"], "NPA": r["npa"], "OTH": r["oth"]}
+                         for r in locs["rows"]},
+            "split_loc": [(p, p, r["location"]) for r in locs["rows"] for p in r["precincts"]],
+            "precincts": prec}
+
+
 def build(results, counties, counties_out, log=print):
     """results: {county name: (tqv, eid, note)} from fl_update (tqv carries eday_loc / split_loc / precincts).
     Writes OUT_PATH when it changed. -> statewide Election Day total by district, or None."""
@@ -116,6 +131,9 @@ def build(results, counties, counties_out, log=print):
         log("  fl CD Election Day: crosswalk or 305 Data Girl district file missing; skipped")
         return None
     seed = early_mix(dg)
+    bro = broward_as_tqv()
+    if bro:
+        results = dict(results, Broward=(bro, None, "dashboard"))
     cd = defaultdict(lambda: defaultdict(float))   # district -> party -> ballots
     est = defaultdict(float)                        # district -> ballots that were estimated
     stamp, n_exact, n_split, n_loose, n_est = "", 0.0, 0.0, 0.0, 0.0
@@ -181,6 +199,7 @@ def build(results, counties, counties_out, log=print):
                 n_loose += n
 
     # estimated counties: countywide party totals spread over districts by each district's early in-person mix
+    estimated = [name for _c, name, _t, _p in rake_jobs]
     for code, name, tqv, ed_party in rake_jobs:
         tot = sum(ed_party.values())
         rows = defaultdict(float)
@@ -211,15 +230,21 @@ def build(results, counties, counties_out, log=print):
     if not total:
         return None
     blocks = {d: C.party_block(*(int(round(cd[d][p])) for p in PARTIES), compiled=stamp, compiled_iso=stamp) for d in cd}
-    write_live(dg, blocks, est, stamp, {"exact": n_exact, "split": n_split, "unmatched": n_loose, "estimated": n_est})
+    write_live(dg, blocks, est, stamp, {"exact": n_exact, "split": n_split, "unmatched": n_loose, "estimated": n_est},
+               estimated)
     log("  fl CD Election Day: %d ballots in %d districts (%.0f%% at polling places in one district, %.0f%% split, "
         "%.0f%% unmatched, %.0f%% estimated counties)" % (total, len(blocks), 100 * n_exact / total, 100 * n_split / total,
                                                           100 * n_loose / total, 100 * n_est / total))
     return blocks
 
 
-def write_live(dg, blocks, est, stamp, mix):
+def write_live(dg, blocks, est, stamp, mix, estimated):
     total = sum(mix.values())
+    many = len(estimated) > 1
+    est_note = ("" if not estimated else " %s, which report%s Election Day party only countywide, %s estimated: %s party "
+                "totals are spread over %s districts in line with each district's early-vote party mix (%.0f%%)." % (
+                    " and ".join(estimated), "" if many else "s", "are" if many else "is", "their" if many else "its",
+                    "their" if many else "its", 100 * mix["estimated"] / total))
     doc = json.loads(json.dumps(dg))
     for k in ("data_hash", "generated_at"):
         doc.pop(k, None)
@@ -242,14 +267,13 @@ def write_live(dg, blocks, est, stamp, mix):
         "polling place, not each precinct, so each polling place's count goes to the district of the precincts it serves "
         "(%.0f%% of ballots); where its precincts straddle a district line it's split by their Election Day totals, assuming "
         "the same party mix (%.0f%%). Polling places serving only precincts newer than the boundary file are spread over "
-        "their county's districts (%.0f%%). Broward (no polling-place party data) and Lake (Election Day posted only "
-        "countywide) are estimated: their party totals are spread over their districts in line with each district's "
-        "early-vote party mix (%.0f%%). Updated every 10 minutes from the county TQV feeds." % (
-            100 * mix["exact"] / total, 100 * mix["split"] / total, 100 * mix["unmatched"] / total,
-            100 * mix["estimated"] / total)))
-    doc["map_note"] = ((dg.get("map_note") or "") + " Election Day: county TQV check-ins by polling place, assigned to "
-                       "districts by precinct; Broward and Lake estimated (see the Election Day tab's note).").strip()
-    doc["source"] = (dg.get("source") or "") + "; Election Day from the county Turnout Quick View feeds (by polling place)"
+        "their county's districts (%.0f%%).%s Updated every 10 minutes from the county TQV feeds and Broward's turnout "
+        "dashboard." % (100 * mix["exact"] / total, 100 * mix["split"] / total, 100 * mix["unmatched"] / total, est_note)))
+    doc["map_note"] = ((dg.get("map_note") or "") + " Election Day: check-ins by party at each polling place (county TQV "
+                       "feeds; Broward's turnout dashboard), assigned to districts by the precincts it serves%s." % (
+                           "; %s estimated (see the Election Day tab's note)" % " and ".join(estimated) if estimated else "")).strip()
+    doc["source"] = ((dg.get("source") or "") + "; Election Day from the county Turnout Quick View feeds and Broward's "
+                     "turnout dashboard (by polling place)")
     doc["election_day_mix"] = {k: int(round(v)) for k, v in mix.items()}
     doc["election_day_as_of"] = stamp
     doc["data_hash"] = C.data_hash(doc)
