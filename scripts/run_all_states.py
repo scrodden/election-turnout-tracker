@@ -24,6 +24,7 @@ import io
 import json
 import contextlib
 import importlib
+import time
 from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -145,6 +146,7 @@ def main(argv=None):
             frozen += 1
             continue
         rec = {"checked_at": C.utc_now_iso()}
+        t0 = time.time()
         before = latest_hash(code)
         saved = read_files(code)
         hist0 = C.history_size(os.path.join(ROOT, "data", code))
@@ -155,6 +157,12 @@ def main(argv=None):
                 rc = mod.main()
             after = latest_hash(code)
             out = buf.getvalue()
+            rec["secs"] = round(time.time() - t0, 1)
+            slow = [l.strip() for l in out.splitlines() if "slow GET" in l]
+            if slow:
+                rec["slow"] = slow[:6]
+            if only is not None:
+                print(out.rstrip())
             skipped = any(m in out for m in ("checked under", "next check not due", "next window not reached"))
             last = prev_health.get(code) or {}
             if rc in (0, None) and skipped and last.get("status") == "error":

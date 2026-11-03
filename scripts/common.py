@@ -6,6 +6,7 @@ GitHub Actions runner needs no `pip install` step.
 import json
 import re
 import ssl
+import sys
 import time
 import hashlib
 import urllib.request
@@ -53,6 +54,7 @@ def http_get(url, retries=3, timeout=45, binary=False, no_cache=False, referer=N
     header; pass referer= for those."""
     last_err = None
     for attempt in range(retries):
+        t0 = time.time()
         try:
             fetch_url = url
             headers = {
@@ -70,9 +72,13 @@ def http_get(url, retries=3, timeout=45, binary=False, no_cache=False, referer=N
             req = urllib.request.Request(fetch_url, headers=headers)
             with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as r:
                 raw = r.read()
+                if time.time() - t0 > 10:
+                    print("  slow GET %.0fs: %s" % (time.time() - t0, url), file=sys.stderr)
                 return raw if binary else raw.decode("utf-8", "replace")
         except Exception as e:  # noqa: BLE001 - want to retry any transient error
             last_err = e
+            if time.time() - t0 > 10:   # a stalled request (timeouts are 45s+), not a quick 404
+                print("  slow GET try %d failed after %.0fs: %s (%s)" % (attempt + 1, time.time() - t0, url, str(e)[:60]), file=sys.stderr)
             if attempt < retries - 1:
                 time.sleep(2 * (attempt + 1))
     raise RuntimeError("GET failed after %d tries: %s (%s)" % (retries, url, last_err))
