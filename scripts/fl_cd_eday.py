@@ -269,9 +269,14 @@ def write_live(dg, blocks, est, stamp, mix, estimated):
         "the same party mix (%.0f%%). Polling places serving only precincts newer than the boundary file are spread over "
         "their county's districts (%.0f%%).%s Updated every 10 minutes from the county TQV feeds and Broward's turnout "
         "dashboard." % (100 * mix["exact"] / total, 100 * mix["split"] / total, 100 * mix["unmatched"] / total, est_note)))
-    doc["map_note"] = ((dg.get("map_note") or "") + " Election Day: check-ins by party at each polling place (county TQV "
-                       "feeds; Broward's turnout dashboard), assigned to districts by the precincts it serves%s." % (
-                           "; %s estimated (see the Election Day tab's note)" % " and ".join(estimated) if estimated else "")).strip()
+    doc["map_note"] = ("Election Day ballots are live, every 10 minutes: check-ins by party at each polling place (county "
+                       "TQV feeds; Broward's turnout dashboard), assigned to districts by the precincts it serves%s. Mail "
+                       "and early in person: %s" % (
+                           "; %s estimated (see the Election Day tab's note)" % " and ".join(estimated) if estimated else "",
+                           dg.get("map_note") or "305 Data Girl's district tables."))
+    if stamp:   # the page's "Data updated" time: the Election Day figures, not the prior-day tables
+        doc["source_compiled_iso"] = stamp
+        doc["source_compiled"] = stamp.replace("T", " ").replace("Z", " UTC")
     doc["source"] = ((dg.get("source") or "") + "; Election Day from the county Turnout Quick View feeds and Broward's "
                      "turnout dashboard (by polling place)")
     doc["election_day_mix"] = {k: int(round(v)) for k, v in mix.items()}
