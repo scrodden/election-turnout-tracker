@@ -57,7 +57,7 @@ MAX_WORKERS = 10
 # Broward's dashboards (my.browardvotes.gov) can stall from GitHub's servers (7:50 am 11/3: two 45-second timeouts
 # and a 36-second read), so they load in the background while DOS and TQV are read; whatever isn't back this many
 # seconds into the run is skipped, and Broward keeps its last figures instead of holding up the other 66 counties.
-BROWARD_WAIT = 20
+BROWARD_WAIT = int(os.environ.get("FL_BROWARD_WAIT") or 20)   # fl_eday_pass.sh's second pass waits longer
 
 
 def load_json(path):

@@ -2,7 +2,7 @@ name: Election-Day Florida turnout (:x0:05 loop)
 
 # On Election Day Florida's counties post check-ins to their TQV feeds all day. GitHub can't start a run at a set
 # second, so this job stays up and runs Florida 5 seconds after every 10-minute mark (7:40:05, 7:50:05, ...; Sam,
-# 11/3), committing each change at once. A job may run 6 hours, so each run loops ~5h50m and then starts the next
+# 11/3), committing each change at once (scripts/fl_eday_pass.sh, re-read every pass). A job may run 6 hours, so each run loops ~5h50m and then starts the next
 # (concurrency queues it until this one ends). tick.yml also starts one if none is running or queued, and the cron
 # lines are a last resort. It runs only on the Eastern date 2026-11-03; update.yml skips Florida while it runs.
 
@@ -58,19 +58,7 @@ jobs:
             sleep $(( next - $(date +%s) ))
             echo "== $(date -u '+%H:%M:%S UTC')"
             git pull --quiet --rebase --autostash origin "${GITHUB_REF_NAME}" || { git rebase --abort || true; }
-            python scripts/run_all_states.py --only fl || echo "florida run failed (non-fatal)"
-            git add data/fl data/_health.json
-            if git diff --cached --quiet; then
-              echo "No Florida change."
-              continue
-            fi
-            git commit --quiet -m "Florida turnout $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            for try in 1 2 3; do
-              # another commit landed first: a file it also changed keeps its copy (only _health.json can clash)
-              git pull --quiet --rebase -X ours --autostash origin "${GITHUB_REF_NAME}" || { git rebase --abort || true; }
-              git push --quiet && { echo "pushed"; break; }
-              sleep 3
-            done
+            bash scripts/fl_eday_pass.sh || echo "florida pass failed (non-fatal)"
           done
 
       - name: Start the next loop
