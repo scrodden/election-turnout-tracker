@@ -1103,20 +1103,66 @@ def _civic_rows(kind):
 CIVIC_CACHE = os.environ.get("CIVIC_CACHE")
 
 
+def _civic_save(rows, mrows):
+    tmp = CIVIC_CACHE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"fetched_at": C.utc_now_iso(), "rows": rows, "mrows": mrows}, f)
+    os.replace(tmp, CIVIC_CACHE)
+
+
+def _civic_state_type(usps, kind):
+    """One state's Nov 3 rows of one type (civicAPI filters by province; a type is needed or it pages through every
+    local race). -> rows"""
+    q = urllib.parse.urlencode({"country": "US", "province": usps, "type": kind, "limit": 500})
+    got = json.loads(C.http_get(CIVIC_URL + "race/search?" + q, timeout=90))["races"]
+    return [r for r in got if str(r.get("election_date", "")).startswith("2026-11-03")]
+
+
 def civic_rows(refresh=False):
     """-> (race rows, statewide measure rows) for Nov 3. With CIVIC_CACHE set, the cached copy (raises if there's none
-    yet) unless refresh, which fetches and rewrites it."""
+    yet) unless refresh. Refresh: with no copy yet, page through the whole country (minutes; one failed page fails it);
+    with one, re-read only the state x type pairs on the ballot in states whose polls have closed -- states without an
+    official feed first, 4 at a time -- saving each as it lands, so a civicAPI error (502s on 11/3) costs one pair."""
     if CIVIC_CACHE and not refresh:
         with open(CIVIC_CACHE, encoding="utf-8") as f:
             d = json.load(f)
         return d["rows"], d["mrows"]
-    rows = [r for kind in CIVIC_RACE_TYPES for r in _civic_rows(kind)]
-    mrows = [r for kind in CIVIC_MEASURE_TYPES for r in _civic_rows(kind) if r.get("election_type") == "Statewide"]
-    if CIVIC_CACHE:
-        tmp = CIVIC_CACHE + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump({"fetched_at": C.utc_now_iso(), "rows": rows, "mrows": mrows}, f)
-        os.replace(tmp, CIVIC_CACHE)
+    cached = None
+    if CIVIC_CACHE and os.path.exists(CIVIC_CACHE):
+        with open(CIVIC_CACHE, encoding="utf-8") as f:
+            cached = json.load(f)
+    if not cached:
+        rows = [r for kind in CIVIC_RACE_TYPES for r in _civic_rows(kind)]
+        mrows = [r for kind in CIVIC_MEASURE_TYPES for r in _civic_rows(kind) if r.get("election_type") == "Statewide"]
+        if CIVIC_CACHE:
+            _civic_save(rows, mrows)
+        return rows, mrows
+    import threading
+    rows, mrows, lock = cached["rows"], cached["mrows"], threading.Lock()
+    pairs = sorted({(r.get("province"), r.get("type"), m) for m, lst in ((False, rows), (True, mrows)) for r in lst
+                    if r.get("province") in POLLS_CLOSE and polls_closed(r.get("province"))},
+                   key=lambda p: (p[0] in SOURCES, p[0], p[1]))
+    done = [0, 0]
+
+    def one(pair):
+        usps, kind, measure = pair
+        try:
+            fresh = _civic_state_type(usps, kind)
+        except Exception as e:  # noqa: BLE001 - this pair keeps its last copy
+            print("  civic %s %s: %s" % (usps, kind, str(e)[:80]))
+            done[1] += 1
+            return
+        if measure:
+            fresh = [r for r in fresh if r.get("election_type") == "Statewide"]
+        with lock:
+            lst = mrows if measure else rows
+            lst[:] = [r for r in lst if not (r.get("province") == usps and r.get("type") == kind)] + fresh
+            _civic_save(rows, mrows)
+            done[0] += 1
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(one, pairs))
+    print("civic: %d state x type pairs re-read, %d failed (polls closed in %d states)"
+          % (done[0], done[1], len({p[0] for p in pairs})))
     return rows, mrows
 
 
