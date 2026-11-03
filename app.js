@@ -1082,17 +1082,32 @@
       var a = p.a, known = a[0] + a[1] + a[2] + a[3];
       return { t: p.t, n: a[4], y: known ? Math.round((a[0] - a[1]) / known * 1000) / 10 : null };
     });
+    // Election Day tab on Election Day: the day itself, by hour (Eastern), from the polls' opening; a few stray
+    // Election Day ballots recorded before the day (FL: 2 in October, 1 on Nov 1) are only the starting point
+    var eday = m === "election_day" && data && data.election && data.election.date, hourly = null;
+    if (eday && recs.some(function (p) { var e = etParts(p.t); return e.date === eday && e.hour >= 7; })) {
+      var open = new Date(eday + "T07:00:00-05:00"), close = new Date(eday + "T20:00:00-05:00");   // EST: after DST ends
+      var pre = recs.filter(function (p) { return p.t < open; }), start = pre.length ? pre[pre.length - 1].a[4] : 0;
+      var today = recs.filter(function (p) { return p.t >= open && etParts(p.t).date === eday; });
+      cast = [{ t: open, y: start }].concat(today.map(function (p) { return { t: p.t, y: p.a[4] }; }));
+      lean = lean.filter(function (p) { return p.t >= open && etParts(p.t).date === eday; });
+      var ticks = [];
+      for (var h = 8; h <= 20; h += 2) ticks.push(new Date(eday + "T" + (h < 10 ? "0" : "") + h + ":00:00-05:00"));
+      hourly = { xmin: open.getTime(), xmax: Math.max(close.getTime(), today[today.length - 1].t.getTime()), xticks: ticks,
+        xlabel: function (t) { return t.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric" }); },
+        tipTime: function (t) { return t.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) + " ET"; } };
+    }
     var hasLean = partisan && lean.some(function (p) { return p.y != null; });
-    $("#trend-title-cast").textContent = label;
+    $("#trend-title-cast").textContent = label + (hourly ? " · by hour (ET)" : "");
     $("#trend-title-lean").textContent = "Partisan lean" + (m === "cast" ? " of ballots cast" : " · " + label);
     $("#trend-lean-cell").hidden = !hasLean;
     var first = recs.length ? recs[0].t : null, all0 = new Date(trendData[0].generated_at);
     var since = first && first - all0 > 36e5 * 24 ? first.toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
     var empty = recs.length ? "Not enough updates yet" : "Not recorded separately yet; fills in from now on";
-    drawLineChart($("#chart-cast"), cast, { ymin: 0, fmt: fmt, color: "#31a354", empty: empty,
-      tip: function (p) { return fmt(p.y) + " " + (m === "cast" ? "ballots" : label.toLowerCase()); } });
-    if (hasLean) drawLineChart($("#chart-lean"), lean, { symmetric: true, zero: true, fmt: marginText, color: "var(--accent)",
-      tip: function (p) { return marginText(p.y) + (p.n ? " of " + fmt(p.n) + " ballots" : ""); } });
+    drawLineChart($("#chart-cast"), cast, Object.assign({ ymin: 0, fmt: fmt, color: "#31a354", empty: empty,
+      tip: function (p) { return fmt(p.y) + " " + (m === "cast" ? "ballots" : label.toLowerCase()); } }, hourly));
+    if (hasLean) drawLineChart($("#chart-lean"), lean, Object.assign({ symmetric: true, zero: true, fmt: marginText, color: "var(--accent)",
+      tip: function (p) { return marginText(p.y) + (p.n ? " of " + fmt(p.n) + " ballots" : ""); } }, hourly));
     var note = $("#trend-note");
     note.hidden = !(m !== "cast" && m !== "election_day" && since);   // Election Day votes only ever start on the day
     note.textContent = note.hidden ? "" : "This state's updates recorded " + label.toLowerCase() + " separately from " + since +
@@ -1123,12 +1138,12 @@
       else k = p.t.getFullYear() + "-" + (p.t.getMonth() + 1) + "-" + p.t.getDate();
       if (!(k in byKey)) { byKey[k] = days.length; days.push(p); } else days[byKey[k]] = p;
     });
-    // the hours start the table: a few stray Election Day ballots recorded before the day (FL: 2 in October,
-    // 1 on Nov 1) are only the first hour's starting point
+    // the hours from the polls' opening (7 AM) start the table: a few stray Election Day ballots recorded before
+    // then (FL: 2 in October, 1 on Nov 1; the tab opens at 0 before 7 AM) are only the first hour's starting point
     var base = null;
     if (hourly) {
       var fi = 0;
-      while (days[fi].hour == null) fi++;
+      while (fi < days.length && (days[fi].hour == null || days[fi].hour < 7)) fi++;
       base = fi ? days[fi - 1].a : [0, 0, 0, 0, 0];
       days = days.slice(fi);
     }
@@ -1182,7 +1197,7 @@
     if (pts.length < 2) { add("text", { x: ml, y: H / 2, class: "lbl" }, opts.empty || "Not enough data yet"); return; }
     var xs = pts.map(function (p) { return p.t.getTime(); });
     var ys = pts.map(function (p) { return p.y; });
-    var xmin = Math.min.apply(null, xs), xmax = Math.max.apply(null, xs);
+    var xmin = opts.xmin != null ? opts.xmin : Math.min.apply(null, xs), xmax = opts.xmax != null ? opts.xmax : Math.max.apply(null, xs);
     var ymin = opts.ymin != null ? opts.ymin : Math.min.apply(null, ys);
     var ymax = opts.ymax != null ? opts.ymax : Math.max.apply(null, ys);
     if (opts.symmetric) { var a = Math.max(Math.abs(ymin), Math.abs(ymax), 1); ymin = -a; ymax = a; }
@@ -1201,8 +1216,15 @@
     var last = pts[pts.length - 1];
     add("circle", { cx: px(last.t.getTime()), cy: py(last.y), r: 3, fill: opts.color || "var(--accent)" });
     function dl(t) { return t.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
-    add("text", { class: "lbl", x: ml, y: H - 7 }, dl(new Date(xmin)));
-    add("text", { class: "lbl", x: W - mr, y: H - 7, "text-anchor": "end" }, dl(new Date(xmax)));
+    if (opts.xticks) opts.xticks.forEach(function (t) {   // e.g. Election Day by hour: 8 AM, 10 AM, ...
+      if (t.getTime() <= xmin || t.getTime() > xmax) return;
+      add("line", { class: "gridline", x1: px(t.getTime()), y1: mt, x2: px(t.getTime()), y2: H - mb });
+      add("text", { class: "lbl", x: px(t.getTime()), y: H - 7, "text-anchor": "middle" }, opts.xlabel(t));
+    });
+    else {
+      add("text", { class: "lbl", x: ml, y: H - 7 }, dl(new Date(xmin)));
+      add("text", { class: "lbl", x: W - mr, y: H - 7, "text-anchor": "end" }, dl(new Date(xmax)));
+    }
 
     // hover / touch readout: the reported point nearest the pointer
     var color = opts.color || "var(--accent)";
@@ -1224,7 +1246,7 @@
       guide.setAttribute("x1", X); guide.setAttribute("x2", X);
       dot.setAttribute("cx", X); dot.setAttribute("cy", Y);
       tipV.textContent = opts.tip ? opts.tip(p) : (opts.fmt ? opts.fmt(p.y) : p.y);
-      tipD.textContent = p.t.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      tipD.textContent = opts.tipTime ? opts.tipTime(p.t) : p.t.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
       [guide, dot, tip].forEach(function (e) { e.setAttribute("visibility", "visible"); });
       var pad = 6, w = Math.max(tipV.getComputedTextLength(), tipD.getComputedTextLength()) + 2 * pad, h = 32;
       var tx = X + 8 + w > W - mr ? X - 8 - w : X + 8;
