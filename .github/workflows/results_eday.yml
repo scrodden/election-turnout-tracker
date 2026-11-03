@@ -60,13 +60,33 @@ jobs:
         if: inputs.rehearse == true
         run: python scripts/results_feeds_check.py || true
 
+      - name: civicAPI rows from the last run
+        if: steps.g.outputs.go == '1'
+        uses: actions/cache@v4
+        with:
+          path: .civic
+          key: civic-${{ github.run_id }}
+          restore-keys: civic-
+
       - name: Live 2-minute results loop
         if: steps.g.outputs.go == '1'
         run: |
           git config user.name  "turnout-bot"
           git config user.email "actions@users.noreply.github.com"
           end=$(( $(date +%s) + 570 ))   # ~9.5 minutes, then the next run continues
+          # civicAPI (the fallback behind the official feeds) takes ~5 minutes to page through, so it refreshes in the
+          # background and each cycle uses its latest copy; until the first copy lands, civicAPI races keep their last
+          # figures (11/3)
+          export CIVIC_CACHE="$PWD/.civic/civic_rows.json"   # carried between runs by the cache step
+          mkdir -p .civic
+          python scripts/civic_refresh.py > "$RUNNER_TEMP/civic.log" 2>&1 &
+          cpid=$!
           while [ "$(date +%s)" -lt "$end" ]; do
+            if ! kill -0 "$cpid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/civic.log" 2>/dev/null | tail -3
+              python scripts/civic_refresh.py > "$RUNNER_TEMP/civic.log" 2>&1 &
+              cpid=$!
+            fi
             git pull --quiet --rebase --autostash origin "${GITHUB_REF_NAME}" || git rebase --abort || true   # the PC reader's files
             python scripts/results_update.py || echo "results update failed (non-fatal)"
             python scripts/results_county_update.py || echo "county results update failed (non-fatal)"

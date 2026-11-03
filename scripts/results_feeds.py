@@ -18,6 +18,7 @@ Race ids: sen-<ST>, sen-<ST>-special, gov-<ST>, house-<ST>-<NN or AL>.
 import base64
 import gzip
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 import html
 import json
 import os
@@ -1081,15 +1082,42 @@ CIVIC_LABEL = "civicAPI"
 
 
 def _civic_rows(kind):
-    """Every Nov 3 row of one type, nationwide."""
-    rows, offset = [], 0
-    while True:
+    """Every Nov 3 row of one type, nationwide. civicAPI has no date filter, so this pages through every year's races
+    of the type (House: 14 pages of 16-25 s each on 11/3); after the first page, 3 pages at a time."""
+    def page(offset):
         q = urllib.parse.urlencode({"country": "US", "type": kind, "limit": 500, "offset": offset})
-        got = json.loads(C.http_get(CIVIC_URL + "race/search?" + q, timeout=60))["races"]
-        rows += [r for r in got if str(r.get("election_date", "")).startswith("2026-11-03")]
-        if len(got) < 500 or offset > 6000:
-            return rows
-        offset += 500
+        return json.loads(C.http_get(CIVIC_URL + "race/search?" + q, timeout=90))
+    got = page(0)["races"]
+    more, offset = len(got) >= 500, 500
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        while more and offset <= 6500:   # 3 pages at a time until one comes back short
+            batch = list(pool.map(page, range(offset, offset + 1500, 500)))
+            for d in batch:
+                got += d["races"]
+            more, offset = all(len(d["races"]) >= 500 for d in batch), offset + 1500
+    return [r for r in got if str(r.get("election_date", "")).startswith("2026-11-03")]
+
+
+# results_eday.yml sets CIVIC_CACHE: civic_refresh.py refreshes civicAPI's rows there in the background (a pass takes
+# minutes), and each 2-minute results cycle reads the latest copy instead of waiting on civicAPI (11/3).
+CIVIC_CACHE = os.environ.get("CIVIC_CACHE")
+
+
+def civic_rows(refresh=False):
+    """-> (race rows, statewide measure rows) for Nov 3. With CIVIC_CACHE set, the cached copy (raises if there's none
+    yet) unless refresh, which fetches and rewrites it."""
+    if CIVIC_CACHE and not refresh:
+        with open(CIVIC_CACHE, encoding="utf-8") as f:
+            d = json.load(f)
+        return d["rows"], d["mrows"]
+    rows = [r for kind in CIVIC_RACE_TYPES for r in _civic_rows(kind)]
+    mrows = [r for kind in CIVIC_MEASURE_TYPES for r in _civic_rows(kind) if r.get("election_type") == "Statewide"]
+    if CIVIC_CACHE:
+        tmp = CIVIC_CACHE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"fetched_at": C.utc_now_iso(), "rows": rows, "mrows": mrows}, f)
+        os.replace(tmp, CIVIC_CACHE)
+    return rows, mrows
 
 
 def _civic_race_id(row):
@@ -1124,8 +1152,7 @@ def civic_fetch(closed=None):
     "live": {states}}. Numbers and calls appear only for states whose polls have closed and whose counts aren't flagged
     as test data."""
     closed = closed or polls_closed
-    rows = [r for kind in CIVIC_RACE_TYPES for r in _civic_rows(kind)]
-    mrows = [r for kind in CIVIC_MEASURE_TYPES for r in _civic_rows(kind) if r.get("election_type") == "Statewide"]
+    rows, mrows = civic_rows()
     roster, per_state = set(), {}
     for r in rows:
         rid = _civic_race_id(r)
