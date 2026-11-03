@@ -61,15 +61,41 @@ jobs:
             echo "frozen=0" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Fetch & process Florida turnout first (health-tracked)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/run_all_states.py --only fl || echo "florida run failed (non-fatal)"
+
+      - name: Commit Florida right away
+        if: steps.gate.outputs.frozen != '1'
+        run: |
+          # Florida's counties post Election Day check-ins all day, so its numbers go out before the other states run
+          # (Sam, 11/3). A failed push here is retried by the final commit step.
+          git config user.name  "turnout-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/fl data/_health.json
+          if git diff --cached --quiet; then
+            echo "No Florida change; nothing to commit."
+          else
+            git commit -m "Florida turnout $(date -u '+%Y-%m-%d %H:%M UTC')"
+            if ! git pull --rebase -X ours --autostash origin "${GITHUB_REF_NAME}"; then
+              git rebase --abort || true
+              echo "FL_UNPUSHED=1" >> "$GITHUB_ENV"
+              echo "Florida data conflicted with a newer commit; the final commit step retries."
+            elif ! git push; then
+              echo "FL_UNPUSHED=1" >> "$GITHUB_ENV"
+              echo "Push rejected; the final commit step retries."
+            fi
+          fi
+
       - name: Scrape Election-Day county turnout (GA/TX)
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/eday_scrape.py || echo "eday scrape failed (non-fatal)"
 
-      - name: Fetch & process all state turnout (health-tracked)
+      - name: Fetch & process the other states' turnout (health-tracked; about hourly on Election Day)
         if: steps.gate.outputs.frozen != '1'
         run: |
           pip install --quiet pypdf || true
-          python scripts/run_all_states.py || echo "state runner failed (non-fatal)"
+          python scripts/run_all_states.py --skip fl || echo "state runner failed (non-fatal)"
 
       - name: Update VA locality early votes (about hourly; self-throttled)
         if: steps.gate.outputs.frozen != '1'
@@ -141,11 +167,11 @@ jobs:
           git config user.name  "turnout-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data config/candidates_2026.json config/measures.json
-          if git diff --cached --quiet; then
+          if git diff --cached --quiet && [ -z "$FL_UNPUSHED" ]; then
             echo "No data change; nothing to commit."
           else
             ts=$(date -u '+%Y-%m-%d %H:%M UTC')
-            git commit -m "Turnout update $ts"
+            git diff --cached --quiet || git commit -m "Turnout update $ts"
             # another run committed first: any file it also changed keeps its newer copy (on Election Day the
             # 2-minute results loop rewrites the results files), and every other file here still goes out
             if ! git pull --rebase -X ours --autostash origin "${GITHUB_REF_NAME}"; then

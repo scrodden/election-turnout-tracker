@@ -10,9 +10,12 @@ show "last checked" for every state and flag any feed that actually errored
 (instead of a silent failure looking the same as "source unchanged").
 
 Every state is checked every cycle, so a state updates as soon as its source
-publishes new data; this file makes that provable and surfaces breakage.
+publishes new data; this file makes that provable and surfaces breakage. The
+exception is Election Day (PRIORITY_DAY, Eastern date): Florida's counties post
+check-ins all day, so it runs every cycle and the other states about hourly.
 
-Run:  python scripts/run_all_states.py
+Run:  python scripts/run_all_states.py [--only fl | --skip fl]
+      (update.yml runs Florida alone and commits it before the other states)
 """
 import os
 import re
@@ -21,6 +24,7 @@ import io
 import json
 import contextlib
 import importlib
+from datetime import datetime, timedelta, timezone
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -37,6 +41,10 @@ def latest_hash(code):
 
 
 GUARDED = ("latest.json", "history.jsonl")
+
+PRIORITY_DAY = "2026-11-03"   # Election Day: Florida every cycle, the other states about hourly (Sam, 11/3)
+PRIORITY = "fl"
+OTHERS_EVERY_MIN = 55
 
 
 def read_files(code):
@@ -110,16 +118,26 @@ def held_back(code, before):
     return reason
 
 
-def main():
+def main(argv=None):
+    args = sys.argv[1:] if argv is None else argv
+    only = set(args[args.index("--only") + 1].split(",")) if "--only" in args else None
+    skip = set(args[args.index("--skip") + 1].split(",")) if "--skip" in args else set()
     reg = json.load(open(os.path.join(ROOT, "assets", "states.json"), encoding="utf-8"))
-    codes = [s["code"] for s in reg.get("states", [])]
-    health = {}
+    all_codes = [s["code"] for s in reg.get("states", [])]
+    codes = [c for c in all_codes if (only is None or c in only) and c not in skip]
     prev_health = {}
     try:
         with open(os.path.join(ROOT, "data", "_health.json"), encoding="utf-8") as f:
             prev_health = json.load(f).get("states", {})
     except (OSError, ValueError):
         pass
+    et_day = (datetime.now(timezone.utc) - timedelta(hours=5)).date().isoformat()
+    if (only is None and et_day == PRIORITY_DAY and any(c != PRIORITY for c in codes)
+            and C.checked_recently(os.path.join(ROOT, "data"), "other_states", minutes=OTHERS_EVERY_MIN)):
+        print("Election Day: the other states ran under %d minutes ago; only Florida runs every cycle." % OTHERS_EVERY_MIN)
+        codes = [c for c in codes if c == PRIORITY]
+    # states not run this time keep their last record
+    health = {c: prev_health[c] for c in all_codes if c in prev_health}
     ok = changed = errors = frozen = 0
     for code in codes:
         if os.path.exists(os.path.join(ROOT, "data", code, "_frozen.json")):
