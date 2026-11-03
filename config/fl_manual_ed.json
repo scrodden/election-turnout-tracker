@@ -4,12 +4,12 @@
     "Lake": {
       "label": "the Lake County Supervisor of Elections' Current Elections page",
       "url": "https://www.lakevotes.gov/180/Current-Elections",
-      "as_of": "2026-11-03T21:00:00Z",
-      "as_of_label": "4 pm",
-      "rep": 30351,
-      "dem": 10487,
-      "npa": 10536,
-      "oth": 1639
+      "as_of": "2026-11-03T22:00:00Z",
+      "as_of_label": "5 pm",
+      "rep": 33809,
+      "dem": 11841,
+      "npa": 11893,
+      "oth": 1862
     }
   }
 }
