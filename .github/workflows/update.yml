@@ -61,12 +61,25 @@ jobs:
             echo "frozen=0" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Fetch & process Florida turnout first (health-tracked)
+      - name: Is the Election-Day Florida loop running?
+        id: flloop
         if: steps.gate.outputs.frozen != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # fl_eday.yml runs Florida at 5 seconds past every 10-minute mark on Election Day; skip it here meanwhile
+          n=$(gh run list --repo "${{ github.repository }}" --workflow fl_eday.yml --limit 5 --json status --jq '[.[] | select(.status != "completed")] | length' || echo 0)
+          if [ "$n" != "0" ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "The Florida loop is running; it handles Florida."
+          fi
+
+      - name: Fetch & process Florida turnout first (health-tracked)
+        if: steps.gate.outputs.frozen != '1' && steps.flloop.outputs.skip != '1'
         run: python scripts/run_all_states.py --only fl || echo "florida run failed (non-fatal)"
 
       - name: Commit Florida right away
-        if: steps.gate.outputs.frozen != '1'
+        if: steps.gate.outputs.frozen != '1' && steps.flloop.outputs.skip != '1'
         run: |
           # Florida's counties post Election Day check-ins all day, so its numbers go out before the other states run
           # (Sam, 11/3). A failed push here is retried by the final commit step.

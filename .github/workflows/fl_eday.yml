@@ -1,0 +1,80 @@
+name: Election-Day Florida turnout (:x0:05 loop)
+
+# On Election Day Florida's counties post check-ins to their TQV feeds all day. GitHub can't start a run at a set
+# second, so this job stays up and runs Florida 5 seconds after every 10-minute mark (7:40:05, 7:50:05, ...; Sam,
+# 11/3), committing each change at once. A job may run 6 hours, so each run loops ~5h50m and then starts the next
+# (concurrency queues it until this one ends). tick.yml also starts one if none is running or queued, and the cron
+# lines are a last resort. It runs only on the Eastern date 2026-11-03; update.yml skips Florida while it runs.
+
+on:
+  schedule:
+    - cron: "7,37 * 3 11 *"
+    - cron: "7,37 0-4 4 11 *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  actions: write    # to start the next loop
+
+concurrency:
+  group: fl-eday
+  cancel-in-progress: false
+
+jobs:
+  loop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Election-Day gate (Eastern date)
+        id: g
+        run: |
+          if [ "$(TZ=America/New_York date +%Y-%m-%d)" = "2026-11-03" ]; then
+            echo "go=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "Not Election Day in Florida; skipping."
+          fi
+
+      - name: Checkout
+        if: steps.g.outputs.go == '1'
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        if: steps.g.outputs.go == '1'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Florida every 10 minutes, 5 seconds past the mark
+        if: steps.g.outputs.go == '1'
+        run: |
+          git config user.name  "turnout-bot"
+          git config user.email "actions@users.noreply.github.com"
+          stop=$(( $(date +%s) + 350 * 60 ))
+          midnight=$(date -d "2026-11-04T05:00:00Z" +%s)   # Eastern midnight ends Election Day
+          [ "$midnight" -lt "$stop" ] && stop=$midnight
+          while :; do
+            next=$(( ( $(date +%s) - 5 ) / 600 * 600 + 605 ))
+            [ "$next" -ge "$stop" ] && break
+            sleep $(( next - $(date +%s) ))
+            echo "== $(date -u '+%H:%M:%S UTC')"
+            git pull --quiet --rebase --autostash origin "${GITHUB_REF_NAME}" || { git rebase --abort || true; }
+            python scripts/run_all_states.py --only fl || echo "florida run failed (non-fatal)"
+            git add data/fl data/_health.json
+            if git diff --cached --quiet; then
+              echo "No Florida change."
+              continue
+            fi
+            git commit --quiet -m "Florida turnout $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            for try in 1 2 3; do
+              # another commit landed first: a file it also changed keeps its copy (only _health.json can clash)
+              git pull --quiet --rebase -X ours --autostash origin "${GITHUB_REF_NAME}" || { git rebase --abort || true; }
+              git push --quiet && { echo "pushed"; break; }
+              sleep 3
+            done
+          done
+
+      - name: Start the next loop
+        if: always() && steps.g.outputs.go == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run fl_eday.yml --repo "${{ github.repository }}" --ref main
