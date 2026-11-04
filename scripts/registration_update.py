@@ -937,23 +937,31 @@ def _selected_option(html, select_id):
     return m2.group(1) if m2 else None
 
 
+_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July",
+                "August", "September", "October", "November", "December"]
+
+
 def parse_id():
     """ID SoS VoteIdaho 'Voter Registration Totals' page -- a year/month/group
-    switcher whose default selection (newest posted month) builds a CSV URL at
-    archive.voteidaho.gov: <year><month>_<group>Totals.csv (e.g. 202610 for Oct
-    2026, County group). Columns: County,CON,DEM,LIB,REP,UNA,Total, with a
-    'Total' row to check against. UNA (unaffiliated) -> npa; CON+LIB -> oth.
+    switcher that builds a CSV URL at archive.voteidaho.gov:
+    <year><month>_<group>Totals.csv (e.g. 202610 for Oct 2026, County group).
+    The month <select> never carries a static selected="selected" attribute
+    (it's set client-side by JS), so the current month/year instead come from
+    the page's "Last updated <Month> <day>, <year>" line. Columns:
+    County,CON,DEM,LIB,REP,UNA,Total, with a 'Total' row to check against.
+    UNA (unaffiliated) -> npa; CON+LIB -> oth.
     Was flagged Cloudflare/JS (manual snapshot only); the page itself loads
     fine and the CSV it points to is a plain unauthenticated file."""
     import csv
     import io
     page = C.http_get(
         "https://voteidaho.gov/data-and-dashboards/voter-registration-totals/", no_cache=True)
-    year = _selected_option(page, "switcherY")
-    month = _selected_option(page, "switcherM")
     group = _selected_option(page, "switcherG") or "County"
-    if not year or not month:
-        raise RuntimeError("ID: couldn't find default year/month selection")
+    m = re.search(r"Last updated ([A-Za-z]+) \d{1,2}, (\d{4})", page)
+    if not m or m.group(1) not in _MONTH_NAMES:
+        raise RuntimeError("ID: couldn't find 'Last updated' month/year")
+    year = m.group(2)
+    month = "%02d" % (_MONTH_NAMES.index(m.group(1)) + 1)
     url = "https://archive.voteidaho.gov/data/voter-registrations/%s%s_%sTotals.csv" % (year, month, group)
     rows = list(csv.reader(io.StringIO(C.http_get(url, no_cache=True))))
     if not rows or [c.strip() for c in rows[0][:7]] != ["County", "CON", "DEM", "LIB", "REP", "UNA", "Total"]:
@@ -1015,7 +1023,10 @@ def main():
             continue
         try:
             r = fn() or {}
-        except Exception as e:  # noqa: BLE001
+        except BaseException as e:  # noqa: BLE001 -- pypdf's native backend can raise a
+            # pyo3 PanicException, which does not subclass Exception; one state's broken
+            # PDF parse must not take down the whole run (never KeyboardInterrupt/SystemExit
+            # here -- fn() is a pure data-fetch call, not somewhere those are raised).
             print("  ! %s registration failed: %s" % (code, str(e)[:60]), file=sys.stderr)
             r = {}
         rep = int(r.get("rep", 0)); dem = int(r.get("dem", 0)); npa = int(r.get("npa", 0)); oth = int(r.get("oth", 0))

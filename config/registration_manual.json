@@ -1,12 +1,6 @@
 {
-  "_comment": "Manual voter-registration-by-party snapshots for states whose official source can't be auto-fetched from CI (bot protection on the site/files, or figures only in a JS page or press release). Read by hand from the official page and refreshed periodically; registration_update.py merges these for states NOT covered by an auto parser in SOURCES (a real parser always wins). Refresh all of these in late October 2026.",
+  "_comment": "Manual voter-registration-by-party snapshots for states whose official source can't be auto-fetched from CI (bot protection on the site/files, or figures only in a JS page or press release). Read by hand from the official page and refreshed periodically; registration_update.py merges these for states NOT covered by an auto parser in SOURCES (a real parser always wins). Refresh all of these in late October 2026. ID moved to a real auto parser (registration_update.py:parse_id, archive.voteidaho.gov CSV behind the switcher) as of 2026-11-04 -- no manual entry needed.",
   "states": {
-    "id": {
-      "rep": 646820, "dem": 122021, "npa": 246923, "oth": 14758,
-      "as_of": "September 1, 2026",
-      "source": "https://voteidaho.gov/data-and-dashboards/voter-registration-totals/",
-      "note": "Manual snapshot summed from the VoteIdaho county table (Cloudflare/JS; not auto-fetchable). Constitution+Libertarian -> oth, Unaffiliated -> npa. Refresh late Oct 2026."
-    },
     "az": {
       "rep": 1523886, "dem": 1210510, "npa": 1490185, "oth": 81973,
       "as_of": "July 2026",
