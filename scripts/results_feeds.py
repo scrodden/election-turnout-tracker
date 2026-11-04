@@ -90,7 +90,7 @@ KEEP_ZERO = False   # results_feeds_check.py: list races before they have votes,
 def race(cands, reporting):
     """One race for results_update, or None while it has no votes (feeds list every race at 0 before results)."""
     # a page's "Totals" row isn't a candidate (it would double every count)
-    out = [{"name": n, "party": p, "votes": v} for n, p, v in cands if n and not re.match(r"(?i)totals?", n)]
+    out = [{"name": n, "party": p, "votes": v} for n, p, v in cands if n and not re.match(r"(?i)totals?\b", n)]
     return {"candidates": out, "reporting_pct": reporting} if (KEEP_ZERO or sum(c["votes"] for c in out)) else None
 
 
