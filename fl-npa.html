@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Florida NPA Vote</title>
+<meta name="description" content="How Florida's NPA and minor-party voters implicitly voted in the 2026 Senate and Governor races, county by county: each county's result minus its Republican and Democratic turnout." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css?v=2026102101" />
+<style>
+  .intro { font-size: 14px; margin: 14px 0 0; max-width: 860px; }
+  .intro b { font-weight: 700; }
+  .race-tabs { margin-top: 14px; }
+  .story { font-size: 14px; margin: 0 0 14px; max-width: 900px; }
+  .npa-wrap { position: relative; }
+  .npa-wrap svg { width: 100%; height: auto; display: block; max-height: 560px; }
+  .npa-wrap path.c { stroke: var(--card); stroke-width: .7; }
+  .npa-wrap path.c:hover, .npa-wrap path.c.hi { stroke: var(--ink); stroke-width: 1.6; }
+  .npa-wrap path.flag { fill: none; stroke: var(--ink); stroke-width: 1.1; stroke-dasharray: 2.5 2; pointer-events: none; }
+  .npa-wrap path.hatch { pointer-events: none; }
+  .cm-tip { position: absolute; z-index: 5; min-width: 200px; max-width: 290px; background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 9px; font-size: 12px; line-height: 1.45; box-shadow: var(--shadow); pointer-events: none; }
+  .cm-tip .big { font-size: 15px; font-weight: 700; }
+  .cm-tip .warn { color: var(--muted); margin-top: 4px; }
+  .npa-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .npa-legend .grad { width: 180px; height: 10px; border-radius: 5px; }
+  .npa-legend .ends { display: flex; justify-content: space-between; width: 180px; font-size: 11px; }
+  .npa-legend .sw { display: inline-block; width: 16px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; }
+  .npa-legend .sw.hatch { background: repeating-linear-gradient(45deg, #9aa3ad 0 2px, transparent 2px 5px); border: 1px solid #9aa3ad; }
+  .npa-legend .sw.dash { border: 1.5px dashed var(--ink); }
+  .score-scroll { max-height: 600px; overflow: auto; }
+  table.score { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.score th, table.score td { text-align: right; padding: 6px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.score th:first-child, table.score td:first-child { text-align: left; }
+  table.score th { position: sticky; top: 0; background: var(--card); cursor: pointer; font-size: 12px; color: var(--muted); font-weight: 600; z-index: 1; }
+  table.score tbody tr { cursor: pointer; }
+  table.score tbody tr:hover, table.score tbody tr.hi { background: rgba(127,127,127,.1); }
+  table.score .pill { min-width: 62px; }
+  .flagmark { color: var(--muted); font-size: 11px; margin-left: 3px; }
+  .tbl-actions { display: flex; gap: 8px; align-items: center; }
+  .tbl-actions button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); cursor: pointer; }
+  .method h3 { font-size: 14px; margin: 14px 0 4px; }
+  .method p, .method li { font-size: 13px; }
+  .method ul { margin: 4px 0; padding-left: 20px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles">
+      <div class="title-row"><h1>Florida: How Did NPAs Vote?</h1></div>
+      <p class="sub">2026 general · implied vote of NPA &amp; minor-party voters by county, from results and party turnout</p>
+    </div>
+    <div class="status">
+      <div id="updated" class="updated"></div>
+      <div class="refresh-note"><a href="index.html#s=fl">← Florida turnout</a> · <a href="results.html">Results</a> · <a href="national.html">National</a> · <a href="about.html">About</a> · Auto-refreshes</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <p class="intro">Florida reports who voted by party but not how each party voted. If every <b>Republican</b> who cast a ballot voted for the Republican and every <b>Democrat</b> for the Democrat, whatever is left of each county's result is how <b>NPAs and minor-party voters</b> voted. That leftover is the <b>implied NPA margin</b>.</p>
+
+  <div class="method-picker race-tabs" id="race-tabs" role="tablist" aria-label="Race">
+    <button role="tab" data-race="sen" aria-selected="true">U.S. Senate (special)</button>
+    <button role="tab" data-race="gov" aria-selected="false">Governor</button>
+  </div>
+
+  <section id="summary" class="summary" aria-label="Statewide figures"></section>
+  <p id="story" class="story"></p>
+
+  <section class="grid">
+    <div class="card">
+      <div class="card-head"><h2 id="map-title">Implied NPA margin by county</h2></div>
+      <div class="npa-wrap" id="map-wrap">
+        <svg id="map" role="img" aria-label="Map of Florida counties colored by implied NPA margin"></svg>
+        <div class="cm-tip" id="tip" hidden></div>
+      </div>
+      <div class="npa-legend" id="legend"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><h2>Counties</h2>
+        <div class="tbl-actions"><button id="csv" type="button">Download CSV</button></div></div>
+      <div class="score-scroll">
+        <table class="score" id="tbl"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="fineprint" id="tbl-note"></p>
+    </div>
+  </section>
+
+  <section class="card method">
+    <div class="card-head"><h2>How this is figured, and where it breaks</h2></div>
+    <p><b>Implied NPA margin</b> = (Republican's votes − Democrat's votes − (Republican ballots − Democratic ballots)) ÷ (NPA + minor-party ballots). Positive is a Republican lead.</p>
+    <p>In other words, the result's margin in votes minus the margin Republicans had over Democrats in ballots cast, spread over the voters who are neither. Minor-party voters (about 3% of ballots) are counted with NPAs, so the figure assumes they voted like NPAs. Everyone in the pool who voted for a third candidate or skipped the race falls under &ldquo;other/blank&rdquo;.</p>
+    <h3>Where it breaks</h3>
+    <ul>
+      <li><b>Crossover voting.</b> Some Democrats vote Republican and some Republicans vote Democratic, and the method assigns all of that to NPAs. Hatched counties are where a candidate got <i>fewer</i> votes than ballots cast by their own party's voters, so the assumption plainly fails there. This happens mostly in rural North Florida, where many longtime registered Democrats vote Republican. There, the implied margins run past 100 points.</li>
+      <li><b>Turnout counts vs. ballots counted.</b> Party turnout is the counties' check-in and ballot-return counts by party; results are ballots tabulated. Where they disagree, the gap lands on NPAs. The table's last column (votes/ballots) compares votes in the race with ballots cast; dashed counties are where votes exceed ballots with a party on file by more than 0.5% (party turnout incomplete), or fall below 95% of them.</li>
+      <li><b>Lake County</b> reports Election Day party only on its website's hourly chart, and the last one posted is for 6 pm, while polls closed at 7 pm. Its final hour of Election Day ballots has no party, so its implied NPA figure picks up however that hour's voters voted.</li>
+      <li>Results are unofficial election-night returns until counties certify, and provisional ballots aren't in the party turnout.</li>
+    </ul>
+    <h3>Sources</h3>
+    <p id="sources"></p>
+  </section>
+
+  <footer class="site-foot">
+    <p>Independent, non-partisan data project. Figures recompute from the published files every time this page loads.</p>
+  </footer>
+</main>
+
+<script src="fl-npa.js?v=2026110401"></script>
+</body>
+</html>

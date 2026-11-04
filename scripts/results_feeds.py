@@ -540,6 +540,48 @@ def parse_FL():
     return out
 
 
+def _fl_county_reporting():
+    """{county name, lowercase: precincts reporting %} from the County Reporting Status page."""
+    s = C.http_get(FL_BASE + "CountyReportingStatus", no_cache=True, timeout=60)
+    out = {}
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", s, re.S):
+        c = [text_of(x) for x in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+        pcts = [i for i, x in enumerate(c) if x.endswith("%")]
+        if len(pcts) >= 2 and pcts[0] >= 2:
+            out[c[0].lower()] = float(c[pcts[1]].rstrip("%") or 0)
+    return out
+
+
+def county_FL():
+    """Each office page links its Contest Results by County table: a column per candidate ('Ashley Moody (REP)'), a row
+    per county, then a Total row."""
+    with open(os.path.join(ROOT, "assets", "fl-counties.geojson"), encoding="utf-8") as f:
+        names = {ft["properties"]["name"].lower(): ft["properties"]["name"] for ft in json.load(f)["features"]}
+    rep_pct = _fl_county_reporting()
+    out = {}
+    for page, key in (("FederalOffices/USSenator", "sen"), ("StateOffices/Governor", "gov")):
+        m = re.search(r'href="/(ContestResultsByCounty/\d+)"', C.http_get(FL_BASE + page, no_cache=True, timeout=60))
+        if not m:
+            continue
+        s = C.http_get(FL_BASE + m.group(1), no_cache=True, timeout=60)
+        cols = []
+        for h in [text_of(x) for x in re.findall(r"<th[^>]*>(.*?)</th>", s, re.S)][1:]:
+            p = party((re.search(r"\((\w+)\)\s*$", h) or [None, ""])[1])
+            cols.append("rep" if p == "REP" else "dem" if p == "DEM" else "other")
+        for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", s, re.S):
+            c = [text_of(x) for x in re.findall(r"<td[^>]*>(.*?)</td>", tr, re.S)]
+            name = names.get(c[0].lower()) if c else None
+            if not name or len(c) != len(cols) + 1:
+                continue
+            e = {"rep": 0, "dem": 0, "other": 0}
+            for k, v in zip(cols, c[1:]):
+                e[k] += num(v)
+            if sum(e.values()):
+                e["reporting"] = rep_pct.get(c[0].lower())
+                out.setdefault(name, {})[key] = e
+    return out
+
+
 def measures_FL():
     t = text_of(C.http_get(FL_BASE + "Amendments", no_cache=True, timeout=60))
     ids = {m["title"]: m["id"] for m in _measures_for("FL")}
@@ -1261,4 +1303,4 @@ SOURCES = {"NC": parse_NC, "MN": parse_MN, "CA": parse_CA, "GA": parse_GA, "WA":
 MEASURES = {"NC": measures_NC, "CA": measures_CA, "MN": measures_MN, "GA": measures_GA, "WA": measures_WA, "VA": measures_VA,
             "UT": measures_UT, "FL": measures_FL, "LA": measures_LA, "MD": measures_MD, "ID": measures_ID, "NE": measures_NE, "SD": measures_SD,
             "ND": measures_ND, "AK": measures_AK, "RI": measures_RI, "IA": measures_IA, "CO": measures_CO, "WV": measures_WV, "NM": measures_NM}
-COUNTIES = {"MN": county_MN, "PA": county_PA}
+COUNTIES = {"MN": county_MN, "PA": county_PA, "FL": county_FL}

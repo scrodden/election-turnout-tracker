@@ -1327,6 +1327,7 @@
   function updateResultToggle() {
     var show = partisan && rcHasData();
     var lab = $("#cmp-result-label"); if (lab) lab.hidden = !show;
+    var nl = $("#npa-link"); if (nl) { nl.hidden = !(show && st && st.npa_page); if (st && st.npa_page) nl.href = st.npa_page; }   // e.g. fl-npa.html
     var row = $("#cmp-2022").closest(".controls-row");
     if (row) row.style.display = (BASELINE_URL || show || pastFinal) ? "" : "none";
     var pl = $("#past-label"); if (pl) pl.hidden = !pastFinal;
