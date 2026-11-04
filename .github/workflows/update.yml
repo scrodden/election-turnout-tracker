@@ -149,6 +149,10 @@ jobs:
         if: steps.gate.outputs.frozen != '1' && steps.rl.outputs.skip != '1'
         run: python scripts/results_county_update.py || echo "county results update failed (non-fatal)"
 
+      - name: Update FL results by vote method (county results sites; self-throttled, about every 30 min)
+        if: steps.gate.outputs.frozen != '1'
+        run: python scripts/fl_results_by_method.py || echo "fl results by method failed (non-fatal)"
+
       - name: Build status manifest
         if: steps.gate.outputs.frozen != '1'
         run: python scripts/build_status.py || echo "status build failed (non-fatal)"

@@ -37,6 +37,10 @@
   table.score tbody tr:hover, table.score tbody tr.hi { background: rgba(127,127,127,.1); }
   table.score .pill { min-width: 62px; }
   .flagmark { color: var(--muted); font-size: 11px; margin-left: 3px; }
+  .method-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+  .method-row .map-mode button { font-size: 13px; padding: 5px 12px; }
+  #mtbl td:first-child { font-weight: 600; }
+  #mtbl tr.all td { border-top: 2px solid var(--line); }
   .tbl-actions { display: flex; gap: 8px; align-items: center; }
   .tbl-actions button { font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); cursor: pointer; }
   .method h3 { font-size: 14px; margin: 14px 0 4px; }
@@ -66,9 +70,25 @@
     <button role="tab" data-race="sen" aria-selected="true">U.S. Senate (special)</button>
     <button role="tab" data-race="gov" aria-selected="false">Governor</button>
   </div>
+  <div class="method-row">
+    <span class="dim">Ballots:</span>
+    <div class="map-mode" id="method-tabs" role="tablist" aria-label="Vote method">
+      <button role="tab" data-method="all" aria-selected="true">All</button>
+      <button role="tab" data-method="mail" aria-selected="false">Mail</button>
+      <button role="tab" data-method="early" aria-selected="false">Early in person</button>
+      <button role="tab" data-method="eday" aria-selected="false">Election Day</button>
+    </div>
+    <span id="method-note" class="dim"></span>
+  </div>
 
   <section id="summary" class="summary" aria-label="Statewide figures"></section>
   <p id="story" class="story"></p>
+
+  <section class="card" id="by-method" style="margin-bottom:16px">
+    <div class="card-head"><h2 id="bm-title">By vote method</h2><span class="dim" id="bm-sub"></span></div>
+    <div class="score-scroll" style="max-height:none"><table class="score" id="mtbl"><thead></thead><tbody></tbody></table></div>
+    <p class="fineprint" id="bm-note"></p>
+  </section>
 
   <section class="grid">
     <div class="card">
@@ -98,6 +118,7 @@
       <li><b>Crossover voting.</b> Some Democrats vote Republican and some Republicans vote Democratic, and the method assigns all of that to NPAs. Hatched counties are where a candidate got <i>fewer</i> votes than ballots cast by their own party's voters, so the assumption plainly fails there. This happens mostly in rural North Florida, where many longtime registered Democrats vote Republican. There, the implied margins run past 100 points.</li>
       <li><b>Turnout counts vs. ballots counted.</b> Party turnout is the counties' check-in and ballot-return counts by party; results are ballots tabulated. Where they disagree, the gap lands on NPAs. The table's last column (votes/ballots) compares votes in the race with ballots cast; dashed counties are where votes exceed ballots with a party on file by more than 0.5% (party turnout incomplete), or fall below 95% of them.</li>
       <li><b>Lake County</b> reports Election Day party only on its website's hourly chart, and the last one posted is for 6 pm, while polls closed at 7 pm. Its final hour of Election Day ballots has no party, so its implied NPA figure picks up however that hour's voters voted.</li>
+      <li><b>By vote method</b>, the same arithmetic runs on one way of voting at a time: a county's mail (or early, or Election Day) votes for each candidate against that method's ballots by party. Only about two-thirds of the state's ballots can be split this way. Florida's statewide results carry no vote types, so these come from each county's own results site, and Broward, Pinellas, Volusia, Osceola, Martin and more than a dozen VR Systems counties (Brevard, Manatee, Marion, Escambia and others) publish totals only. Mail &ldquo;ballots&rdquo; are mail ballots returned, and a few returned ballots are rejected, so mail votes run slightly under them.</li>
       <li>Results are unofficial election-night returns until counties certify, and provisional ballots aren't in the party turnout.</li>
     </ul>
     <h3>Sources</h3>
@@ -109,6 +130,6 @@
   </footer>
 </main>
 
-<script src="fl-npa.js?v=2026110401"></script>
+<script src="fl-npa.js?v=2026110402"></script>
 </body>
 </html>
