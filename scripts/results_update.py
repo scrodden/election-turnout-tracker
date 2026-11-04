@@ -23,6 +23,7 @@ data/results/sources.json says what each state's feed is doing (for the status p
 Run:  python scripts/results_update.py
 """
 import os
+import re
 import sys
 import json
 from concurrent.futures import ThreadPoolExecutor
@@ -92,7 +93,9 @@ def gather(registry, health, key):
 
 
 def race_total(r):
-    return sum(c.get("votes", 0) for c in (r or {}).get("candidates") or [])
+    # a feed's "Totals" row published as a candidate (Maryland, before 11/4) isn't votes: dropping it isn't a fall
+    return sum(c.get("votes", 0) for c in (r or {}).get("candidates") or []
+               if not re.match(r"(?i)totals?$", str(c.get("name") or "").strip()))
 
 
 def apply_feed(rc, src, old, ballot, held):
