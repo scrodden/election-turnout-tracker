@@ -1328,6 +1328,7 @@
     var show = partisan && rcHasData();
     var lab = $("#cmp-result-label"); if (lab) lab.hidden = !show;
     var nl = $("#npa-link"); if (nl) { nl.hidden = !(show && st && st.npa_page); if (st && st.npa_page) nl.href = st.npa_page; }   // e.g. fl-npa.html
+    var pr = $("#prec-link"); if (pr) { pr.hidden = !(st && st.precinct_results_page); if (st && st.precinct_results_page) pr.href = st.precinct_results_page; }   // e.g. fl-precincts.html
     var row = $("#cmp-2022").closest(".controls-row");
     if (row) row.style.display = (BASELINE_URL || show || pastFinal) ? "" : "none";
     var pl = $("#past-label"); if (pl) pl.hidden = !pastFinal;
