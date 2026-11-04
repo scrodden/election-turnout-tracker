@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Florida Precinct Results</title>
+<meta name="description" content="Florida's 2026 U.S. Senate and Governor results precinct by precinct, from each county's election night reporting site." />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🗳️</text></svg>" />
+<link rel="stylesheet" href="style.css?v=2026102101" />
+<style>
+  .controls-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 14px; }
+  .controls-bar .method-picker { flex: 0 1 auto; }
+  .controls-bar select { font-size: 14px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); }
+  .coverage { font-size: 13.5px; margin: 12px 0; max-width: 900px; }
+  .pm-wrap { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+  .pm-wrap svg { display: block; width: 100%; height: min(78vh, 760px); touch-action: none; user-select: none; cursor: grab; }
+  .pm-wrap svg.dragging { cursor: grabbing; }
+  @media (max-width: 700px) { .pm-wrap svg { height: 70vh; } }
+  .pm-wrap path.p { stroke: var(--card); stroke-width: .35; vector-effect: non-scaling-stroke; }
+  .pm-wrap path.p:hover, .pm-wrap path.p.hi { stroke: var(--ink); stroke-width: 1.4; }
+  .pm-wrap path.cty { fill: none; stroke: var(--ink); stroke-opacity: .55; stroke-width: .9; vector-effect: non-scaling-stroke; pointer-events: none; }
+  .zoom-btns { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .zoom-btns button { width: 30px; height: 30px; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 6px; font-size: 16px; line-height: 1; cursor: pointer; padding: 0; }
+  .cm-tip { position: absolute; z-index: 5; min-width: 190px; max-width: 280px; background: var(--card); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 6px; padding: 7px 9px; font-size: 12px; line-height: 1.45; box-shadow: var(--shadow); pointer-events: none; }
+  .cm-tip .big { font-size: 15px; font-weight: 700; }
+  .cm-tip .dim2 { color: var(--muted); }
+  .npa-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 12px; color: var(--muted); margin: 8px 2px 0; }
+  .npa-legend .grad { width: 180px; height: 10px; border-radius: 5px; }
+  .npa-legend .ends { display: flex; justify-content: space-between; width: 180px; font-size: 11px; }
+  .npa-legend .sw { display: inline-block; width: 16px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; }
+  .method p, .method li { font-size: 13px; }
+  .method ul { margin: 4px 0; padding-left: 20px; }
+</style>
+</head>
+<body>
+<header class="site-head">
+  <div class="wrap head-inner">
+    <div class="titles">
+      <div class="title-row"><h1>Florida Precinct Results</h1></div>
+      <p class="sub">2026 general · U.S. Senate &amp; Governor, precinct by precinct</p>
+    </div>
+    <div class="status">
+      <div id="updated" class="updated"></div>
+      <div class="refresh-note"><a href="index.html#s=fl">← Florida turnout</a> · <a href="fl-npa.html">NPA vote</a> · <a href="results.html">Results</a> · <a href="about.html">About</a> · Auto-refreshes</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="controls-bar">
+    <div class="method-picker" id="race-tabs" role="tablist" aria-label="Race">
+      <button role="tab" data-race="sen" aria-selected="true">U.S. Senate (special)</button>
+      <button role="tab" data-race="gov" aria-selected="false">Governor</button>
+    </div>
+    <select id="county" aria-label="Zoom to a county"><option value="">All of Florida</option></select>
+  </div>
+  <p class="coverage" id="coverage">Loading precinct results&hellip;</p>
+
+  <div class="pm-wrap" id="pm-wrap">
+    <svg id="pmap" role="img" aria-label="Map of Florida precincts colored by result margin"></svg>
+    <div class="zoom-btns"><button id="zin" aria-label="Zoom in">+</button><button id="zout" aria-label="Zoom out">−</button><button id="zreset" aria-label="Reset zoom" style="font-size:12px">⟲</button></div>
+    <div class="cm-tip" id="tip" hidden></div>
+  </div>
+  <div class="npa-legend" id="legend"></div>
+
+  <section class="card method" style="margin-top:16px">
+    <div class="card-head"><h2>Where these come from</h2></div>
+    <ul>
+      <li>Votes by precinct come from each county's election night reporting site (VR Systems, <a href="https://enr.electionsfl.org/LEE/4111/Summary/" target="_blank" rel="noopener">enr.electionsfl.org</a>). They include mail and early votes, which Florida counties count by the voter's home precinct. A county is shown only when its precincts add up to its totals on <a href="https://floridaelectionwatch.gov/" target="_blank" rel="noopener">Florida Election Watch</a>. These are unofficial until certified.</li>
+      <li>Precinct boundaries come from the tracker's precinct map, the same one the turnout page uses. Counties that redrew precincts after that file was made (parts of Orange, Collier, St. Johns, Polk and Brevard) have new precincts with no shape on it. Their votes are counted under &ldquo;not on the map&rdquo; for that county.</li>
+      <li>Each precinct's votes are checked against its ballots cast in the county's turnout feed. Where they're far apart (under 0.7 or over 1.4 times), the county's results precinct doesn't match the map's precinct, usually because precincts were renumbered or merged. Those precincts aren't colored.</li>
+      <li>Some small counties name results by polling place rather than precinct. Those are matched to precincts through the county's turnout feed. Where one polling place reports for several precincts, they share its color.</li>
+      <li>No precinct results online: Broward, Pinellas, Volusia, Osceola and Martin, which aren't on VR Systems, and Palm Beach, Pasco, Manatee, Marion, Bay, Clay, Flagler, Hamilton, Nassau, Okaloosa, Santa Rosa and St. Lucie, whose results sites post county totals but no precinct pages. Florida's Division of Elections posts every county's precinct results after certification.</li>
+    </ul>
+    <p class="fineprint" id="sources"></p>
+  </section>
+
+  <footer class="site-foot"><p>Independent, non-partisan data project. Data: <a href="data/fl/precinct_results.json">data/fl/precinct_results.json</a>.</p></footer>
+</main>
+
+<script src="fl-precincts.js?v=2026110402"></script>
+</body>
+</html>

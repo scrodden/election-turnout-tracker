@@ -284,7 +284,7 @@
   function sourceLinks(r) {   // official results, a live news tally, and credit where the figures came from
     return "<p class='fineprint'>" + (r.via ? "Figures via <a href='https://civicapi.org' target='_blank' rel='noopener'>civicAPI</a>, which compiles them from state and county election offices. " : "") +
       (r.official_url ? officialLink(r, "State's official results") + " &middot; " : "") +
-      (r.id === "sen-FL-special" || r.id === "gov-FL" ? "<a href='fl-npa.html#" + (r.id === "gov-FL" ? "gov" : "sen") + "'>How did NPAs vote?</a> &middot; " : "") +
+      (r.id === "sen-FL-special" || r.id === "gov-FL" ? "<a href='fl-npa.html#" + (r.id === "gov-FL" ? "gov" : "sen") + "'>How did NPAs vote?</a> &middot; <a href='fl-precincts.html#" + (r.id === "gov-FL" ? "gov" : "sen") + "'>Precinct map</a> &middot; " : "") +
       "<a href='" + nbcUrl(r) + "' target='_blank' rel='noopener'>NBC News &#8599;</a>. Leads are not race calls." +
       (r.civic_call ? " The call comes from <a href='https://civicapi.org' target='_blank' rel='noopener'>civicAPI</a>&#39;s own decision desk, not the state, and isn&#39;t counted in the balance of power." : "") + "</p>";
   }
