@@ -263,3 +263,4 @@
 {"generated_at":"2026-11-05T17:38:16Z","cast":103987,"mail":53492,"sent":58122,"statewide":{"cast":[0,0,0,0,103987],"mail_voted":[0,0,0,0,53492],"mail_provided":[0,0,0,0,4630],"early_voted":[0,0,0,0,50495]}}
 {"generated_at":"2026-11-05T20:47:57Z","cast":104009,"mail":53513,"sent":58122,"statewide":{"cast":[0,0,0,0,104009],"mail_voted":[0,0,0,0,53513],"mail_provided":[0,0,0,0,4609],"early_voted":[0,0,0,0,50496]}}
 {"generated_at":"2026-11-05T23:55:34Z","cast":104010,"mail":53514,"sent":58122,"statewide":{"cast":[0,0,0,0,104010],"mail_voted":[0,0,0,0,53514],"mail_provided":[0,0,0,0,4608],"early_voted":[0,0,0,0,50496]}}
+{"generated_at":"2026-11-06T14:39:32Z","cast":104011,"mail":53514,"sent":58122,"statewide":{"cast":[0,0,0,0,104011],"mail_voted":[0,0,0,0,53514],"mail_provided":[0,0,0,0,4608],"early_voted":[0,0,0,0,50497]}}
