@@ -1,0 +1,10 @@
+{
+  "state": "va",
+  "frozen_at": "2026-11-16T00:05:42Z",
+  "certified_after": "2026-11-16",
+  "reason": "certified+stable",
+  "cast": 1648464,
+  "generated_at": "2026-11-03T10:45:10Z",
+  "archive": "final_2026_general.json",
+  "no_data": false
+}
