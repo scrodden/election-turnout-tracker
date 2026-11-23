@@ -1,0 +1,10 @@
+{
+  "state": "fl",
+  "frozen_at": "2026-11-23T03:23:44Z",
+  "certified_after": "2026-11-17",
+  "reason": "certified+stable",
+  "cast": 8082610,
+  "generated_at": "2026-11-18T23:05:54Z",
+  "archive": "final_2026_general.json",
+  "no_data": false
+}
