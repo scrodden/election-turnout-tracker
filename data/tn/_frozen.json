@@ -1,0 +1,10 @@
+{
+  "state": "tn",
+  "frozen_at": "2026-11-25T04:08:26Z",
+  "certified_after": "2026-11-25",
+  "reason": "certified+stable",
+  "cast": 1280642,
+  "generated_at": "2026-11-16T17:40:02Z",
+  "archive": "final_2026_general.json",
+  "no_data": false
+}

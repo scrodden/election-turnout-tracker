@@ -1,0 +1,10 @@
+{
+  "state": "ma",
+  "frozen_at": "2026-11-25T04:08:26Z",
+  "certified_after": "2026-11-25",
+  "reason": "certified+stable",
+  "cast": 1161295,
+  "generated_at": "2026-11-02T21:41:22Z",
+  "archive": "final_2026_general.json",
+  "no_data": false
+}
