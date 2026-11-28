@@ -1,0 +1,10 @@
+{
+  "state": "pa",
+  "frozen_at": "2026-11-28T20:54:32Z",
+  "certified_after": "2026-11-25",
+  "reason": "certified+stable",
+  "cast": 1164896,
+  "generated_at": "2026-11-24T20:54:24Z",
+  "archive": "final_2026_general.json",
+  "no_data": false
+}
