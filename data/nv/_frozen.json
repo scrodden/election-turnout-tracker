@@ -1,0 +1,10 @@
+{
+  "state": "nv",
+  "frozen_at": "2026-11-28T01:10:34Z",
+  "certified_after": "2026-11-24",
+  "reason": "certified+stable",
+  "cast": 1112277,
+  "generated_at": "2026-11-24T01:01:44Z",
+  "archive": "final_2026_general.json",
+  "no_data": false
+}
